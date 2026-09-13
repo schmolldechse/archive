@@ -1,0 +1,169 @@
+<script lang="ts">
+	import type { HTMLAnchorAttributes } from "svelte/elements";
+
+	type NativeAnchorProps = Omit<HTMLAnchorAttributes, "children">;
+	type BrandMarkVariant = "responsive" | "primary" | "symbol" | "wordmark";
+
+	interface BrandMarkProps extends NativeAnchorProps {
+		variant?: BrandMarkVariant;
+		ref?: HTMLAnchorElement | null;
+	}
+
+	let {
+		variant = "responsive",
+		ref = $bindable(null),
+		class: className,
+		href = "/",
+		"aria-label": ariaLabel = "archive — Home",
+		...restProps
+	}: BrandMarkProps = $props();
+</script>
+
+{#snippet SymbolGraphic()}
+	<g class="brand-mark__ink">
+		<path d="M14,58l0,-52l2,0l0,7l40,0l0,2l-40,0l0,10l28,0l0,2l-28,0l0,10l36,0l0,2l-36,0l0,10l21,0l0,2l-21,0l0,7l-2,0Z" />
+	</g>
+	<rect class="brand-mark__accent" x="6" y="36" width="18" height="4" />
+{/snippet}
+
+{#snippet WordmarkGraphic()}
+	<g class="brand-mark__ink">
+		<path
+			d="M19.145,33.896c-1.693,1.439 -3.322,2.454 -4.888,3.047c-1.566,0.592 -3.246,0.889 -5.04,0.889c-2.962,0 -5.239,-0.724 -6.83,-2.171c-1.591,-1.447 -2.387,-3.297 -2.387,-5.548c0,-1.32 0.3,-2.526 0.901,-3.618c0.601,-1.092 1.388,-1.968 2.361,-2.628c0.973,-0.66 2.069,-1.16 3.288,-1.498c0.897,-0.237 2.251,-0.465 4.062,-0.686c3.69,-0.44 6.407,-0.965 8.15,-1.574c0.017,-0.626 0.025,-1.024 0.025,-1.193c0,-1.862 -0.432,-3.174 -1.295,-3.936c-1.168,-1.033 -2.903,-1.549 -5.205,-1.549c-2.15,0 -3.737,0.377 -4.761,1.13c-1.024,0.753 -1.782,2.086 -2.272,3.999l-4.469,-0.609c0.406,-1.913 1.075,-3.457 2.006,-4.634c0.931,-1.176 2.277,-2.082 4.037,-2.717c1.76,-0.635 3.8,-0.952 6.119,-0.952c2.302,0 4.173,0.271 5.611,0.812c1.439,0.542 2.497,1.223 3.174,2.044c0.677,0.821 1.151,1.858 1.422,3.11c0.152,0.779 0.229,2.184 0.229,4.215l0,6.094c0,4.249 0.097,6.936 0.292,8.062c0.195,1.126 0.58,2.205 1.155,3.237l-4.773,0c-0.474,-0.948 -0.779,-2.057 -0.914,-3.326Zm-0.381,-10.207c-1.659,0.677 -4.147,1.253 -7.465,1.727c-1.879,0.271 -3.208,0.576 -3.986,0.914c-0.779,0.339 -1.38,0.834 -1.803,1.485c-0.423,0.652 -0.635,1.375 -0.635,2.171c0,1.219 0.461,2.234 1.384,3.047c0.923,0.812 2.272,1.219 4.05,1.219c1.76,0 3.326,-0.385 4.697,-1.155c1.371,-0.77 2.378,-1.824 3.021,-3.161c0.491,-1.033 0.736,-2.556 0.736,-4.57l0,-1.676Z"
+		/>
+		<path
+			d="M28.65,37.223l0,-26.965l4.113,0l0,4.088c1.049,-1.913 2.019,-3.174 2.907,-3.783c0.889,-0.609 1.866,-0.914 2.933,-0.914c1.54,0 3.106,0.491 4.697,1.473l-1.574,4.24c-1.117,-0.66 -2.234,-0.99 -3.352,-0.99c-0.999,0 -1.896,0.3 -2.691,0.901c-0.796,0.601 -1.363,1.435 -1.701,2.501c-0.508,1.625 -0.762,3.402 -0.762,5.332l0,14.117l-4.57,0Z"
+		/>
+		<path
+			d="M61.845,27.346l4.494,0.584c-0.491,3.098 -1.748,5.522 -3.771,7.274c-2.023,1.752 -4.507,2.628 -7.452,2.628c-3.69,0 -6.657,-1.206 -8.899,-3.618c-2.243,-2.412 -3.364,-5.869 -3.364,-10.372c0,-2.911 0.482,-5.459 1.447,-7.643c0.965,-2.184 2.433,-3.821 4.405,-4.913c1.972,-1.092 4.118,-1.638 6.437,-1.638c2.928,0 5.324,0.741 7.186,2.222c1.862,1.481 3.055,3.584 3.58,6.31l-4.443,0.686c-0.423,-1.811 -1.172,-3.174 -2.247,-4.088c-1.075,-0.914 -2.374,-1.371 -3.897,-1.371c-2.302,0 -4.173,0.825 -5.611,2.476c-1.439,1.65 -2.158,4.261 -2.158,7.833c0,3.622 0.694,6.255 2.082,7.896c1.388,1.642 3.199,2.463 5.434,2.463c1.794,0 3.292,-0.55 4.494,-1.65c1.202,-1.1 1.964,-2.793 2.285,-5.078Z"
+		/>
+		<path
+			d="M68.481,37.223l0,-37.223l4.57,0l0,13.355c2.133,-2.471 4.824,-3.707 8.074,-3.707c1.997,0 3.732,0.394 5.205,1.181c1.473,0.787 2.526,1.875 3.161,3.263c0.635,1.388 0.952,3.402 0.952,6.043l0,17.088l-4.57,0l0,-17.088c0,-2.285 -0.495,-3.948 -1.485,-4.989c-0.99,-1.041 -2.391,-1.562 -4.202,-1.562c-1.354,0 -2.628,0.351 -3.821,1.054c-1.193,0.702 -2.044,1.655 -2.552,2.856c-0.508,1.202 -0.762,2.861 -0.762,4.977l0,14.752l-4.57,0Z"
+		/>
+		<path d="M95.658,5.256l0,-5.256l4.57,0l0,5.256l-4.57,0Zm0,31.967l0,-26.965l4.57,0l0,26.965l-4.57,0Z" />
+		<path
+			d="M112.908,37.223l-10.258,-26.965l4.824,0l5.789,16.148c0.626,1.743 1.202,3.555 1.727,5.434c0.406,-1.422 0.973,-3.132 1.701,-5.129l5.992,-16.453l4.697,0l-10.207,26.965l-4.266,0Z"
+		/>
+		<path
+			d="M148.109,28.539l4.723,0.584c-0.745,2.759 -2.124,4.9 -4.139,6.424c-2.014,1.523 -4.587,2.285 -7.719,2.285c-3.944,0 -7.071,-1.215 -9.382,-3.644c-2.311,-2.429 -3.466,-5.836 -3.466,-10.22c0,-4.536 1.168,-8.057 3.504,-10.562c2.336,-2.505 5.366,-3.758 9.09,-3.758c3.605,0 6.551,1.227 8.836,3.682c2.285,2.454 3.428,5.908 3.428,10.359c0,0.271 -0.008,0.677 -0.025,1.219l-20.109,0c0.169,2.962 1.007,5.23 2.514,6.805c1.507,1.574 3.385,2.361 5.637,2.361c1.676,0 3.106,-0.44 4.291,-1.32c1.185,-0.88 2.124,-2.285 2.818,-4.215Zm-15.006,-7.389l15.057,0c-0.203,-2.268 -0.779,-3.969 -1.727,-5.104c-1.456,-1.76 -3.343,-2.641 -5.662,-2.641c-2.099,0 -3.864,0.702 -5.294,2.107c-1.43,1.405 -2.222,3.284 -2.374,5.637Z"
+		/>
+	</g>
+{/snippet}
+
+<a
+	{...restProps}
+	bind:this={ref}
+	{href}
+	class={["brand-mark", className]}
+	aria-label={ariaLabel}
+	data-component="brand-mark"
+	data-variant={variant}
+>
+	{#if variant === "responsive" || variant === "primary"}
+		<svg
+			class="brand-mark__graphic brand-mark__graphic--primary"
+			class:brand-mark__graphic--responsive={variant === "responsive"}
+			viewBox="0 0 245 64"
+			role="presentation"
+			aria-hidden="true"
+			focusable="false"
+			data-logo-variant="primary"
+		>
+			<g transform="translate(0.681 0)">{@render SymbolGraphic()}</g>
+			<g transform="translate(91.062 13.084)">{@render WordmarkGraphic()}</g>
+		</svg>
+	{/if}
+
+	{#if variant === "responsive" || variant === "symbol"}
+		<svg
+			class="brand-mark__graphic brand-mark__graphic--symbol"
+			class:brand-mark__graphic--responsive={variant === "responsive"}
+			viewBox="0 0 64 64"
+			role="presentation"
+			aria-hidden="true"
+			focusable="false"
+			data-logo-variant="symbol"
+		>
+			{@render SymbolGraphic()}
+		</svg>
+	{/if}
+
+	{#if variant === "wordmark"}
+		<svg
+			class="brand-mark__graphic brand-mark__graphic--wordmark"
+			viewBox="0 0 153 38"
+			role="presentation"
+			aria-hidden="true"
+			focusable="false"
+			data-logo-variant="wordmark"
+		>
+			{@render WordmarkGraphic()}
+		</svg>
+	{/if}
+</a>
+
+<style>
+	.brand-mark {
+		display: inline-flex;
+		width: fit-content;
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+		align-items: center;
+		justify-content: flex-start;
+		color: var(--brand-mark-ink, var(--reading-ink));
+		text-decoration: none;
+		transition: opacity 150ms ease;
+	}
+
+	.brand-mark:hover {
+		opacity: 0.72;
+	}
+
+	.brand-mark__graphic {
+		display: block;
+		flex: none;
+		overflow: visible;
+		pointer-events: none;
+	}
+
+	.brand-mark__graphic--primary {
+		width: auto;
+		height: 2.5rem;
+	}
+
+	.brand-mark__graphic--symbol {
+		width: 2.5rem;
+		height: 2.5rem;
+	}
+
+	.brand-mark__graphic--wordmark {
+		width: auto;
+		height: 1.75rem;
+	}
+
+	.brand-mark__graphic--symbol.brand-mark__graphic--responsive {
+		display: none;
+	}
+
+	.brand-mark__ink {
+		fill: currentColor;
+	}
+
+	.brand-mark__accent {
+		fill: var(--brand-mark-accent, var(--time-marker));
+	}
+
+	@media (max-width: 34rem) {
+		.brand-mark__graphic--primary.brand-mark__graphic--responsive {
+			display: none;
+		}
+
+		.brand-mark__graphic--symbol.brand-mark__graphic--responsive {
+			display: block;
+		}
+
+		.brand-mark__graphic--primary {
+			height: 2.25rem;
+		}
+	}
+</style>

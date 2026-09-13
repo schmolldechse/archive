@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "voldechse-archive-bot-identity",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-08",
+  "routes": [
+    {
+      "pattern": "archive.voldechse.wtf",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "WEB_BOT_AUTH_PUBLIC_KEY_X": "vEGzzrjIozsfHasoAlWLo6AqD86rBrAZI9mBiYY6bNA"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "archive-bot-identity",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260908.1",
+    "typescript": "7.0.2",
+    "wrangler": "4.130.0"
+  }
+}

@@ -1,0 +1,17 @@
+# Dependencies and generated output
+node_modules
+.svelte-kit
+build
+storybook-static
+
+# Development-only UI material
+.storybook
+src/stories
+mockups
+
+# Local configuration and editor state
+.env
+.env.*
+.idea
+.vscode
+*.log

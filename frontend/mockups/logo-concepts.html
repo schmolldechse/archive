@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="de">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>archive.org — Logo concepts</title>
+	<style>
+		@font-face {
+			font-family: "Newsreader";
+			src: url("../node_modules/@fontsource/newsreader/files/newsreader-latin-500-normal.woff2") format("woff2");
+			font-style: normal;
+			font-weight: 500;
+			font-display: swap;
+		}
+
+		@font-face {
+			font-family: "Source Sans 3";
+			src: url("../node_modules/@fontsource/source-sans-3/files/source-sans-3-latin-600-normal.woff2") format("woff2");
+			font-style: normal;
+			font-weight: 600;
+			font-display: swap;
+		}
+
+		@font-face {
+			font-family: "IBM Plex Mono";
+			src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+			font-style: normal;
+			font-weight: 500;
+			font-display: swap;
+		}
+
+		:root {
+			--morning-paper: #f7f4ec;
+			--archive-dust: #e5dfd2;
+			--chronicle-ink: #18201f;
+			--register-blue: #2e52c7;
+			--time-copper: #a43c2e;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			min-width: 320px;
+			min-height: 100%;
+			margin: 0;
+		}
+
+		body {
+			background: var(--morning-paper);
+			color: var(--chronicle-ink);
+		}
+
+		main {
+			width: min(1184px, calc(100% - 64px));
+			margin: 0 auto;
+			padding: 32px 0;
+		}
+
+		.logo-field {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			align-items: center;
+			gap: 64px;
+			min-height: calc((100vh - 64px) / 3);
+			padding: 64px 48px;
+			border-block-start: 1px solid var(--archive-dust);
+		}
+
+		.logo-field:first-child {
+			border-block-start: 0;
+		}
+
+		.lockup {
+			display: inline-flex;
+			align-items: center;
+			width: max-content;
+			max-width: 100%;
+			color: var(--chronicle-ink);
+		}
+
+		.lockup svg {
+			display: block;
+			flex: 0 0 auto;
+			overflow: visible;
+			shape-rendering: geometricPrecision;
+		}
+
+		.lockup--primary {
+			gap: 24px;
+		}
+
+		.lockup--primary svg {
+			width: 64px;
+			height: 64px;
+		}
+
+		.lockup--compact {
+			gap: 12px;
+		}
+
+		.lockup--compact svg {
+			width: 30px;
+			height: 30px;
+		}
+
+		.wordmark {
+			display: inline-flex;
+			align-items: baseline;
+			white-space: nowrap;
+		}
+
+		.register .wordmark {
+			font-family: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+			font-weight: 500;
+			letter-spacing: -0.034em;
+		}
+
+		.register .lockup--primary .wordmark {
+			font-size: 52px;
+			line-height: 0.92;
+		}
+
+		.register .lockup--compact .wordmark {
+			font-size: 24px;
+			line-height: 1;
+		}
+
+		.register .wordmark__dot {
+			color: var(--time-copper);
+		}
+
+		.frame .lockup--primary {
+			gap: 22px;
+		}
+
+		.frame .wordmark {
+			font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif;
+			font-weight: 600;
+			letter-spacing: 0.045em;
+		}
+
+		.frame .lockup--primary .wordmark {
+			font-size: 42px;
+			line-height: 1;
+		}
+
+		.frame .lockup--compact .wordmark {
+			font-size: 20px;
+			line-height: 1;
+		}
+
+		.frame .wordmark__dot {
+			color: var(--register-blue);
+		}
+
+		.sequence .lockup--primary {
+			gap: 21px;
+		}
+
+		.sequence .wordmark {
+			font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+			font-weight: 500;
+			letter-spacing: -0.052em;
+		}
+
+		.sequence .lockup--primary .wordmark {
+			font-size: 38px;
+			line-height: 1;
+		}
+
+		.sequence .lockup--compact .wordmark {
+			font-size: 18px;
+			line-height: 1;
+		}
+
+		.sequence .wordmark__dot {
+			color: var(--register-blue);
+		}
+
+		.ink-stroke {
+			fill: none;
+			stroke: var(--chronicle-ink);
+		}
+
+		.blue-stroke {
+			fill: none;
+			stroke: var(--register-blue);
+		}
+
+		.copper-stroke {
+			fill: none;
+			stroke: var(--time-copper);
+		}
+
+		.ink-fill {
+			fill: var(--chronicle-ink);
+		}
+
+		.blue-fill {
+			fill: var(--register-blue);
+		}
+
+		@media (max-width: 800px) {
+			main {
+				width: min(100% - 32px, 640px);
+				padding: 16px 0;
+			}
+
+			.logo-field {
+				grid-template-columns: 1fr;
+				justify-items: start;
+				gap: 40px;
+				min-height: 0;
+				padding: 64px 24px;
+			}
+
+			.lockup--primary {
+				gap: 18px;
+				transform-origin: left center;
+			}
+
+			.lockup--primary svg {
+				width: 52px;
+				height: 52px;
+			}
+
+			.register .lockup--primary .wordmark {
+				font-size: clamp(38px, 10vw, 48px);
+			}
+
+			.frame .lockup--primary .wordmark {
+				font-size: clamp(31px, 8.5vw, 39px);
+			}
+
+			.sequence .lockup--primary .wordmark {
+				font-size: clamp(27px, 7.8vw, 35px);
+			}
+		}
+
+		@media (max-width: 420px) {
+			main {
+				width: calc(100% - 24px);
+			}
+
+			.logo-field {
+				padding-inline: 12px;
+			}
+
+			.lockup--primary {
+				gap: 14px;
+			}
+
+			.lockup--primary svg {
+				width: 44px;
+				height: 44px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<main aria-label="Logoentwürfe für archive.org">
+		<section class="logo-field register" aria-label="Logo mit Zeitregister-Signet">
+			<div class="lockup lockup--primary">
+				<svg viewBox="0 0 64 64" role="img" aria-label="Zeitregister">
+					<path class="ink-stroke" d="M15 7V57M15 14H55M15 26H43M15 38H51M15 50H36" stroke-width="2" stroke-linecap="square" />
+					<path class="copper-stroke" d="M8 38H22" stroke-width="4" stroke-linecap="square" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+			<div class="lockup lockup--compact" aria-hidden="true">
+				<svg viewBox="0 0 64 64">
+					<path class="ink-stroke" d="M15 7V57M15 14H55M15 26H43M15 38H51M15 50H36" stroke-width="2" stroke-linecap="square" vector-effect="non-scaling-stroke" />
+					<path class="copper-stroke" d="M8 38H22" stroke-width="4" stroke-linecap="square" vector-effect="non-scaling-stroke" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+		</section>
+
+		<section class="logo-field frame" aria-label="Logo mit Provenienzrahmen-Signet">
+			<div class="lockup lockup--primary">
+				<svg viewBox="0 0 64 64" role="img" aria-label="Provenienzrahmen">
+					<path class="ink-stroke" d="M8 34V8H34M28 54V28H54" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" />
+					<path class="blue-stroke" d="M18 44V18H44" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+			<div class="lockup lockup--compact" aria-hidden="true">
+				<svg viewBox="0 0 64 64">
+					<path class="ink-stroke" d="M8 34V8H34M28 54V28H54" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" vector-effect="non-scaling-stroke" />
+					<path class="blue-stroke" d="M18 44V18H44" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" vector-effect="non-scaling-stroke" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+		</section>
+
+		<section class="logo-field sequence" aria-label="Logo mit Versionssequenz-Signet">
+			<div class="lockup lockup--primary">
+				<svg viewBox="0 0 64 64" role="img" aria-label="Versionssequenz">
+					<path class="ink-fill" d="M6 8H24V15H6zM30 8H58V15H30zM12 21H36V28H12zM42 21H58V28H42zM6 34H43V41H6zM49 34H58V41H49zM18 47H31V54H18z" />
+					<path class="blue-fill" d="M37 47H58V54H37z" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+			<div class="lockup lockup--compact" aria-hidden="true">
+				<svg viewBox="0 0 64 64">
+					<path class="ink-fill" d="M6 8H24V15H6zM30 8H58V15H30zM12 21H36V28H12zM42 21H58V28H42zM6 34H43V41H6zM49 34H58V41H49zM18 47H31V54H18z" />
+					<path class="blue-fill" d="M37 47H58V54H37z" />
+				</svg>
+				<span class="wordmark"><span>archive</span><span class="wordmark__dot">.</span><span>org</span></span>
+			</div>
+		</section>
+	</main>
+</body>
+</html>

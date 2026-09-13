@@ -1,0 +1,10 @@
+# Build output and IDE state
+**/bin
+**/obj
+.vs
+**/.idea
+**/*.user
+**/*.suo
+
+# Local configuration must be injected at runtime
+**/appsettings.Development*.json

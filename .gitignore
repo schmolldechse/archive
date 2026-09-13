@@ -1,0 +1,33 @@
+# Dependencies and generated caches
+**/node_modules/
+**/.svelte-kit/
+**/.wrangler/
+
+# Build output
+**/build/
+**/bin/
+**/obj/
+frontend/storybook-static/
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/.secrets/**
+!/.secrets/
+!/.secrets/.gitkeep
+**/.dev.vars
+**/appsettings.Development.json
+
+# Local editor and operating-system files
+.vs/
+**/.idea/
+**/*.user
+**/*.suo
+**/.DS_Store
+**/Thumbs.db
+
+# Internal specifications and implementation plans
+/docs/specification.md
+/docs/specifications/
+/docs/superpowers/

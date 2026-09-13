@@ -1,0 +1,4 @@
+interface:
+  display_name: "Editorial Interface Design"
+  short_description: "Apply editorial interface design guidelines"
+  default_prompt: "Use $designing-editorial-interfaces to design this interface with the established color, typography, and layout system."

@@ -1,0 +1,4 @@
+[mcp_servers.svelte]
+command = "bun"
+args = ["x", "@sveltejs/mcp"]
+cwd = "frontend"

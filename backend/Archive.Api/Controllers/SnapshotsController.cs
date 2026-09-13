@@ -1,0 +1,208 @@
+using Archive.Api.Contracts;
+using Archive.Core;
+using Archive.Core.Jobs;
+using Archive.Core.Storage;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Archive.Api.Controllers;
+
+[ApiController]
+[Route("api/snapshots")]
+[Tags("Snapshots")]
+public sealed class SnapshotsController(
+    DataContext database,
+    IArchiveObjectStore objectStore,
+    IConfiguration configuration) : ControllerBase
+{
+    [HttpGet]
+    [EndpointName("ListSnapshots")]
+    [EndpointSummary("Lists and searches archived snapshots.")]
+    [EndpointDescription("Returns a page of snapshots using explicit text, source, tag, quality, source-type, and capture-time filters.")]
+    [ProducesResponseType<SnapshotListResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<SnapshotListResponse>> ListAsync(
+        [FromQuery] SnapshotSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        if (request.CapturedFrom is not null && request.CapturedUntil is not null && request.CapturedFrom >= request.CapturedUntil)
+        {
+            ModelState.AddModelError(nameof(request.CapturedUntil), "The end of the capture range must be later than its start.");
+            return ValidationProblem(ModelState);
+        }
+
+        string? normalizedSourceUrl = null;
+        if (!string.IsNullOrWhiteSpace(request.SourceUrl) &&
+            !UrlNormalizer.TryNormalizeSource(request.SourceUrl, out normalizedSourceUrl, out var sourceUrlError))
+        {
+            ModelState.AddModelError(nameof(request.SourceUrl), sourceUrlError);
+            return ValidationProblem(ModelState);
+        }
+
+        var textTerms = SplitTerms(request.Text);
+        if (textTerms.Length > 20)
+        {
+            ModelState.AddModelError(nameof(request.Text), "The text search accepts at most 20 terms.");
+            return ValidationProblem(ModelState);
+        }
+
+        var requestedTags = NormalizeTags(request.Tags);
+        if (requestedTags is null)
+            return ValidationProblem(ModelState);
+
+        var query = database.Snapshots.AsNoTracking().AsQueryable();
+
+        foreach (var term in textTerms)
+        {
+            var pattern = ContainsPattern(term);
+            query = query.Where(snapshot =>
+                EF.Functions.ILike(snapshot.Title, pattern, "\\") ||
+                (snapshot.Description != null && EF.Functions.ILike(snapshot.Description, pattern, "\\")) ||
+                EF.Functions.ILike(snapshot.OriginUrl ?? string.Empty, pattern, "\\") ||
+                snapshot.SnapshotTags.Any(snapshotTag => EF.Functions.ILike(snapshotTag.Tag.Value, pattern, "\\")));
+        }
+
+        if (normalizedSourceUrl is not null)
+            query = query.Where(snapshot => snapshot.OriginUrl == normalizedSourceUrl);
+
+        if (!string.IsNullOrWhiteSpace(request.Title))
+        {
+            var pattern = ContainsPattern(request.Title);
+            query = query.Where(snapshot => EF.Functions.ILike(snapshot.Title, pattern, "\\"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Description))
+        {
+            var pattern = ContainsPattern(request.Description);
+            query = query.Where(snapshot =>
+                snapshot.Description != null && EF.Functions.ILike(snapshot.Description, pattern, "\\"));
+        }
+
+        foreach (var tag in requestedTags)
+        {
+            var pattern = ExactPattern(tag);
+            query = query.Where(snapshot =>
+                snapshot.SnapshotTags.Any(snapshotTag => EF.Functions.ILike(snapshotTag.Tag.Value, pattern, "\\")));
+        }
+
+        if (request.SourceType is not null)
+            query = query.Where(snapshot => snapshot.SourceType == request.SourceType);
+
+        if (request.Quality is not null)
+            query = query.Where(snapshot => snapshot.Quality == request.Quality);
+
+        if (request.CapturedFrom is not null)
+        {
+            var capturedFrom = request.CapturedFrom.Value.ToUniversalTime();
+            query = query.Where(snapshot => snapshot.CreatedAt >= capturedFrom);
+        }
+
+        if (request.CapturedUntil is not null)
+        {
+            var capturedUntil = request.CapturedUntil.Value.ToUniversalTime();
+            query = query.Where(snapshot => snapshot.CreatedAt < capturedUntil);
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var offset = (request.Page - 1) * request.PageSize;
+        var page = await query
+            .OrderByDescending(snapshot => snapshot.CreatedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .Skip(offset)
+            .Take(request.PageSize)
+            .Include(snapshot => snapshot.SnapshotTags)
+            .ThenInclude(snapshotTag => snapshotTag.Tag)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
+        var publicBaseUrl = (configuration["PublicBaseUrl"] ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
+        return Ok(new SnapshotListResponse(
+            page.Select(snapshot => snapshot.ToResponse(publicBaseUrl)).ToArray(),
+            total,
+            request.Page,
+            request.PageSize));
+    }
+
+    [HttpGet("{snapshotId:guid}")]
+    [EndpointName("GetSnapshot")]
+    [EndpointSummary("Gets a snapshot.")]
+    [EndpointDescription("Returns metadata and public resource URLs for a stored snapshot.")]
+    [ProducesResponseType<SnapshotResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SnapshotResponse>> GetAsync(Guid snapshotId, CancellationToken cancellationToken)
+    {
+        var snapshot = await database.Snapshots.AsNoTracking().Include(x => x.SnapshotTags).ThenInclude(x => x.Tag).SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);
+        if (snapshot is null)
+            return NotFound();
+
+        var publicBaseUrl = (configuration["PublicBaseUrl"] ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
+        return Ok(snapshot.ToResponse(publicBaseUrl));
+    }
+
+    [HttpGet("{snapshotId:guid}/content/{**path}")]
+    [EndpointName("GetSnapshotContent")]
+    [EndpointSummary("Gets archived snapshot content.")]
+    [EndpointDescription("Returns a stored content resource; without a path, the archived start page is returned.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken)
+    {
+        var snapshot = await database.Snapshots.AsNoTracking().SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);
+        if (snapshot is null)
+            return NotFound();
+
+        var safePath = string.IsNullOrWhiteSpace(path) ? "index.html" : path.Replace('\\', '/').TrimStart('/');
+        if (safePath.Contains("..", StringComparison.Ordinal))
+            return StatusCode(StatusCodes.Status400BadRequest);
+
+        var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/{safePath}", cancellationToken);
+        return stored is null ? NotFound() : File(stored.Content, stored.ContentType, enableRangeProcessing: true);
+    }
+
+    [HttpGet("{snapshotId:guid}/screenshot")]
+    [EndpointName("GetSnapshotScreenshot")]
+    [EndpointSummary("Gets a snapshot screenshot.")]
+    [EndpointDescription("Returns the screenshot image created while archiving the snapshot.")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken)
+    {
+        var snapshot = await database.Snapshots.AsNoTracking().SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);
+        if (snapshot is null)
+            return NotFound();
+
+        var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/screenshot.png", cancellationToken);
+        return stored is null ? NotFound() : File(stored.Content, stored.ContentType);
+    }
+
+    private string[]? NormalizeTags(IEnumerable<string>? values)
+    {
+        var tags = (values ?? [])
+            .Select(value => value.Trim().TrimStart('#').ToLowerInvariant())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (tags.Length > 30)
+            ModelState.AddModelError(nameof(SnapshotSearchRequest.Tags), "At most 30 tags can be required.");
+
+        if (tags.Any(tag => tag.Length > 100))
+            ModelState.AddModelError(nameof(SnapshotSearchRequest.Tags), "Each tag must contain at most 100 characters.");
+
+        return ModelState.IsValid ? tags : null;
+    }
+
+    private static string[] SplitTerms(string? value) => (value ?? string.Empty)
+        .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static string ContainsPattern(string value) => $"%{ExactPattern(value.Trim())}%";
+
+    private static string ExactPattern(string value) => value
+        .Replace("\\", "\\\\", StringComparison.Ordinal)
+        .Replace("%", "\\%", StringComparison.Ordinal)
+        .Replace("_", "\\_", StringComparison.Ordinal);
+}

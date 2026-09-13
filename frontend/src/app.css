@@ -1,0 +1,194 @@
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/600.css";
+@import "@fontsource/source-sans-3/700.css";
+@import "@fontsource/newsreader/400.css";
+@import "@fontsource/newsreader/400-italic.css";
+@import "@fontsource/newsreader/500.css";
+@import "@fontsource/newsreader/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+@import "tailwindcss";
+@import "./styles/scrollbar.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+	color-scheme: light;
+
+	--morning-paper: #f7f4ec;
+	--archive-dust: #e5dfd2;
+	--chronicle-ink: #18201f;
+	--register-blue: #2e52c7;
+	--time-copper: #a43c2e;
+
+	--reading-room: var(--morning-paper);
+	--archive-layer: var(--archive-dust);
+	--reading-ink: var(--chronicle-ink);
+	--register-mark: var(--register-blue);
+	--time-marker: var(--time-copper);
+	--marginal-note: #5f6461;
+	--border-trace: #8c8e8a;
+	--preservation-green: #276a4a;
+	--warning-ochre: #7b5600;
+	--overlay-backdrop: rgb(11 17 19 / 64%);
+	--archive-frame: #d8d8d5;
+
+	--font-editorial: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+	--font-interface: "Source Sans 3", "Segoe UI", Inter, Arial, sans-serif;
+	--font-record: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+	--overlay-shadow: 0 8px 24px rgb(24 32 31 / 12%);
+}
+
+[data-theme="dark"] {
+	color-scheme: dark;
+
+	--night-stacks: #0b1113;
+	--charcoal-fold: #172125;
+	--light-note: #ece9df;
+	--register-blue: #8ea7ff;
+	--time-copper: #ff9a7a;
+
+	--reading-room: var(--night-stacks);
+	--archive-layer: var(--charcoal-fold);
+	--reading-ink: var(--light-note);
+	--register-mark: var(--register-blue);
+	--time-marker: var(--time-copper);
+	--marginal-note: #adada6;
+	--border-trace: #5e615e;
+	--preservation-green: #7dc9a1;
+	--warning-ochre: #ffd174;
+	--overlay-backdrop: rgb(0 0 0 / 72%);
+	--archive-frame: #202629;
+	--overlay-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+}
+
+@theme inline {
+	--color-morning-paper: var(--morning-paper);
+	--color-archive-dust: var(--archive-dust);
+	--color-chronicle-ink: var(--chronicle-ink);
+	--color-register-blue: var(--register-blue);
+	--color-time-copper: var(--time-copper);
+	--color-reading-room: var(--reading-room);
+	--color-archive-layer: var(--archive-layer);
+	--color-reading-ink: var(--reading-ink);
+	--color-register: var(--register-mark);
+	--color-time-marker: var(--time-marker);
+	--color-marginal-note: var(--marginal-note);
+	--color-border-trace: var(--border-trace);
+	--color-preservation: var(--preservation-green);
+	--color-warning: var(--warning-ochre);
+
+	--font-sans: var(--font-interface);
+	--font-serif: var(--font-editorial);
+	--font-mono: var(--font-record);
+
+	--radius-mark: 2px;
+	--radius-control: 6px;
+	--radius-preview: 10px;
+	--shadow-overlay: var(--overlay-shadow);
+}
+
+@layer base {
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	* {
+		border-color: var(--border-trace);
+	}
+
+	html {
+		min-width: 320px;
+		scroll-behavior: smooth;
+		background: var(--reading-room);
+		color: var(--reading-ink);
+		font-family: var(--font-interface);
+		font-synthesis: none;
+		text-rendering: optimizeLegibility;
+	}
+
+	body {
+		margin: 0;
+		min-height: 100vh;
+		background: var(--reading-room);
+		color: var(--reading-ink);
+		font-size: 1.0625rem;
+		line-height: 1.59;
+	}
+
+	h1,
+	h2 {
+		font-family: var(--font-editorial);
+	}
+
+	a {
+		color: var(--register-mark);
+		text-decoration-line: underline;
+		text-decoration-thickness: 0.08em;
+		text-underline-offset: 0.16em;
+	}
+
+	button,
+	input,
+	select,
+	textarea {
+		font: inherit;
+	}
+
+	button {
+		color: inherit;
+	}
+
+	button,
+	a {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	::selection {
+		background: var(--register-mark);
+		color: var(--reading-room);
+	}
+
+	:focus-visible {
+		outline: 3px solid var(--register-mark);
+		outline-offset: 2px;
+	}
+}
+
+@layer components {
+	.archive-field {
+		min-height: 3.5rem;
+		border: 1px solid var(--border-trace);
+		border-radius: var(--radius-control);
+		background: var(--archive-layer);
+		color: var(--reading-ink);
+	}
+
+	.snapshot[aria-selected="true"] {
+		border-inline-start: 3px solid var(--time-marker);
+		background: var(--archive-layer);
+	}
+}
+
+@layer utilities {
+	.record-value {
+		font-family: var(--font-record);
+		font-variant-numeric: tabular-nums;
+		overflow-wrap: anywhere;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+	}
+}

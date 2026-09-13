@@ -1,0 +1,4 @@
+interface:
+  display_name: "Building Reusable UI Components"
+  short_description: "Reusable Svelte 5 component conventions"
+  default_prompt: "Use $building-reusable-ui-components to create or review a reusable Svelte 5 UI component and its Storybook documentation."

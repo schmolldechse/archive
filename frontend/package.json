@@ -1,0 +1,43 @@
+{
+	"name": "archive-frontend",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"generate:api": "openapi-ts",
+		"storybook": "storybook dev -p 6006",
+		"build:storybook": "storybook build"
+	},
+	"devDependencies": {
+		"@hey-api/openapi-ts": "^0.99.0",
+		"@storybook/addon-docs": "^10.6.0",
+		"@storybook/addon-svelte-csf": "^5.1.3",
+		"@storybook/addon-themes": "10.6.0",
+		"@storybook/sveltekit": "^10.6.0",
+		"@sveltejs/kit": "2.70.3",
+		"@sveltejs/mcp": "^0.1.26",
+		"@sveltejs/vite-plugin-svelte": "7.3.0",
+		"@tailwindcss/vite": "4.3.3",
+		"@types/luxon": "^3.7.5",
+		"prettier": "^3.9.6",
+		"prettier-plugin-svelte": "^4.1.1",
+		"prettier-plugin-tailwindcss": "^0.8.1",
+		"storybook": "10.6.0",
+		"svelte": "5.57.0",
+		"svelte-adapter-bun": "^1.0.1",
+		"svelte-check": "^4.7.6",
+		"tailwindcss": "4.3.3",
+		"typescript": "^5.9.3",
+		"vite": "^8.2.2"
+	},
+	"dependencies": {
+		"@fontsource/ibm-plex-mono": "^5.3.0",
+		"@fontsource/newsreader": "^5.3.0",
+		"@fontsource/source-sans-3": "^5.3.0",
+		"@lucide/svelte": "^1.44.0",
+		"luxon": "^3.7.2"
+	}
+}
