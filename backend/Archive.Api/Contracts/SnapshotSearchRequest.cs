@@ -48,6 +48,11 @@ public sealed class SnapshotSearchRequest
     [FromQuery(Name = "capturedUntil")]
     public DateTimeOffset? CapturedUntil { get; init; }
 
+    [Description("Capture-time ordering: desc (newest first, default) or asc (oldest first). Snapshot IDs use the same direction as a stable tie-breaker.")]
+    [FromQuery(Name = "order")]
+    [EnumDataType(typeof(SnapshotOrder))]
+    public SnapshotOrder Order { get; init; } = SnapshotOrder.Desc;
+
     [Description("One-based result page number.")]
     [FromQuery(Name = "page")]
     [Range(1, 1_000_000)]

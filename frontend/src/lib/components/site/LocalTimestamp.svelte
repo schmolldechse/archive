@@ -13,19 +13,23 @@
 
 	let { value, format = "datetime", ref = $bindable(null), class: className, ...restProps }: LocalTimestampProps = $props();
 
-	let formatted = $state<string | null>(null);
+	let mounted = $state(false);
+	const parsed = $derived(DateTime.fromISO(value, { setZone: true }));
+	const local = $derived(mounted ? parsed.toLocal() : parsed);
+	const formatted = $derived(
+		local.isValid
+			? local.toFormat(
+					{
+						date: "yyyy-LL-dd",
+						datetime: "yyyy-LL-dd · HH:mm:ss",
+						time: "HH:mm:ss"
+					}[format]
+				)
+			: "Invalid timestamp"
+	);
 
 	onMount(() => {
-		const parsed = DateTime.fromISO(value, { setZone: true });
-		const local = parsed.isValid ? parsed.toLocal() : null;
-
-		const formatPattern = {
-			date: "yyyy—LL—dd",
-			datetime: "yyyy—LL—dd · HH:mm:ss ZZ",
-			time: "HH:mm:ss ZZ"
-		}[format];
-
-		formatted = local?.toFormat(formatPattern) ?? "Invalid timestamp";
+		mounted = true;
 	});
 </script>
 
@@ -35,18 +39,14 @@
 	datetime={value}
 	class={["local-timestamp", className]}
 	data-component="local-timestamp"
-	data-state={formatted ? "ready" : "loading"}
+	data-state={local.isValid ? "ready" : "invalid"}
 >
-	{formatted ?? "····—··—·· · ··:··:·· ·····"}
+	{formatted}
 </time>
 
 <style>
 	.local-timestamp {
 		font-family: var(--font-record);
 		font-variant-numeric: tabular-nums;
-	}
-
-	.local-timestamp[data-state="loading"] {
-		color: var(--marginal-note);
 	}
 </style>

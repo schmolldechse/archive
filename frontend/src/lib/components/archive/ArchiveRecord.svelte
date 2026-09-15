@@ -4,27 +4,21 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
+	import { formatBytes } from "./format";
 
 	interface ArchiveRecordProps {
 		snapshot: SnapshotResponse;
 		selected?: boolean;
+		previewIsDialog?: boolean;
+		previewExpanded?: boolean;
 		onInspect: (snapshot: SnapshotResponse, trigger: HTMLButtonElement) => void;
 		onCopy: (snapshot: SnapshotResponse) => void;
 	}
 
-	let { snapshot, selected = false, onInspect, onCopy }: ArchiveRecordProps = $props();
+	let { snapshot, selected = false, previewIsDialog = true, previewExpanded, onInspect, onCopy }: ArchiveRecordProps = $props();
 
 	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink ?? "Uploaded HTML document");
 	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
-
-	function formatBytes(bytes: number): string {
-		if (bytes < 1024) return `${bytes} B`;
-
-		const units = ["KB", "MB", "GB", "TB"];
-		const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)) - 1, units.length - 1);
-		const value = bytes / 1024 ** (unitIndex + 1);
-		return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
-	}
 
 	const handleInspect: NonNullable<HTMLButtonAttributes["onclick"]> = (event) => {
 		onInspect(snapshot, event.currentTarget);
@@ -52,14 +46,19 @@
 		{#if snapshot.description}
 			<p class="archive-record__description">{snapshot.description}</p>
 		{/if}
+		{#if snapshot.tags.length}
+			<ul class="archive-record__tags" aria-label="Snapshot tags">
+				{#each snapshot.tags as tag (tag)}<li>#{tag}</li>{/each}
+			</ul>
+		{/if}
 
 		<div class="archive-record__actions">
 			<Button
 				variant="text"
 				class="archive-record__action"
-				aria-haspopup="dialog"
+				aria-haspopup={previewIsDialog ? "dialog" : undefined}
 				aria-controls="snapshot-preview"
-				aria-expanded={selected}
+				aria-expanded={previewIsDialog ? (previewExpanded ?? selected) : undefined}
 				onclick={handleInspect}
 			>
 				Inspect snapshot&nbsp;→
@@ -97,17 +96,13 @@
 		grid-template-columns: 8.5rem minmax(0, 1fr) 10.5rem;
 		gap: 2rem;
 		border-bottom: 1px solid var(--border-trace);
-		padding: 2rem 0;
+		padding: 2rem 1rem;
 		transition: background-color 150ms ease;
 	}
 
 	.archive-record:hover,
 	.archive-record[data-state="selected"] {
 		background: color-mix(in srgb, var(--archive-layer) 55%, transparent);
-	}
-
-	.archive-record[data-state="selected"] {
-		padding-inline: 1rem;
 	}
 
 	.archive-record[data-state="selected"]::before {
@@ -135,7 +130,7 @@
 	:global(.archive-record__zone) {
 		margin-top: 0.375rem;
 		color: var(--marginal-note);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		line-height: 1.45;
 	}
 
@@ -195,6 +190,19 @@
 		flex-wrap: wrap;
 		gap: 0.5rem 1.25rem;
 		margin-top: 0.75rem;
+	}
+	.archive-record__tags {
+		list-style: none;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 0.75rem;
+		padding: 0;
+		margin: 0.75rem 0 0;
+		font-size: 0.75rem;
+		color: var(--marginal-note);
+	}
+	.archive-record__tags li {
+		overflow-wrap: anywhere;
 	}
 
 	.archive-record__actions :global(.archive-record__action) {
@@ -257,7 +265,7 @@
 		.archive-record {
 			grid-template-columns: 1fr;
 			gap: 1.125rem;
-			padding: 1.75rem 0;
+			padding: 1.75rem 1rem;
 		}
 
 		.archive-record__time {

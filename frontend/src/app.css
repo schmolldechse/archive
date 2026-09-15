@@ -102,7 +102,7 @@
 	}
 
 	html {
-		min-width: 320px;
+		min-width: min(320px, 100%);
 		scroll-behavior: smooth;
 		background: var(--reading-room);
 		color: var(--reading-ink);

@@ -18,7 +18,7 @@ public sealed class SnapshotsController(
     [HttpGet]
     [EndpointName("ListSnapshots")]
     [EndpointSummary("Lists and searches archived snapshots.")]
-    [EndpointDescription("Returns a page of snapshots using explicit text, source, tag, quality, source-type, and capture-time filters.")]
+    [EndpointDescription("Returns a stably ordered page of snapshots using explicit text, source, tag, quality, source-type, and capture-time filters, with annual capture counts before capture-time filters and a global register summary.")]
     [ProducesResponseType<SnapshotListResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<SnapshotListResponse>> ListAsync(
@@ -27,6 +27,13 @@ public sealed class SnapshotsController(
     {
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
+
+        if (Request.Query.TryGetValue("order", out var orderValues) &&
+            (orderValues.Count != 1 || orderValues[0] is not ("asc" or "desc")))
+        {
+            ModelState.AddModelError(nameof(request.Order), "Capture order must be asc or desc.");
+            return ValidationProblem(ModelState);
+        }
 
         if (request.CapturedFrom is not null && request.CapturedUntil is not null && request.CapturedFrom >= request.CapturedUntil)
         {
@@ -94,6 +101,24 @@ public sealed class SnapshotsController(
         if (request.Quality is not null)
             query = query.Where(snapshot => snapshot.Quality == request.Quality);
 
+        var years = await query
+            .GroupBy(snapshot => snapshot.CreatedAt.Year)
+            .OrderBy(group => group.Key)
+            .Select(group => new CaptureYearResponse(group.Key, group.Count()))
+            .ToArrayAsync(cancellationToken);
+        var distribution = new CaptureDistributionResponse(
+            years.Sum(year => year.Count),
+            years.Length == 0 ? null : years[0].Year,
+            years.Length == 0 ? null : years[^1].Year,
+            years);
+        var indexTotal = await database.Snapshots.CountAsync(cancellationToken);
+        var recentCaptureTimes = await database.Snapshots.AsNoTracking()
+            .OrderByDescending(snapshot => snapshot.CreatedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .Select(snapshot => snapshot.CreatedAt)
+            .Take(4)
+            .ToArrayAsync(cancellationToken);
+
         if (request.CapturedFrom is not null)
         {
             var capturedFrom = request.CapturedFrom.Value.ToUniversalTime();
@@ -108,9 +133,10 @@ public sealed class SnapshotsController(
 
         var total = await query.CountAsync(cancellationToken);
         var offset = (request.Page - 1) * request.PageSize;
-        var page = await query
-            .OrderByDescending(snapshot => snapshot.CreatedAt)
-            .ThenByDescending(snapshot => snapshot.Id)
+        var orderedQuery = request.Order == SnapshotOrder.Asc
+            ? query.OrderBy(snapshot => snapshot.CreatedAt).ThenBy(snapshot => snapshot.Id)
+            : query.OrderByDescending(snapshot => snapshot.CreatedAt).ThenByDescending(snapshot => snapshot.Id);
+        var page = await orderedQuery
             .Skip(offset)
             .Take(request.PageSize)
             .Include(snapshot => snapshot.SnapshotTags)
@@ -123,7 +149,10 @@ public sealed class SnapshotsController(
             page.Select(snapshot => snapshot.ToResponse(publicBaseUrl)).ToArray(),
             total,
             request.Page,
-            request.PageSize));
+            request.PageSize,
+            indexTotal,
+            recentCaptureTimes,
+            distribution));
     }
 
     [HttpGet("{snapshotId:guid}")]
