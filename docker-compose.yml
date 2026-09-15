@@ -37,10 +37,11 @@ services:
       OBJECT_STORAGE_ACCESS_KEY: "${OBJECT_STORAGE_ACCESS_KEY:?Set OBJECT_STORAGE_ACCESS_KEY in .env}"
       OBJECT_STORAGE_SECRET_KEY: "${OBJECT_STORAGE_SECRET_KEY:?Set OBJECT_STORAGE_SECRET_KEY in .env}"
       OBJECT_STORAGE_BUCKET: "${OBJECT_STORAGE_BUCKET:-snapshots}"
-    command: >-
-      until mc alias set local http://minio:9000 "$$OBJECT_STORAGE_ACCESS_KEY" "$$OBJECT_STORAGE_SECRET_KEY";
-      do sleep 1; done;
-      mc mb --ignore-existing "local/$$OBJECT_STORAGE_BUCKET"
+    command:
+      - >-
+        until mc alias set local http://minio:9000 "$$OBJECT_STORAGE_ACCESS_KEY" "$$OBJECT_STORAGE_SECRET_KEY";
+        do sleep 1; done;
+        mc mb --ignore-existing "local/$$OBJECT_STORAGE_BUCKET"
 
   api:
     build:
