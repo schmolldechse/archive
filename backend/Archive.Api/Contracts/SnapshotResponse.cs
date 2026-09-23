@@ -7,7 +7,6 @@ namespace Archive.Api.Contracts;
 
 public sealed record SnapshotResponse(
     [property: JsonPropertyName("id"), Description("Unique identifier of the snapshot."), Required] Guid Id,
-    [property: JsonPropertyName("sourceType"), Description("Format used to create the snapshot."), Required] SourceType SourceType,
     [property: JsonPropertyName("sourceUrl"), Description("Archived public source URL."), Url, StringLength(2_048)] string? SourceUrl,
     [property: JsonPropertyName("originalLink"), Description("Original public URL for uploaded content."), Url, StringLength(2_048)] string? OriginalLink,
     [property: JsonPropertyName("title"), Description("Snapshot title."), Required, StringLength(500)] string Title,

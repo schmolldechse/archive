@@ -14,7 +14,6 @@
 		error,
 		invalid = false,
 		onInspect,
-		onCopy,
 		onClear,
 		onRetry,
 		onPage,
@@ -31,7 +30,6 @@
 		error: string | null;
 		invalid?: boolean;
 		onInspect: (snapshot: SnapshotResponse, trigger: HTMLButtonElement) => void;
-		onCopy: (snapshot: SnapshotResponse) => void;
 		onClear: () => void;
 		onRetry: () => void;
 		onPage: (page: number) => void;
@@ -52,23 +50,21 @@
 		</p>
 	</div>
 	<CaptureTimeline distribution={results?.captureDistribution ?? null} {committed} {pending} {onPeriod} />
-	<div class="workbench" class:mobile>
+	<div class="workbench">
 		<SnapshotResults
 			{results}
 			{committed}
 			selectedId={snapshot?.id ?? null}
-			{mobile}
 			{previewOpen}
 			{pending}
 			{error}
 			{invalid}
 			{onInspect}
-			{onCopy}
 			{onClear}
 			{onRetry}
 			{onPage}
 		/>
-		<SnapshotPreview {snapshot} {mobile} open={previewOpen} onOpenChange={onPreviewOpenChange} {returnFocus} {onCopy} />
+		<SnapshotPreview {snapshot} {mobile} open={previewOpen} onOpenChange={onPreviewOpenChange} {returnFocus} />
 	</div>
 </section>
 
@@ -108,23 +104,7 @@
 		margin: 0;
 	}
 	.workbench {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.45fr);
-		gap: 2rem;
 		margin-top: 2rem;
-	}
-	.workbench.mobile {
-		grid-template-columns: minmax(0, 1fr);
-	}
-	@media (max-width: 72rem) {
-		.workbench {
-			gap: 1.5rem;
-		}
-	}
-	@media (max-width: 57.499rem) {
-		.workbench {
-			grid-template-columns: minmax(0, 1fr);
-		}
 	}
 	@media (max-width: 42rem) {
 		.section-heading {

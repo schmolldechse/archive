@@ -1,8 +1,8 @@
 :root {
-	--scrollbar-track: var(--archive-layer);
-	--scrollbar-thumb: color-mix(in srgb, var(--border-trace) 80%, var(--reading-ink));
-	--scrollbar-thumb-hover: var(--marginal-note);
-	--scrollbar-thumb-active: var(--register-mark);
+	--scrollbar-track: var(--archive-layer, #e5dfd2);
+	--scrollbar-thumb: color-mix(in srgb, var(--border-trace, #8c8e8a) 80%, var(--reading-ink, #18201f));
+	--scrollbar-thumb-hover: var(--marginal-note, #5f6461);
+	--scrollbar-thumb-active: var(--register-mark, #2e52c7);
 }
 
 * {
@@ -24,7 +24,7 @@
 	min-width: 44px;
 	min-height: 44px;
 	border: 3px solid transparent;
-	border-radius: var(--radius-control);
+	border-radius: var(--radius-control, 6px);
 	background: var(--scrollbar-thumb);
 	background-clip: padding-box;
 }

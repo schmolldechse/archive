@@ -16,6 +16,23 @@ public sealed class SnapshotsController(
     IArchiveObjectStore objectStore,
     IConfiguration configuration) : ControllerBase
 {
+    private static string ArchivedContentPolicy(string origin) =>
+        $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
+        $"font-src {origin} data:; media-src {origin} data:; frame-src {origin}; " +
+        "script-src 'none'; connect-src 'none'; object-src 'none'; " +
+        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self'; sandbox";
+
+    private string ArchivedContentOrigin()
+    {
+        var publicBaseUrl = configuration["PublicBaseUrl"];
+        if (Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var publicUri) &&
+            publicUri.Scheme is "http" or "https")
+            return publicUri.GetLeftPart(UriPartial.Authority);
+
+        return new UriBuilder(Request.Scheme, Request.Host.Host, Request.Host.Port ?? -1)
+            .Uri.GetLeftPart(UriPartial.Authority);
+    }
+
     [HttpGet]
     [EndpointName("ListSnapshots")]
     [EndpointSummary("Lists and searches archived snapshots.")]
@@ -192,19 +209,14 @@ public sealed class SnapshotsController(
         var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/{safePath}", cancellationToken);
         if (stored is null)
             return NotFound();
+        // URL captures are untrusted too, and content paths can be opened outside the preview iframe.
         Response.Headers.XContentTypeOptions = "nosniff";
-        if (snapshot.SourceType != SourceType.Url)
+        Response.Headers.ContentSecurityPolicy = ArchivedContentPolicy(ArchivedContentOrigin());
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        if (snapshot.SourceType != SourceType.Url && safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase))
         {
-            Response.Headers.ContentSecurityPolicy =
-                "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' data:; " +
-                "font-src 'self' data:; media-src 'self' data:; frame-src 'self'; " +
-                "script-src 'none'; connect-src 'none'; object-src 'none'; " +
-                "form-action 'none'; base-uri 'self'; sandbox allow-same-origin";
-            if (safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase))
-            {
-                Response.Headers.ContentDisposition = "attachment";
-                return File(stored.Content, "application/octet-stream", enableRangeProcessing: true);
-            }
+            Response.Headers.ContentDisposition = "attachment";
+            return File(stored.Content, "application/octet-stream", enableRangeProcessing: true);
         }
         return File(stored.Content, stored.ContentType, enableRangeProcessing: true);
     }
@@ -222,7 +234,10 @@ public sealed class SnapshotsController(
             return NotFound();
 
         var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/screenshot.png", cancellationToken);
-        return stored is null ? NotFound() : File(stored.Content, stored.ContentType);
+        if (stored is null)
+            return NotFound();
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return File(stored.Content, "image/png");
     }
 
     private string[]? NormalizeTags(IEnumerable<string>? values)

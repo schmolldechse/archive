@@ -6,7 +6,6 @@ internal static class SnapshotResponseMapping
 {
     public static SnapshotResponse ToResponse(this Snapshot snapshot, string publicBaseUrl) => new(
         snapshot.Id,
-        snapshot.SourceType,
         snapshot.SourceType == SourceType.Url ? snapshot.OriginUrl : null,
         snapshot.SourceType != SourceType.Url ? snapshot.OriginUrl : null,
         snapshot.Title, snapshot.Description, snapshot.Quality,

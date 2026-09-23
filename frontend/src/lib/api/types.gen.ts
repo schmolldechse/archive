@@ -216,10 +216,6 @@ export type SnapshotResponse = {
      */
     id: string;
     /**
-     * Format used to create the snapshot.
-     */
-    sourceType: SourceType;
-    /**
      * Archived public source URL.
      */
     sourceUrl: null | string;

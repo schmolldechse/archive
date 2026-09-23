@@ -129,27 +129,7 @@
 	function inspectSnapshot(snapshot: SnapshotResponse, trigger: HTMLButtonElement): void {
 		selectedSnapshot = snapshot;
 		previewTrigger = trigger;
-		previewOpen = mobile;
-	}
-	async function copySource(snapshot: SnapshotResponse): Promise<void> {
-		const source = snapshot.sourceUrl ?? snapshot.originalLink;
-		if (!source) return;
-		try {
-			await navigator.clipboard.writeText(source);
-			toast.add({
-				id: "copy-source",
-				variant: "success",
-				title: "Source URL copied",
-				description: "The complete source is in your clipboard."
-			});
-		} catch {
-			toast.add({
-				id: "copy-source",
-				variant: "error",
-				title: "Source URL could not be copied",
-				description: "Select and copy the visible URL instead."
-			});
-		}
+		previewOpen = true;
 	}
 </script>
 
@@ -215,7 +195,6 @@
 			error={data.loadError}
 			invalid={Object.keys(data.errors).length > 0}
 			onInspect={inspectSnapshot}
-			onCopy={copySource}
 			onClear={clearAll}
 			onRetry={() => {
 				void retry();

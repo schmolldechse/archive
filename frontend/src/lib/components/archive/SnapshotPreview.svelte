@@ -5,7 +5,6 @@
 	import X from "@lucide/svelte/icons/x";
 
 	import type { SnapshotResponse } from "$api";
-	import { uploadSourceLabel } from "$lib/components/archive/format";
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
@@ -18,8 +17,7 @@
 	}
 
 	let { open = $bindable(false), snapshot, returnFocus }: SnapshotPreviewProps = $props();
-	const source = $derived(snapshot?.sourceUrl ?? snapshot?.originalLink ??
-		(snapshot ? uploadSourceLabel(snapshot.sourceType) : ""));
+	const source = $derived(snapshot?.sourceUrl ?? snapshot?.originalLink);
 </script>
 
 <DialogRoot bind:open>
@@ -28,10 +26,8 @@
 			<div class="snapshot-preview__banner">
 				<div class="snapshot-preview__source">
 					<span class="snapshot-preview__label">Archived source</span>
-					{#if snapshot.sourceUrl || snapshot.originalLink}
+					{#if source}
 						<a href={source} target="_blank" rel="noreferrer">{source}</a>
-					{:else}
-						<span>{source}</span>
 					{/if}
 				</div>
 
@@ -60,7 +56,7 @@
 					<p>Snapshot preview</p>
 					<DialogTitle>{snapshot.title}</DialogTitle>
 				</div>
-				<Button href={snapshot.contentUrl} target="_blank" rel="noreferrer" variant="secondary">
+				<Button href={`/snapshots/${snapshot.id}`} variant="secondary">
 					Open archived page
 					<ExternalLink aria-hidden="true" />
 				</Button>

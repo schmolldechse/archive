@@ -1,6 +1,7 @@
 <script lang="ts">
 	import X from "@lucide/svelte/icons/x";
 	import type { SnapshotResponse } from "$api";
+	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import { DialogClose, DialogContent, DialogRoot, DialogTitle } from "$lib/components/ui/dialog";
 	import SnapshotPreviewContent from "./SnapshotPreviewContent.svelte";
 	let {
@@ -8,15 +9,13 @@
 		mobile,
 		open,
 		onOpenChange,
-		returnFocus,
-		onCopy
+		returnFocus
 	}: {
 		snapshot: SnapshotResponse | null;
 		mobile: boolean;
 		open: boolean;
 		onOpenChange: (open: boolean) => void;
 		returnFocus: () => HTMLElement | null;
-		onCopy: (snapshot: SnapshotResponse) => void;
 	} = $props();
 </script>
 
@@ -30,40 +29,58 @@
 				aria-describedby={undefined}
 			>
 				<div class="dialog-heading">
-					<DialogTitle>Snapshot details</DialogTitle><DialogClose aria-label="Close snapshot details"
+					<DialogTitle>Snapshot preview</DialogTitle><DialogClose aria-label="Close snapshot preview"
 						><X aria-hidden="true" /></DialogClose
 					>
 				</div>
-				<SnapshotPreviewContent {snapshot} {onCopy} />
+				<SnapshotPreviewContent {snapshot} />
 			</DialogContent>{/if}
 	</DialogRoot>
 {:else}
-	<aside id="snapshot-preview" class="preview-panel" aria-label="Snapshot preview">
-		<SnapshotPreviewContent {snapshot} {onCopy} />
-	</aside>
+	<DialogRoot {open} {onOpenChange}>
+		{#if snapshot}<DialogContent
+				id="snapshot-preview"
+				size="viewport"
+				class="snapshot-desktop-dialog"
+				{returnFocus}
+				aria-describedby={undefined}
+			>
+				<div class="dialog-heading">
+					<DialogTitle>Snapshot preview</DialogTitle><LocalTimestamp value={snapshot.createdAt} /><DialogClose aria-label="Close snapshot preview"
+						><X aria-hidden="true" /></DialogClose
+					>
+				</div>
+				<SnapshotPreviewContent {snapshot} layout="desktop" />
+			</DialogContent>{/if}
+	</DialogRoot>
 {/if}
 
 <style>
-	.preview-panel {
-		min-width: 0;
-		align-self: start;
-		position: sticky;
-		top: 1rem;
-		border: 1px solid var(--border-trace);
-		border-radius: 10px;
-		overflow: hidden;
-		background: var(--reading-room);
-	}
 	:global([data-dialog-content].snapshot-bottom-dialog) {
 		position: fixed;
 		inset: auto 0 0;
 		width: 100%;
 		max-width: none;
-		max-height: calc(100dvh - 1rem);
+		max-height: 100dvh;
 		margin: 0;
 		padding: 0 0 env(safe-area-inset-bottom);
 		border-radius: 10px 10px 0 0;
+		box-shadow: var(--overlay-shadow);
 		overflow-y: auto;
+	}
+	:global([data-dialog-content].snapshot-desktop-dialog) {
+		position: fixed;
+		inset: 0;
+		width: min(90vw, 86rem);
+		height: min(88dvh, 56rem);
+		max-height: calc(100dvh - 2rem);
+		flex-direction: column;
+		margin: auto;
+		overflow: hidden;
+		padding: 0;
+	}
+	:global([data-dialog-content].snapshot-desktop-dialog[open]) {
+		display: flex;
 	}
 	.dialog-heading {
 		display: flex;
@@ -80,9 +97,10 @@
 		min-width: 44px;
 		padding-inline: 0.5rem;
 	}
-	@media (max-width: 57.499rem) {
-		.preview-panel {
-			display: none;
-		}
+	.dialog-heading :global(time) {
+		margin-left: auto;
+		color: var(--marginal-note);
+		font-family: var(--font-record);
+		font-size: 0.75rem;
 	}
 </style>

@@ -17,13 +17,11 @@
 		results,
 		committed,
 		selectedId,
-		mobile,
 		previewOpen,
 		pending = false,
 		error,
 		invalid = false,
 		onInspect,
-		onCopy,
 		onClear,
 		onRetry,
 		onPage
@@ -31,13 +29,11 @@
 		results: SnapshotListResponse | null;
 		committed: SearchState;
 		selectedId: string | null;
-		mobile: boolean;
 		previewOpen: boolean;
 		pending?: boolean;
 		error: string | null;
 		invalid?: boolean;
 		onInspect: (snapshot: SnapshotResponse, trigger: HTMLButtonElement) => void;
-		onCopy: (snapshot: SnapshotResponse) => void;
 		onClear: () => void;
 		onRetry: () => void;
 		onPage: (page: number) => void;
@@ -70,10 +66,8 @@
 					<ArchiveRecord
 						{snapshot}
 						selected={selectedId === snapshot.id}
-						previewIsDialog={mobile}
 						previewExpanded={previewOpen && selectedId === snapshot.id}
 						{onInspect}
-						{onCopy}
 					/>
 				</li>
 			{/each}
