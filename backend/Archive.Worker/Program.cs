@@ -2,6 +2,7 @@ using Archive.Core;
 using Archive.Core.Storage;
 using Archive.Worker;
 using Archive.Worker.Capture;
+using Archive.Worker.Import;
 using Archive.Worker.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,10 @@ builder.Services.AddSingleton<CrawlPolicyService>();
 builder.Services.AddArchiveCore(builder.Configuration);
 builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 builder.Services.AddSingleton<BrowserCaptureEngine>();
+builder.Services.AddSingleton<IUploadedDocumentDecoder, HtmlDecoder>();
+builder.Services.AddSingleton<IUploadedDocumentDecoder, MhtmlDecoder>();
+builder.Services.AddSingleton<IUploadedDocumentDecoder, WebArchiveDecoder>();
+builder.Services.AddSingleton<OfflineImportEngine>();
 builder.Services.AddHostedService<ArchiveWorkerService>();
 
 var host = builder.Build();

@@ -91,7 +91,9 @@
 						options={[
 							{ value: "", label: "Any source" },
 							{ value: SourceType.URL, label: "Web URL" },
-							{ value: SourceType.HTML, label: "Uploaded HTML" }
+							{ value: SourceType.HTML, label: "Uploaded HTML" },
+							{ value: SourceType.MHTML, label: "Uploaded MHTML" },
+							{ value: SourceType.WEBARCHIVE, label: "Uploaded Webarchive" }
 						]}
 						onChange={(value) => change({ sourceType: (value ?? "") as SearchDraft["sourceType"] })}
 					/>

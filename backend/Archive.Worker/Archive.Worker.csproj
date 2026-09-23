@@ -10,6 +10,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.5" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
     <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+    <PackageReference Include="MimeKit" Version="4.18.1" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
   </ItemGroup>
 </Project>

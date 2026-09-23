@@ -82,14 +82,17 @@ The Compose example uses `Development` for local OpenAPI access and diagnostics.
 
 | .NET key | Meaning | Default |
 | --- | --- | ---: |
-| `Archive:MaxUploadBytes` | Maximum uploaded HTML size | 250,000,000 |
+| `Archive:MaxUploadBytes` | Maximum uploaded HTML, MHTML, or Webarchive file size | 250,000,000 |
 | `Archive:MaxDurationSeconds` | Capture deadline | 120 |
 | `Archive:MaxStorageBytes` | Maximum stored snapshot bytes | 250,000,000 |
 | `Archive:MaxResources` | Maximum retained resource responses | 500 |
+| `Archive:MaxImportDepth` | Maximum Webarchive property-list and frame nesting depth | 32 |
+| `Archive:MaxImportObjects` | Maximum binary property-list objects | 100,000 |
 | `Archive:MaxScrollRounds` | Maximum lazy-load scroll cycles | 24 |
 | `Archive:QuietPeriodMilliseconds` | Pause between dynamic-content observations | 1,000 |
 
 Limits intentionally fail or discard work rather than creating unbounded resource consumption.
+The upload source also counts toward `Archive:MaxStorageBytes` once preserved in a snapshot. XML Webarchives prohibit DTDs and external entities. Offline replay requests absent from the upload are blocked and recorded as missing resources.
 
 ### Browser
 
@@ -177,7 +180,7 @@ Because the Chiseled image has no shell or HTTP utility, Compose calls the API e
 
 ### Worker image
 
-The SDK exists only in the build stage. The final image starts from the .NET runtime rather than the SDK. During image construction it temporarily installs PowerShell to run the matching Microsoft.Playwright browser installer, installs the full Chromium browser plus its native dependencies, and removes the installer packages and package lists afterward. The separate legacy headless shell is omitted; headless captures use Playwright's `chromium` channel with the same full browser.
+The SDK exists only in the build stage. The final image starts from the .NET runtime rather than the SDK. During image construction it temporarily installs PowerShell to run the matching Microsoft.Playwright browser installer, installs the full Chromium browser plus its native dependencies, and removes the installer packages and package lists afterward. The separate headless shell is omitted. URL captures use Playwright's `chromium` channel with the full browser; file imports currently use Playwright's default headless launch. See [File imports](file-imports.md#current-boundaries) for the resulting container limitation and workaround.
 
 The final worker retains Chromium, Xvfb, Xauth, native browser libraries, the .NET runtime, and published worker output. These are required for headed browser operation without a desktop session.
 

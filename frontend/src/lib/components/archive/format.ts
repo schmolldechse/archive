@@ -1,3 +1,13 @@
+import type { SourceType } from "$api";
+
+export function uploadSourceLabel(sourceType: SourceType): string {
+	switch (sourceType) {
+		case "MHTML": return "Uploaded MHTML document";
+		case "WEBARCHIVE": return "Uploaded Webarchive document";
+		default: return "Uploaded HTML document";
+	}
+}
+
 export function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;
 	const units = ["KB", "MB", "GB", "TB"];

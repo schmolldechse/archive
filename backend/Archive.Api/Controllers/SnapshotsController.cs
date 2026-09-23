@@ -1,5 +1,6 @@
 using Archive.Api.Contracts;
 using Archive.Core;
+using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Storage;
 using Microsoft.AspNetCore.Mvc;
@@ -189,7 +190,23 @@ public sealed class SnapshotsController(
             return StatusCode(StatusCodes.Status400BadRequest);
 
         var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/{safePath}", cancellationToken);
-        return stored is null ? NotFound() : File(stored.Content, stored.ContentType, enableRangeProcessing: true);
+        if (stored is null)
+            return NotFound();
+        Response.Headers.XContentTypeOptions = "nosniff";
+        if (snapshot.SourceType != SourceType.Url)
+        {
+            Response.Headers.ContentSecurityPolicy =
+                "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' data:; " +
+                "font-src 'self' data:; media-src 'self' data:; frame-src 'self'; " +
+                "script-src 'none'; connect-src 'none'; object-src 'none'; " +
+                "form-action 'none'; base-uri 'self'; sandbox allow-same-origin";
+            if (safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase))
+            {
+                Response.Headers.ContentDisposition = "attachment";
+                return File(stored.Content, "application/octet-stream", enableRangeProcessing: true);
+            }
+        }
+        return File(stored.Content, stored.ContentType, enableRangeProcessing: true);
     }
 
     [HttpGet("{snapshotId:guid}/screenshot")]

@@ -1,4 +1,5 @@
 using Archive.Core.Entities;
+using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
@@ -28,6 +29,10 @@ public static class Injection
                 options.MapEnum<ProgressStep>("progress_step", "types");
                 options.MapEnum<SnapshotQuality>("snapshot_quality", "types");
             }));
+        services.AddSingleton<IUploadFormatProbe, HtmlUploadFormatProbe>();
+        services.AddSingleton<IUploadFormatProbe, MhtmlUploadFormatProbe>();
+        services.AddSingleton<IUploadFormatProbe, WebArchiveUploadFormatProbe>();
+        services.AddSingleton<UploadFormatSelector>();
         return services;
     }
 }

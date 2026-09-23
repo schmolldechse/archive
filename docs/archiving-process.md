@@ -2,6 +2,8 @@
 
 This document defines what an archive.org snapshot means, how the current implementation creates one, and which guarantees it does and does not provide.
 
+The format rules and adapter design are described in [File imports](file-imports.md).
+
 ## Preservation model
 
 A live web page is not a single file. It is a time-dependent execution involving HTML, stylesheets, scripts, fonts, media, APIs, browser state, network timing, consent state, and server-side personalization. Capturing it requires choosing an observation point and deciding which parts of that execution become evidence.
@@ -198,23 +200,19 @@ The transaction:
 
 Readers do not see a snapshot row until this transaction commits.
 
-## Uploaded HTML lifecycle
+## Uploaded file lifecycle
 
-Uploaded HTML follows a deliberately different path:
+The API accepts non-empty `.html`, `.mhtml`, and `.webarchive` files through the existing multipart form. It checks the extension and a bounded content prefix, applies `Archive:MaxUploadBytes`, stores `jobs/<job-id>/source.<format>`, and persists `HTML`, `MHTML`, or `WEBARCHIVE` as the job source type. A client-supplied MIME type does not choose the decoder.
 
-1. The API validates a non-empty `.html` file and enforces `Archive:MaxUploadBytes`.
-2. The original upload is placed at `jobs/<job-id>/source.html`.
-3. The worker reads the file and renders it with `SetContentAsync`.
-4. Every network request from the page is aborted.
-5. The original markup, a viewport screenshot, and an empty-resource manifest are stored.
-6. The temporary upload is deleted.
-7. The snapshot is published through the same database transaction as URL captures.
+The worker dispatches the file to its registered decoder. The MHTML decoder selects the `multipart/related` root and decodes MIME parts. The project-owned Webarchive adapter reads Apple's binary or XML property list and extracts the main HTML, subresources, and subframes. Both produce the same intermediate document as the HTML decoder. The normalizer assigns local paths to embedded assets and frames and rewrites HTML/CSS references.
 
-Network isolation prevents uploaded markup from turning the worker into a network client or silently changing the archived representation.
+Chromium renders the normalized document at 1440 × 900 with JavaScript disabled. Its request router fulfills only assets contained in the uploaded package and aborts all other requests. The worker stores `index.html`, assets and frames, `screenshot.png`, the original `source.<format>`, and manifest version 2. That manifest records source size and SHA-256, asset keys, and missing request URLs. The database snapshot is published only after storage succeeds. The temporary upload is then removed.
+
+Imported HTML is served with a restrictive Content Security Policy; original sources are delivered as downloads. A missing rendered resource sets quality to `INCOMPLETE`. The screenshot records the Chromium replay result, which can differ from Safari or Chrome at the original save time. The frontend links from the selected snapshot to the archived HTML and shows its screenshot as a preview.
 
 ## Completeness and quality
 
-`COMPLETE` means that the collector had no unresolved monitored resource failures when capture stopped. `INCOMPLETE` means at least one eligible request failed or ended with an error that was not superseded by a later successful response.
+For URL capture, `COMPLETE` means that the collector had no unresolved monitored resource failures when capture stopped. For file imports, it means the offline renderer requested no resources absent from the package. `INCOMPLETE` records unresolved requests in either path.
 
 This quality flag does not mean:
 
@@ -238,7 +236,7 @@ The default limits are:
 | Captured resources | 500 |
 | Dynamic scroll rounds | 24 |
 | Quiet period | 1,000 milliseconds |
-| Uploaded HTML size | 250,000,000 bytes |
+| Uploaded file size | 250,000,000 bytes |
 
 Exceeding duration, storage, or resource limits produces `DISCARDED`. Explicit cancellation produces `CANCELLED`. Access, policy, browser, or storage errors produce `FAILED`. Work left running by a prior worker process becomes `ABORTED` after restart.
 
@@ -253,7 +251,7 @@ These concepts are distinct:
 - **Authenticity** asks whether the captured representation genuinely corresponds to the claimed source and time.
 - **Provenance** records the process, software, configuration, and transformations that produced the representation.
 
-The current system records useful provenance such as source URL, timestamps, browser behavior, counts, and a manifest. It does not yet store content hashes, software-version attestations, response headers, TLS evidence, a signed manifest, or an external timestamp.
+The current system records useful provenance such as source URL, timestamps, browser behavior, counts, and a manifest. Import manifest version 2 hashes the original uploaded file. There are no per-asset content hashes, software-version attestations, response headers, TLS evidence, signed manifests, or external timestamps.
 
 The SHA-256 asset filename hashes the original URL, not the resource bytes. It must not be interpreted as a fixity check.
 
@@ -261,7 +259,7 @@ The SHA-256 asset filename hashes the original URL, not the resource bytes. It m
 
 The API serves `index.html` and assets from the stored object prefix. Rewritten references keep captured dependencies inside the archive where possible. References that were not captured may remain unresolved or may still refer to their original absolute URL.
 
-Stored HTML is active content. Opening it can execute retained scripts and may attempt new requests. A public deployment should use a dedicated, origin-isolated content host with restrictive response headers, or an equivalent sandboxing design. The screenshot is the safer passive visual representation.
+URL-capture HTML remains active content: opening it can execute retained scripts and may attempt new requests. Imported HTML is served with a restrictive CSP that blocks scripts and connections, while its original source is offered only as a download. A public deployment should use a dedicated, origin-isolated content host for all archived HTML or an equivalent sandboxing design. The screenshot is the safer passive visual representation.
 
 ## Reproducing the current implementation
 

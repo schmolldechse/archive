@@ -36,8 +36,8 @@ public sealed class ArchiveRequestBodyOperationTransformer : IOpenApiOperationTr
         document.Components.Schemas[FileRequestSchemaName] = fileRequestSchema;
 
         operation.OperationId = "CreateArchive";
-        operation.Summary = "Creates an archive from a URL or an HTML file.";
-        operation.Description = "Accepts either a JSON URL request or an HTML file with metadata as multipart form data and queues a new archive.";
+        operation.Summary = "Creates an archive from a URL or a supported file.";
+        operation.Description = "Accepts either a JSON URL request or an HTML, MHTML or Webarchive file with metadata as multipart form data and queues a new archive.";
         operation.RequestBody = new OpenApiRequestBody
         {
             Required = true,

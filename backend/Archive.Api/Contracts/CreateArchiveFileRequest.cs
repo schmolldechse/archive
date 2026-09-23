@@ -11,7 +11,7 @@ public sealed class CreateArchiveFileRequest
 {
     [FromForm(Name = "file")]
     [JsonPropertyName("file")]
-    [Description("Non-empty HTML file to archive.")]
+    [Description("Non-empty .html, .mhtml or .webarchive file to archive.")]
     [BindRequired]
     [Required]
     public required IFormFile File { get; init; }

@@ -5,6 +5,7 @@
 	import X from "@lucide/svelte/icons/x";
 
 	import type { SnapshotResponse } from "$api";
+	import { uploadSourceLabel } from "$lib/components/archive/format";
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
@@ -17,7 +18,8 @@
 	}
 
 	let { open = $bindable(false), snapshot, returnFocus }: SnapshotPreviewProps = $props();
-	const source = $derived(snapshot?.sourceUrl ?? snapshot?.originalLink ?? "Uploaded HTML document");
+	const source = $derived(snapshot?.sourceUrl ?? snapshot?.originalLink ??
+		(snapshot ? uploadSourceLabel(snapshot.sourceType) : ""));
 </script>
 
 <DialogRoot bind:open>

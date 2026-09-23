@@ -14,5 +14,13 @@ public enum SourceType
 
     [PgName("HTML")]
     [JsonStringEnumMemberName("HTML")]
-    HtmlFile
+    HtmlFile,
+
+    [PgName("MHTML")]
+    [JsonStringEnumMemberName("MHTML")]
+    MhtmlFile,
+
+    [PgName("WEBARCHIVE")]
+    [JsonStringEnumMemberName("WEBARCHIVE")]
+    WebArchiveFile
 }

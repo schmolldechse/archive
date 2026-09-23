@@ -5,6 +5,7 @@ using Archive.Core;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Storage;
+using Archive.Core.Uploads;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace Archive.Api.Controllers;
 public sealed class ArchiveController(
     DataContext database,
     IArchiveObjectStore objectStore,
+    UploadFormatSelector uploadFormatSelector,
     IConfiguration configuration) : ControllerBase
 {
     private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
@@ -46,8 +48,8 @@ public sealed class ArchiveController(
     [HttpPost]
     [Consumes("multipart/form-data")]
     [EndpointName("CreateArchiveFromFile")]
-    [EndpointSummary("Creates an archive from an HTML file.")]
-    [EndpointDescription("Accepts an HTML file and its metadata as multipart form data and queues a new archive.")]
+    [EndpointSummary("Creates an archive from an HTML, MHTML or Webarchive file.")]
+    [EndpointDescription("Accepts a .html, .mhtml or .webarchive file and its metadata as multipart form data and queues a new archive.")]
     [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public Task<ActionResult<ArchiveResponse>> CreateFromFileAsync(
@@ -102,8 +104,36 @@ public sealed class ArchiveController(
             return BadRequest(originalLinkError);
         }
 
-        if (sourceType == SourceType.HtmlFile && (upload is null || upload.Length == 0 || !upload.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)))
-            return BadRequest("Provide a non-empty .html file.");
+        IUploadFormatProbe? uploadFormat = null;
+        if (upload is not null)
+        {
+            if (upload.Length == 0)
+                return BadRequest("Provide a non-empty .html, .mhtml or .webarchive file.");
+            var maxUploadBytes = configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L);
+            if (upload.Length > maxUploadBytes)
+                return StatusCode(StatusCodes.Status413PayloadTooLarge, "The uploaded file exceeds the system limit.");
+
+            var prefix = new byte[Math.Min(upload.Length, 8_192)];
+            await using (var probeStream = upload.OpenReadStream())
+            {
+                var read = 0;
+                while (read < prefix.Length)
+                {
+                    var count = await probeStream.ReadAsync(prefix.AsMemory(read), cancellationToken);
+                    if (count == 0)
+                        break;
+                    read += count;
+                }
+                uploadFormat = uploadFormatSelector.Select(upload.FileName, prefix.AsSpan(0, read));
+            }
+            if (uploadFormat is null)
+                return BadRequest("The file format is unsupported or does not match its extension.");
+            sourceType = uploadFormat.SourceType;
+        }
+        else if (sourceType != SourceType.Url)
+        {
+            return BadRequest("Provide a non-empty .html, .mhtml or .webarchive file.");
+        }
 
         var job = new ArchiveJob
         {
@@ -119,7 +149,7 @@ public sealed class ArchiveController(
 
         var projectKey = originUrl is not null
             ? UrlNormalizer.ProjectKey(originUrl)
-            : $"html:{job.Id:N}";
+            : sourceType == SourceType.HtmlFile ? $"html:{job.Id:N}" : $"upload:{job.Id:N}";
 
         var project = await database.Projects.SingleOrDefaultAsync(x => x.ProjectKey == projectKey, cancellationToken);
         if (project is null)
@@ -130,17 +160,29 @@ public sealed class ArchiveController(
 
         if (upload is not null)
         {
-            var maxUploadBytes = configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L);
-            if (upload.Length > maxUploadBytes)
-                return BadRequest("The HTML file exceeds the system limit.");
-
-            job.UploadedObjectKey = $"jobs/{job.Id:N}/source.html";
+            job.UploadedObjectKey = $"jobs/{job.Id:N}/source{uploadFormat!.Extension}";
             await using var stream = upload.OpenReadStream();
-            await objectStore.PutAsync(job.UploadedObjectKey, stream, "text/html; charset=utf-8", cancellationToken);
+            await objectStore.PutAsync(job.UploadedObjectKey, stream, uploadFormat.ContentType, cancellationToken);
         }
 
         database.ArchiveJobs.Add(job);
-        await database.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            if (job.UploadedObjectKey is not null)
+            {
+                try
+                {
+                    if (!await database.ArchiveJobs.AsNoTracking().AnyAsync(x => x.Id == job.Id, CancellationToken.None))
+                        await objectStore.DeleteAsync(job.UploadedObjectKey, CancellationToken.None);
+                }
+                catch { /* An ambiguous database result must preserve the upload for a possible queued job. */ }
+            }
+            throw;
+        }
 
         return Ok(await BuildResponseAsync(job, cancellationToken));
     }

@@ -5,7 +5,7 @@
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
-	import { formatBytes } from "$lib/components/archive/format";
+	import { formatBytes, uploadSourceLabel } from "$lib/components/archive/format";
 	let { snapshot, onCopy }: { snapshot: SnapshotResponse | null; onCopy: (snapshot: SnapshotResponse) => void } = $props();
 	let failedImage = $state<string | null>(null);
 	const source = $derived(snapshot?.sourceUrl ?? snapshot?.originalLink);
@@ -40,7 +40,7 @@
 			{#if source}<a class="preview-source" href={source} target="_blank" rel="noreferrer">{source}</a>{:else}<p
 					class="preview-source"
 				>
-					Uploaded HTML document
+					{uploadSourceLabel(snapshot.sourceType)}
 				</p>{/if}
 			<dl>
 				<div>

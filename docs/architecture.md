@@ -2,9 +2,11 @@
 
 This document describes the current implementation of archive.org. It is intended both for operators and for future contributors who need to reproduce the system without relying on unpublished design notes.
 
+The implemented format adapters and replay rules are described in [File imports](file-imports.md).
+
 ## System context
 
-archive.org accepts an explicit request to preserve either a public HTTP(S) URL or an uploaded HTML document. Submission and capture are separated: the API validates and records work, while a single active worker performs browser automation and publishes the resulting snapshot.
+archive.org accepts an explicit request to preserve either a public HTTP(S) URL or an uploaded `.html`, `.mhtml`, or `.webarchive` file. Submission and capture are separated: the API validates and records work, while a single active worker performs browser automation and publishes the resulting snapshot.
 
 The system deliberately separates metadata from large binary objects:
 
@@ -38,7 +40,7 @@ Location: `backend/Archive.Api/`
 The ASP.NET Core API owns:
 
 - validation and normalization of submissions;
-- storage of temporary uploaded HTML;
+- format selection and temporary storage of uploaded files;
 - creation, cancellation, status lookup, and event streaming for archive jobs;
 - snapshot search and metadata retrieval;
 - streaming archived HTML, assets, screenshots, and range-capable content responses;
@@ -75,6 +77,8 @@ The worker owns all untrusted network access and browser automation. It:
 - captures the DOM, resources, screenshot, and manifest;
 - publishes database metadata only after object storage succeeds;
 - removes unpublished objects after a failed publication attempt when safe.
+
+For file jobs, the worker resolves an `IUploadedDocumentDecoder` by the persisted `SourceType`. The HTML, MimeKit-backed MHTML, and project-owned Webarchive decoders return a common `ImportedPage`. The Webarchive decoder reads binary and XML property lists without `textutil` or `WebArchiveExtractor`. A shared normalizer rewrites contained assets to snapshot paths, and a network-isolated Chromium context produces the preview screenshot with JavaScript disabled. The URL capture path remains separate.
 
 ### Cloudflare bot identity
 
@@ -119,7 +123,7 @@ An archive job and its successful snapshot share the same GUID. This makes statu
 
 ### Projects
 
-URL snapshots are grouped by a project key derived from normalized host, port, and path. Query strings remain part of the stored source URL but are not part of the project key. Uploaded HTML receives a job-specific `html:<guid>` project key.
+URL snapshots are grouped by a project key derived from normalized host, port, and path. Query strings remain part of the stored source URL but are not part of the project key. An upload with `originalLink` uses that normalized URL for grouping; an upload without it receives a job-specific `html:<guid>` or `upload:<guid>` key.
 
 This grouping represents repeated observations of a logical page location. It does not imply that every query variant is semantically identical.
 
@@ -166,15 +170,17 @@ PostgreSQL and S3 do not participate in a distributed transaction. The cleanup p
 ## Object layout
 
 ```text
-jobs/<job-id>/source.html
+jobs/<job-id>/source.<html|mhtml|webarchive>
 
 snapshots/<snapshot-id>/index.html
 snapshots/<snapshot-id>/screenshot.png
 snapshots/<snapshot-id>/manifest.json
 snapshots/<snapshot-id>/assets/<sha256-of-original-resource-url>
+snapshots/<snapshot-id>/frames/<frame-id>.html
+snapshots/<snapshot-id>/source.<html|mhtml|webarchive>  (file imports)
 ```
 
-Asset names are the SHA-256 digest of the original resource URL. This creates deterministic keys and deduplicates repeated responses inside one capture. It is not a digest of the object bytes and therefore is not a fixity checksum.
+Asset names are a SHA-256 digest of the resource URL and, for imports, its frame scope. They are stable identifiers, not fixity checksums. Import manifest version 2 records the original file's SHA-256 and size, the retained assets, and up to 100 unavailable request URLs with their total count. URL captures retain manifest version 1.
 
 The manifest is descriptive metadata, not a signed preservation manifest. See [How archiving works](archiving-process.md) for the exact meaning of completeness and integrity.
 
@@ -183,7 +189,7 @@ The manifest is descriptive metadata, not a signed preservation manifest. See [H
 | Method and path | Purpose |
 | --- | --- |
 | `POST /api/archive` with JSON | Queue a public URL |
-| `POST /api/archive` with multipart form data | Queue an uploaded HTML document |
+| `POST /api/archive` with multipart form data | Queue an uploaded HTML, MHTML, or Webarchive document |
 | `GET /api/archive/{id}` | Read job status and result metadata |
 | `GET /api/archive/{id}/events` | Stream changed job state as server-sent events |
 | `POST /api/archive/{id}/cancel` | Cancel queued or running work |
@@ -200,12 +206,12 @@ OpenAPI and Scalar are mapped only in the Development environment.
 The main trust boundaries are:
 
 1. User input entering the API.
-2. Uploaded HTML entering object storage and the capture browser.
+2. Uploaded HTML, MHTML, and Webarchive data entering object storage and the capture browser.
 3. Public target responses entering the worker.
 4. Archived active content later being served to readers.
 5. Credentials entering containers at runtime.
 
-Current safeguards include input limits, source URL normalization, HTML-upload network isolation, public-IP checks, explicit redirect handling, WebSocket blocking, crawl directives, capture limits, and challenge rejection.
+Current safeguards include input and parser limits, source URL normalization, upload network isolation, disabled upload scripts, a restrictive replay CSP, downloadable original sources, public-IP checks, explicit redirect handling, WebSocket blocking, crawl directives, capture limits, and challenge rejection.
 
 Application-level DNS checks are not a complete SSRF defense. Production infrastructure must also prevent private and link-local egress. Likewise, archived HTML is active, untrusted content; it should be served from an isolated origin or behind an equivalent restrictive browser policy before public deployment.
 
@@ -226,6 +232,7 @@ Application-level DNS checks are not a complete SSRF defense. Production infrast
 | SSRF guard | `Archive.Worker/Capture/PublicNetworkGuard.cs` |
 | Web Bot Auth signing | `Archive.Worker/Capture/WebBotAuthSigner.cs` |
 | Cloudflare challenge detection | `Archive.Worker/Capture/CloudflareChallengeDetector.cs` |
+| Upload decoding and offline replay | `Archive.Worker/Import/` |
 | S3 implementations | `Archive.Api/Storage/` and `Archive.Worker/Storage/` |
 | Public archive interface | `frontend/src/routes/(site)/` |
 
@@ -235,7 +242,7 @@ Paths in this table are relative to `backend/` unless they begin with `frontend/
 
 - One active capture worker at a time.
 - No WARC serialization.
-- No content-derived checksums, Merkle tree, timestamp authority, or signed manifest.
+- Import manifests hash the original uploaded file, but there are no per-asset fixity checksums, Merkle tree, timestamp authority, or signed manifest.
 - No automatic recapture schedule or retention policy.
 - No authenticated submission or administrative API.
 - No distributed object/database transaction.

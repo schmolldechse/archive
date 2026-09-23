@@ -3,6 +3,7 @@ using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
+using Archive.Worker.Import;
 using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Worker;
@@ -10,6 +11,7 @@ namespace Archive.Worker;
 public sealed class ArchiveWorkerService(
     IServiceScopeFactory scopeFactory,
     BrowserCaptureEngine captureEngine,
+    OfflineImportEngine offlineImportEngine,
     IArchiveObjectStore objectStore,
     ILogger<ArchiveWorkerService> logger) : BackgroundService
 {
@@ -123,7 +125,7 @@ public sealed class ArchiveWorkerService(
 
             var projectKey = job.OriginUrl is not null
                 ? UrlNormalizer.ProjectKey(job.OriginUrl)
-                : $"html:{job.Id:N}";
+                : job.SourceType == SourceType.HtmlFile ? $"html:{job.Id:N}" : $"upload:{job.Id:N}";
             var project = await database.Projects.SingleOrDefaultAsync(x => x.ProjectKey == projectKey, stoppingToken);
             if (project is null)
             {
@@ -170,6 +172,11 @@ public sealed class ArchiveWorkerService(
             await publication.CommitAsync(stoppingToken);
             published = true;
             logger.LogInformation("Snapshot {SnapshotId} veröffentlicht", snapshot.Id);
+            if (claimedJob.UploadedObjectKey is not null)
+            {
+                try { await objectStore.DeleteAsync(claimedJob.UploadedObjectKey, CancellationToken.None); }
+                catch (Exception exception) { logger.LogWarning(exception, "Upload {ObjectKey} konnte nicht bereinigt werden", claimedJob.UploadedObjectKey); }
+            }
         }
         catch (CaptureCancelledException)
         {
@@ -193,6 +200,32 @@ public sealed class ArchiveWorkerService(
             if (!published && storedCapture is not null &&
                 await IsSafeToDeleteUnpublishedCaptureAsync(claimedJob.Id))
                 await DeleteStoredCaptureAsync(storedCapture);
+            if (!published && claimedJob.UploadedObjectKey is not null &&
+                await IsTerminalJobAsync(claimedJob.Id))
+            {
+                try { await objectStore.DeleteAsync(claimedJob.UploadedObjectKey, CancellationToken.None); }
+                catch (Exception exception) { logger.LogWarning(exception, "Upload {ObjectKey} konnte nicht bereinigt werden", claimedJob.UploadedObjectKey); }
+            }
+        }
+    }
+
+    private async Task<bool> IsTerminalJobAsync(Guid jobId)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var database = scope.ServiceProvider.GetRequiredService<DataContext>();
+            var status = await database.ArchiveJobs.AsNoTracking()
+                .Where(x => x.Id == jobId)
+                .Select(x => (JobStatus?)x.Status)
+                .SingleOrDefaultAsync(CancellationToken.None);
+            return status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled or
+                JobStatus.Discarded or JobStatus.Aborted;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Status von Job {JobId} konnte vor Upload-Bereinigung nicht geprüft werden", jobId);
+            return false;
         }
     }
 
@@ -200,7 +233,9 @@ public sealed class ArchiveWorkerService(
         IProgress<ProgressUpdate> progress, CancellationToken stoppingToken)
     {
         using var captureCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var captureTask = captureEngine.CaptureAsync(job, progress, captureCancellation.Token);
+        var captureTask = job.SourceType == SourceType.Url
+            ? captureEngine.CaptureAsync(job, progress, captureCancellation.Token)
+            : offlineImportEngine.CaptureAsync(job, progress, captureCancellation.Token);
         try
         {
             while (!captureTask.IsCompleted)

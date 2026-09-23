@@ -1,6 +1,6 @@
 # archive.org
 
-archive.org is an experimental public web archive for user-requested, timestamped snapshots of publicly reachable web pages and uploaded HTML documents.
+archive.org is an experimental public web archive for user-requested, timestamped snapshots of publicly reachable web pages and uploaded HTML, MHTML, or Webarchive documents.
 
 > [!IMPORTANT]
 > This repository is under active development. A snapshot is a best-effort representation of what the capture browser observed at a particular time. It is not yet a WARC record, a cryptographic proof of publication, or a guarantee that every part of a page was preserved.
@@ -16,9 +16,10 @@ For a URL capture, the worker stores:
 - a JSON manifest containing the source URLs, media types, object keys, byte count, resource count, and completeness flag;
 - searchable metadata in PostgreSQL, including title, description, tags, source URL, timestamps, quality, duration, and storage size.
 
-Uploaded HTML is rendered without network access. Its HTML, screenshot, and manifest are stored, while the temporary upload is deleted after a successful capture.
+Uploaded HTML, MHTML, and Webarchive files are imported without network access. Embedded resources, normalized HTML, a screenshot, a manifest, and the original file are stored; the temporary upload is deleted after successful publication.
 
 The complete capture semantics, failure handling, and preservation limits are described in [How archiving works](docs/archiving-process.md).
+Format-specific behavior and replay limits for uploads are described in [File imports](docs/file-imports.md).
 
 ## Architecture
 
@@ -28,7 +29,7 @@ The complete capture semantics, failure handling, and preservation limits are de
 | ASP.NET Core API | Validate submissions, enqueue jobs, stream progress, search metadata, and serve stored content |
 | .NET worker | Enforce crawl policy, operate Chromium through Playwright, collect resources, and publish snapshots |
 | PostgreSQL | Durable job queue, snapshot metadata, projects, tags, lifecycle state, and the exclusive worker lease |
-| S3-compatible storage | Uploaded HTML, archived HTML, resources, screenshots, and manifests |
+| S3-compatible storage | Uploaded sources, archived HTML, resources, screenshots, and manifests |
 | Cloudflare identity worker | Optional public bot identity and Web Bot Auth key directory |
 
 See [Architecture](docs/architecture.md) for component boundaries, persistence rules, concurrency behavior, and the code map.
@@ -92,7 +93,7 @@ Or subscribe to server-sent events until the job reaches a terminal state:
 GET /api/archive/ARCHIVE_ID/events
 ```
 
-Submit an HTML file:
+Submit an HTML, MHTML, or Webarchive file (use the matching extension):
 
 ```sh
 curl -X POST http://localhost:5200/api/archive \

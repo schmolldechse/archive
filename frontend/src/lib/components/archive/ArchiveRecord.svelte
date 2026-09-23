@@ -4,7 +4,7 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
-	import { formatBytes } from "./format";
+	import { formatBytes, uploadSourceLabel } from "./format";
 
 	interface ArchiveRecordProps {
 		snapshot: SnapshotResponse;
@@ -17,7 +17,7 @@
 
 	let { snapshot, selected = false, previewIsDialog = true, previewExpanded, onInspect, onCopy }: ArchiveRecordProps = $props();
 
-	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink ?? "Uploaded HTML document");
+	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink ?? uploadSourceLabel(snapshot.sourceType));
 	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
 
 	const handleInspect: NonNullable<HTMLButtonAttributes["onclick"]> = (event) => {

@@ -216,6 +216,10 @@ export type SnapshotResponse = {
      */
     id: string;
     /**
+     * Format used to create the snapshot.
+     */
+    sourceType: SourceType;
+    /**
      * Archived public source URL.
      */
     sourceUrl: null | string;
@@ -270,7 +274,9 @@ export type SnapshotResponse = {
  */
 export enum SourceType {
     URL = 'URL',
-    HTML = 'HTML'
+    HTML = 'HTML',
+    MHTML = 'MHTML',
+    WEBARCHIVE = 'WEBARCHIVE'
 }
 
 export type ValidationProblemDetails = {

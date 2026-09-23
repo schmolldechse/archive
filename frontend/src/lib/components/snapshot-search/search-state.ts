@@ -228,7 +228,9 @@ export function filterChips(state: SearchState): FilterChip[] {
 	if (state.query) chips.push({ field: "query", label: `Source: ${state.query}` });
 	if (state.title) chips.push({ field: "title", label: `Title: ${state.title}` });
 	if (state.tags.length) chips.push({ field: "tags", label: `Tags: ${state.tags.join(" + ")}` });
-	if (state.sourceType) chips.push({ field: "sourceType", label: state.sourceType === "URL" ? "Web URL" : "Uploaded HTML" });
+	if (state.sourceType) chips.push({ field: "sourceType", label: {
+		URL: "Web URL", HTML: "Uploaded HTML", MHTML: "Uploaded MHTML", WEBARCHIVE: "Uploaded Webarchive"
+	}[state.sourceType] });
 	if (state.quality) chips.push({ field: "quality", label: state.quality === "COMPLETE" ? "Complete" : "Incomplete" });
 	if (draft.from) chips.push({ field: "from", label: `From ${draft.from}` });
 	if (draft.through) chips.push({ field: "through", label: `Through ${draft.through}` });
