@@ -1,21 +1,32 @@
 import type { Attachment } from "svelte/attachments";
 
-import type { DialogOpenReason } from "./types";
+import type { DialogAlign, DialogOpenReason, DialogPosition, DialogSide } from "./types";
 
 interface DialogAttachmentOptions {
+	getAlign(): DialogAlign;
+	getCollisionPadding(): number;
 	getCloseOnEscape(): boolean;
 	getCloseOnOutsidePointer(modal: boolean): boolean;
 	getInitialFocus(): (() => HTMLElement | null) | undefined;
 	getModal(): boolean;
 	getOpen(): boolean;
+	getPosition(): DialogPosition;
 	getPreventScroll(modal: boolean): boolean;
 	getRestoreFocus(): boolean;
 	getReturnFocus(): (() => HTMLElement | null) | undefined;
+	getSide(): DialogSide;
+	getSideOffset(): number;
 	getTitleId(): string | undefined;
 	getTrigger(): HTMLButtonElement | null;
 	requestOpenChange(open: boolean, reason: DialogOpenReason): void;
 	setEffectiveModal(modal: boolean): void;
+	setResolvedSide(side: DialogSide): void;
 	synchronizeProgrammaticChange(): void;
+}
+
+interface Coordinates {
+	left: number;
+	top: number;
 }
 
 let scrollLockCount = 0;
@@ -162,6 +173,80 @@ function isPointerInsideDialog(dialog: HTMLDialogElement, event: PointerEvent): 
 	);
 }
 
+function clamp(value: number, minimum: number, maximum: number): number {
+	return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
+}
+
+function anchoredCoordinates(
+	anchor: DOMRect,
+	content: DOMRect,
+	side: DialogSide,
+	align: DialogAlign,
+	sideOffset: number,
+	direction: string
+): Coordinates {
+	let left: number;
+
+	if (align === "center") left = anchor.left + (anchor.width - content.width) / 2;
+	else if ((align === "start") === (direction !== "rtl")) left = anchor.left;
+	else left = anchor.right - content.width;
+
+	const top = side === "bottom" ? anchor.bottom + sideOffset : anchor.top - content.height - sideOffset;
+	return { left, top };
+}
+
+function verticalOverflow(coordinates: Coordinates, content: DOMRect, side: DialogSide, padding: number): number {
+	if (side === "top") return Math.max(0, padding - coordinates.top);
+	return Math.max(0, coordinates.top + content.height + padding - window.innerHeight);
+}
+
+function positionAtTrigger(dialog: HTMLDialogElement, options: DialogAttachmentOptions): void {
+	const trigger = options.getTrigger();
+	if (!trigger?.isConnected || !dialog.open) return;
+
+	dialog.style.removeProperty("max-height");
+	dialog.style.removeProperty("overflow-y");
+	const padding = Math.max(0, options.getCollisionPadding());
+	const triggerBounds = trigger.getBoundingClientRect();
+	let dialogBounds = dialog.getBoundingClientRect();
+	const preferredSide = options.getSide();
+	const alternateSide: DialogSide = preferredSide === "bottom" ? "top" : "bottom";
+	const align = options.getAlign();
+	const sideOffset = options.getSideOffset();
+	const direction = getComputedStyle(trigger).direction;
+
+	let resolvedSide = preferredSide;
+	let coordinates = anchoredCoordinates(triggerBounds, dialogBounds, preferredSide, align, sideOffset, direction);
+	const preferredOverflow = verticalOverflow(coordinates, dialogBounds, preferredSide, padding);
+
+	if (preferredOverflow > 0) {
+		const alternateCoordinates = anchoredCoordinates(triggerBounds, dialogBounds, alternateSide, align, sideOffset, direction);
+		const alternateOverflow = verticalOverflow(alternateCoordinates, dialogBounds, alternateSide, padding);
+
+		if (alternateOverflow < preferredOverflow) {
+			resolvedSide = alternateSide;
+			coordinates = alternateCoordinates;
+		}
+	}
+
+	const availableHeight = Math.max(
+		0,
+		resolvedSide === "bottom"
+			? window.innerHeight - triggerBounds.bottom - sideOffset - padding
+			: triggerBounds.top - sideOffset - padding
+	);
+	if (dialogBounds.height > availableHeight) {
+		dialog.style.maxHeight = `${Math.floor(availableHeight)}px`;
+		dialog.style.overflowY = "auto";
+		dialogBounds = dialog.getBoundingClientRect();
+		coordinates = anchoredCoordinates(triggerBounds, dialogBounds, resolvedSide, align, sideOffset, direction);
+	}
+
+	dialog.style.left = `${Math.round(clamp(coordinates.left, padding, window.innerWidth - dialogBounds.width - padding))}px`;
+	dialog.style.top = `${Math.round(coordinates.top)}px`;
+	options.setResolvedSide(resolvedSide);
+}
+
 function restoreFocusTarget(options: DialogAttachmentOptions, focusBeforeOpen: HTMLElement | null): void {
 	const explicitTarget = options.getReturnFocus()?.() ?? null;
 	const target = [explicitTarget, options.getTrigger(), focusBeforeOpen].find(isAvailableFocusTarget);
@@ -187,6 +272,7 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 		let scrollLocked = false;
 		let modeWarningShown = false;
 		let focusRequest = 0;
+		let restoreFocusAfterClose = true;
 
 		const releaseScrollLock = () => {
 			if (!scrollLocked) return;
@@ -198,11 +284,17 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 			if (event.defaultPrevented || !isTopmostDialog(dialog)) return;
 
 			event.preventDefault();
-			if (options.getCloseOnEscape()) options.requestOpenChange(false, "escape");
+			if (options.getCloseOnEscape()) {
+				restoreFocusAfterClose = true;
+				options.requestOpenChange(false, "escape");
+			}
 		};
 
 		const handleClose = () => {
-			if (options.getOpen()) options.requestOpenChange(false, "native");
+			if (options.getOpen()) {
+				restoreFocusAfterClose = true;
+				options.requestOpenChange(false, "native");
+			}
 		};
 
 		const handlePointerDown = (event: PointerEvent) => {
@@ -211,6 +303,7 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 			const modal = openedAsModal ?? options.getModal();
 			if (!options.getCloseOnOutsidePointer(modal) || isPointerInsideDialog(dialog, event)) return;
 
+			restoreFocusAfterClose = modal;
 			options.requestOpenChange(false, "outside");
 		};
 
@@ -219,7 +312,10 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 
 			if (event.key === "Escape") {
 				event.preventDefault();
-				if (options.getCloseOnEscape()) options.requestOpenChange(false, "escape");
+				if (options.getCloseOnEscape()) {
+					restoreFocusAfterClose = true;
+					options.requestOpenChange(false, "escape");
+				}
 				return;
 			}
 
@@ -261,6 +357,7 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 					openedAsModal = requestedModal;
 					registerOpenDialog(dialog);
 					modeWarningShown = false;
+					restoreFocusAfterClose = true;
 					focusBeforeOpen = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 				} else if (openedAsModal !== requestedModal && !modeWarningShown) {
 					modeWarningShown = true;
@@ -291,14 +388,31 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 					releaseScrollLock();
 				}
 
-				return;
+				if (openedAsModal || options.getPosition() !== "trigger") return;
+
+				const updatePosition = () => positionAtTrigger(dialog, options);
+				updatePosition();
+				const frame = requestAnimationFrame(updatePosition);
+				const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePosition);
+				resizeObserver?.observe(dialog);
+				const trigger = options.getTrigger();
+				if (trigger) resizeObserver?.observe(trigger);
+				window.addEventListener("resize", updatePosition);
+				window.addEventListener("scroll", updatePosition, true);
+
+				return () => {
+					cancelAnimationFrame(frame);
+					resizeObserver?.disconnect();
+					window.removeEventListener("resize", updatePosition);
+					window.removeEventListener("scroll", updatePosition, true);
+				};
 			}
 
 			focusRequest += 1;
 			if (dialog.open) dialog.close();
 			releaseScrollLock();
 
-			if (openedAsModal !== null && options.getRestoreFocus()) {
+			if (openedAsModal !== null && options.getRestoreFocus() && restoreFocusAfterClose) {
 				restoreFocusTarget(options, focusBeforeOpen);
 			}
 
@@ -306,6 +420,7 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 			openedAsModal = null;
 			focusBeforeOpen = null;
 			modeWarningShown = false;
+			restoreFocusAfterClose = true;
 			options.setEffectiveModal(requestedModal);
 		});
 

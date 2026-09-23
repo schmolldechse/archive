@@ -96,11 +96,11 @@
 
 <Story name="Non-modal" asChild>
 	<div class="story-stack">
-		<p class="story-note">The outside action remains operable and Tab may move beyond the open dialog.</p>
+		<p class="story-note">The dialog follows its trigger while the outside action remains operable.</p>
 		<div class="story-row">
 			<DialogRoot modal={false}>
 				<DialogTrigger>Open non-modal dialog</DialogTrigger>
-				<DialogContent>
+				<DialogContent position="trigger" closeOnOutsidePointer>
 					<DialogTitle>Non-modal dialog</DialogTitle>
 					<DialogDescription>The surrounding document remains available.</DialogDescription>
 					<div class="story-body"><a href="#dialog-non-modal-destination">Focusable outside destination</a></div>

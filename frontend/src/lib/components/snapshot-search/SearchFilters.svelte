@@ -1,153 +1,278 @@
 <script lang="ts">
 	import Sliders from "@lucide/svelte/icons/sliders-horizontal";
 	import { SnapshotQuality, SourceType } from "$api";
+	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
+	import {
+		AccordionContent,
+		AccordionHeader,
+		AccordionItem,
+		AccordionRoot,
+		AccordionTrigger
+	} from "$lib/components/ui/accordion";
 	import { InputControl, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
-	import CaptureDateFields from "./CaptureDateFields.svelte";
+	import CaptureDateField from "./CaptureDateField.svelte";
 	import SearchSelect from "./SearchSelect.svelte";
+	import TagInput from "./TagInput.svelte";
 	import type { SearchDraft, SearchErrors } from "./search-state";
+
 	let {
 		draft,
 		errors,
 		applied = false,
-		onChange
+		pending = false,
+		onChange,
+		onReset
 	}: {
 		draft: SearchDraft;
 		errors: SearchErrors;
 		applied?: boolean;
+		pending?: boolean;
 		onChange: (patch: Partial<SearchDraft>) => void;
+		onReset: () => void;
 	} = $props();
+
 	let expanded = $state<boolean | null>(null);
-	const fields = [
-		{ key: "title", label: "Title contains", placeholder: "e.g. observatory" },
-		{ key: "tags", label: "Required tags", placeholder: "data, science" }
-	] as const;
 	const count = $derived(
-		[draft.title, draft.tags, draft.sourceType, draft.quality, draft.from, draft.through].filter((value) => value.trim())
-			.length + (draft.order === "asc" ? 1 : 0)
+		draft.tags.length +
+			[draft.title, draft.sourceType, draft.quality, draft.from, draft.through].filter((value) => value.trim()).length +
+			(draft.order === "asc" ? 1 : 0)
 	);
 	const forcedOpen = $derived(
-		fields.some((field) => errors[field.key]) ||
-			Boolean(errors.from || errors.through || errors.sourceType || errors.quality || errors.order)
+		Boolean(errors.title || errors.tags || errors.from || errors.through || errors.sourceType || errors.quality || errors.order)
 	);
 	const open = $derived((expanded ?? applied) || forcedOpen);
+	const filterCountLabel = $derived(`${count} active filter${count === 1 ? "" : "s"}`);
+
 	function change(patch: Partial<SearchDraft>): void {
 		expanded = true;
 		onChange(patch);
 	}
 </script>
 
-<div class="search-filters" data-component="search-filters">
-	<Button
-		aria-expanded={open}
-		aria-controls="query-notation"
-		onclick={() => {
-			expanded = !open;
-		}}
+<section class="search-filters" aria-labelledby="search-filters-heading" data-component="search-filters">
+	<AccordionRoot
+		type="single"
+		value={open ? "filters" : null}
+		onValueChange={(value) => (expanded = value === "filters")}
+		headingLevel={3}
+		class="filter-accordion"
 	>
-		<Sliders aria-hidden="true" /> Query notation {#if count}<span class="filter-count">{count}</span>{/if}
-	</Button>
-	<div id="query-notation" hidden={!open} class="advanced-filters">
-		<div class="filter-grid">
-			{#each fields as field (field.key)}
-				<InputRoot id={`search-${field.key}`} invalid={Boolean(errors[field.key])} class="wide-field">
-					<InputLabel>{field.label}</InputLabel>
-					<InputControl
-						name={field.key}
-						value={draft[field.key]}
-						placeholder={field.placeholder}
-						oninput={(event) => change({ [field.key]: event.currentTarget.value })}
+		<AccordionItem value="filters">
+			<div class="filter-toolbar">
+				<AccordionHeader id="search-filters-heading">
+					<AccordionTrigger class="filter-trigger">
+						<span class="filter-trigger__content">
+							<Sliders aria-hidden="true" />
+							<span class="filter-trigger__label">Filters</span>
+							<Badge variant={count > 0 ? "info" : "neutral"} size="compact" class="filter-count">{filterCountLabel}</Badge>
+						</span>
+					</AccordionTrigger>
+				</AccordionHeader>
+				<Button class="filter-reset" variant="text" disabled={pending || count === 0} onclick={onReset}>Reset filters</Button>
+			</div>
+			<AccordionContent region class="filter-content">
+				<div class="filter-grid">
+					<InputRoot id="search-title" invalid={Boolean(errors.title)} class="wide-field">
+						<InputLabel>Title contains</InputLabel>
+						<InputControl
+							name="title"
+							value={draft.title}
+							placeholder="e.g. observatory"
+							oninput={(event) => change({ title: event.currentTarget.value })}
+						/>
+						{#if errors.title}<InputError>{errors.title}</InputError>{/if}
+					</InputRoot>
+					<TagInput tags={draft.tags} error={errors.tags} onChange={(tags) => change({ tags })} />
+					<SearchSelect
+						label="Source type"
+						value={draft.sourceType}
+						error={errors.sourceType}
+						options={[
+							{ value: "", label: "Any source" },
+							{ value: SourceType.URL, label: "Web URL" },
+							{ value: SourceType.HTML, label: "Uploaded HTML" }
+						]}
+						onChange={(value) => change({ sourceType: (value ?? "") as SearchDraft["sourceType"] })}
 					/>
-					{#if errors[field.key]}<InputError>{errors[field.key]}</InputError>{/if}
-				</InputRoot>
-			{/each}
-			<SearchSelect
-				label="Source type"
-				value={draft.sourceType}
-				error={errors.sourceType}
-				options={[
-					{ value: "", label: "Any source" },
-					{ value: SourceType.URL, label: "Web URL" },
-					{ value: SourceType.HTML, label: "Uploaded HTML" }
-				]}
-				onChange={(value) => change({ sourceType: (value ?? "") as SearchDraft["sourceType"] })}
-			/>
-			<SearchSelect
-				label="Capture quality"
-				value={draft.quality}
-				error={errors.quality}
-				options={[
-					{ value: "", label: "Any condition" },
-					{ value: SnapshotQuality.COMPLETE, label: "Complete" },
-					{ value: SnapshotQuality.INCOMPLETE, label: "Incomplete" }
-				]}
-				onChange={(value) => change({ quality: (value ?? "") as SearchDraft["quality"] })}
-			/>
-			<CaptureDateFields {draft} {errors} onChange={change} />
-			<SearchSelect
-				label="Capture order"
-				value={errors.order ? null : draft.order}
-				placeholder="Choose capture order"
-				error={errors.order}
-				options={[
-					{ value: "desc", label: "Newest first" },
-					{ value: "asc", label: "Oldest first" }
-				]}
-				onChange={(value) => {
-					if (value === "asc" || value === "desc") change({ order: value });
-				}}
-			/>
-		</div>
-	</div>
-</div>
+					<SearchSelect
+						label="Capture quality"
+						value={draft.quality}
+						error={errors.quality}
+						options={[
+							{ value: "", label: "Any condition" },
+							{ value: SnapshotQuality.COMPLETE, label: "Complete" },
+							{ value: SnapshotQuality.INCOMPLETE, label: "Incomplete" }
+						]}
+						onChange={(value) => change({ quality: (value ?? "") as SearchDraft["quality"] })}
+					/>
+					<SearchSelect
+						class="order-field"
+						label="Capture order"
+						value={errors.order ? null : draft.order}
+						placeholder="Choose capture order"
+						error={errors.order}
+						options={[
+							{ value: "desc", label: "Newest first" },
+							{ value: "asc", label: "Oldest first" }
+						]}
+						onChange={(value) => {
+							if (value === "asc" || value === "desc") change({ order: value });
+						}}
+					/>
+					<CaptureDateField
+						id="capture-from"
+						label="Captured from"
+						action="Choose start date"
+						value={draft.from}
+						error={errors.from}
+						maxValue={draft.through}
+						onChange={(value) => change({ from: value })}
+					/>
+					<CaptureDateField
+						id="capture-through"
+						label="Captured through"
+						action="Choose end date"
+						value={draft.through}
+						error={errors.through}
+						minValue={draft.from}
+						onChange={(value) => change({ through: value })}
+					/>
+				</div>
+			</AccordionContent>
+		</AccordionItem>
+	</AccordionRoot>
+</section>
 
 <style>
 	.search-filters {
+		padding: 0 1.5rem;
+	}
+
+	.search-filters :global([data-accordion-item]) {
+		border: 0;
+	}
+
+	.filter-toolbar {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 1rem;
+		min-height: 4.75rem;
+	}
+
+	.filter-toolbar :global([data-accordion-trigger].filter-trigger) {
+		width: auto;
+		padding-inline: 0.25rem;
+	}
+
+	.filter-toolbar :global([data-accordion-header]) {
+		width: fit-content;
+		max-width: 100%;
+	}
+
+	.filter-trigger__content {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 0.625rem;
+	}
+
+	.filter-trigger__content > :global(svg) {
+		width: 1.25rem;
+		height: 1.25rem;
+		flex: none;
+		stroke-width: 1.75;
+	}
+
+	.filter-trigger__label,
+	:global(.filter-count) {
+		white-space: nowrap;
+	}
+
+	:global(.filter-count) {
+		flex: none;
+	}
+
+	:global([data-accordion-content].filter-content) {
 		border-top: 1px solid var(--border-trace);
-		padding: 1rem 1.5rem;
 	}
-	.advanced-filters {
-		margin-top: 1.5rem;
-		border-top: 1px solid var(--border-trace);
-		padding-top: 1.5rem;
+
+	:global([data-accordion-content].filter-content .accordion-content__inner) {
+		padding: 1.5rem 0;
 	}
-	.advanced-filters[hidden] {
-		display: none;
-	}
+
 	.filter-grid {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		align-items: start;
 		gap: 1.5rem 1rem;
 	}
+
 	.filter-grid :global([data-input-root]),
-	.filter-grid :global([data-select-root]) {
+	.filter-grid :global([data-select-root]),
+	.filter-grid :global([data-component="capture-date-field"]) {
 		min-width: 0;
 	}
-	.filter-grid :global(.wide-field) {
+
+	.filter-grid :global(.wide-field),
+	.filter-grid :global(.tag-input) {
+		grid-column: span 3;
+	}
+
+	.filter-grid :global([data-select-root]) {
 		grid-column: span 2;
 	}
-	.filter-count {
-		font-family: var(--font-record);
-		font-size: 0.75rem;
+
+	.filter-grid :global([data-component="capture-date-field"]) {
+		grid-column: span 3;
 	}
-	@media (max-width: 72rem) {
-		.filter-grid {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
+
 	@media (max-width: 57.499rem) {
 		.filter-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
+
+		.filter-grid :global(.wide-field),
+		.filter-grid :global(.tag-input),
+		.filter-grid :global([data-select-root]),
+		.filter-grid :global([data-component="capture-date-field"]) {
+			grid-column: auto;
+		}
+
+		.filter-grid :global(.order-field) {
+			grid-column: 1 / -1;
+		}
 	}
+
 	@media (max-width: 42rem) {
 		.search-filters {
-			padding: 1rem;
+			padding-inline: 1rem;
 		}
+
+		.filter-toolbar {
+			grid-template-columns: minmax(0, 1fr);
+			align-items: stretch;
+			gap: 0.25rem;
+			padding-block: 0.5rem;
+		}
+
+		.filter-toolbar :global([data-accordion-header]),
+		.filter-toolbar :global([data-accordion-trigger].filter-trigger) {
+			width: 100%;
+		}
+
+		.filter-toolbar :global(.filter-reset) {
+			justify-self: end;
+		}
+
 		.filter-grid {
 			grid-template-columns: 1fr;
 		}
-		.filter-grid :global(.wide-field) {
+
+		.filter-grid :global(.wide-field),
+		.filter-grid :global(.tag-input),
+		.filter-grid :global(.order-field) {
 			grid-column: auto;
 		}
 	}

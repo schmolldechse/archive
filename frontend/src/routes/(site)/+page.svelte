@@ -95,9 +95,13 @@
 		selectedSnapshot = null;
 		void navigate(stateFromDraft(nextDraft, data.state));
 	}
-	function removeFilter(field: keyof SearchDraft): void {
-		changeDraft({ [field]: field === "order" ? "desc" : "" });
-		void submit(draft);
+	function resetFilters(): void {
+		const nextDraft = { ...emptyDraft(), query: draft.query };
+		draft = nextDraft;
+		errors = errors.query ? { query: errors.query } : {};
+		previewOpen = false;
+		selectedSnapshot = null;
+		void submit(nextDraft);
 	}
 	function clearAll(): void {
 		draft = emptyDraft();
@@ -199,8 +203,7 @@
 			onSubmit={() => {
 				void submit();
 			}}
-			onRemove={removeFilter}
-			onClear={clearAll}
+			onReset={resetFilters}
 		/>
 		<CaptureSequence
 			results={data.results}

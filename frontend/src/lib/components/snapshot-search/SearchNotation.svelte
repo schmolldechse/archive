@@ -3,10 +3,10 @@
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import X from "@lucide/svelte/icons/x";
 	import Button from "$lib/components/ui/Button.svelte";
+	import Separator from "$lib/components/ui/Separator.svelte";
 	import { InputControl, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
-	import AppliedFilters from "./AppliedFilters.svelte";
 	import SearchFilters from "./SearchFilters.svelte";
-	import { filterChips, isDraftDirty, searchHref, type SearchDraft, type SearchErrors, type SearchState } from "./search-state";
+	import { searchHref, type SearchDraft, type SearchErrors, type SearchState } from "./search-state";
 	let {
 		draft,
 		committed,
@@ -14,8 +14,7 @@
 		pending = false,
 		onChange,
 		onSubmit,
-		onRemove,
-		onClear
+		onReset
 	}: {
 		draft: SearchDraft;
 		committed: SearchState;
@@ -23,10 +22,8 @@
 		pending?: boolean;
 		onChange: (patch: Partial<SearchDraft>) => void;
 		onSubmit: () => void;
-		onRemove: (field: keyof SearchDraft) => void;
-		onClear: () => void;
+		onReset: () => void;
 	} = $props();
-	const dirty = $derived(isDraftDirty(draft, committed));
 </script>
 
 <section class="search-notation" id="browse" aria-labelledby="search-notation-title" data-component="search-notation">
@@ -44,39 +41,45 @@
 		}}
 		novalidate
 	>
-		<div class="search-main">
-			<InputRoot id="snapshot-query" invalid={Boolean(errors.query)} class="query-field">
-				<InputLabel>Snapshot source link</InputLabel>
-				<div class="query-input">
-					<InputControl
-						type="url"
-						value={draft.query}
-						autocomplete="off"
-						autocapitalize="none"
-						spellcheck={false}
-						name="sourceUrl"
-						data-value-kind="record"
-						placeholder="https://example.org/complete/path"
-						oninput={(event) => onChange({ query: event.currentTarget.value })}
-					/>
-					{#if draft.query}<Button
-							variant="text"
-							class="clear-query"
-							aria-label="Clear search query"
-							onclick={() => onChange({ query: "" })}><X aria-hidden="true" /></Button
-						>{/if}
-				</div>
-				{#if errors.query}<InputError>{errors.query}</InputError>{/if}
-			</InputRoot>
-			<Button type="submit" variant="primary" size="large" loading={pending} loadingLabel="Searching register…"
-				>Search register<ChevronRight aria-hidden="true" /></Button
-			>
+		<div class="query-section">
+			<div class="search-main">
+				<InputRoot id="snapshot-query" invalid={Boolean(errors.query)} class="query-field">
+					<InputLabel>Exact snapshot link</InputLabel>
+					<div class="query-input">
+						<InputControl
+							type="url"
+							value={draft.query}
+							autocomplete="off"
+							autocapitalize="none"
+							spellcheck={false}
+							name="sourceUrl"
+							data-value-kind="record"
+							placeholder="https://example.org/complete/path"
+							oninput={(event) => onChange({ query: event.currentTarget.value })}
+						/>
+						{#if draft.query}<Button
+								variant="text"
+								class="clear-query"
+								aria-label="Clear exact snapshot link"
+								onclick={() => onChange({ query: "" })}><X aria-hidden="true" /></Button
+							>{/if}
+					</div>
+					{#if errors.query}<InputError>{errors.query}</InputError>{/if}
+				</InputRoot>
+				<Button type="submit" variant="primary" size="large" loading={pending} loadingLabel="Searching register…"
+					>Search register<ChevronRight aria-hidden="true" /></Button
+				>
+			</div>
+			{#if errors.form}<p role="alert" class="form-error"><CircleAlert aria-hidden="true" />{errors.form}</p>{/if}
 		</div>
+		<Separator />
 		{#key searchHref({ ...committed, page: 1 })}
 			<SearchFilters
 				{draft}
 				{errors}
 				{onChange}
+				{pending}
+				{onReset}
 				applied={Boolean(
 					committed.title ||
 					committed.tags.length ||
@@ -88,9 +91,6 @@
 				)}
 			/>
 		{/key}
-		{#if errors.form}<p role="alert" class="form-error"><CircleAlert aria-hidden="true" />{errors.form}</p>{/if}
-		<AppliedFilters chips={filterChips(committed)} disabled={pending} {onRemove} {onClear} />
-		{#if dirty}<p class="draft-note" role="status">Search parameters changed — submit to update the register.</p>{/if}
 	</form>
 </section>
 
@@ -136,7 +136,7 @@
 		padding: 1.5rem;
 	}
 	.search-main > :global(button) {
-		margin-top: 1.5rem;
+		margin-top: 1.8125rem;
 		min-height: 56px;
 	}
 	.query-input {
@@ -156,20 +156,13 @@
 		min-height: 44px;
 		padding: 0.5rem;
 	}
-	.draft-note {
-		margin: 0;
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border-trace);
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-	}
 	.form-error {
 		display: flex;
 		align-items: start;
 		gap: 0.5rem;
 		color: var(--time-marker);
 		margin: 0;
-		padding: 1rem 1.5rem;
+		padding: 0 1.5rem 1rem;
 	}
 	.form-error :global(svg) {
 		width: 1.25rem;
@@ -190,10 +183,11 @@
 			margin: 0;
 			width: 100%;
 		}
-		.search-main,
-		.draft-note,
-		.form-error {
+		.search-main {
 			padding: 1rem;
+		}
+		.form-error {
+			padding: 0 1rem 1rem;
 		}
 	}
 </style>

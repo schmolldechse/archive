@@ -3,12 +3,17 @@
 
 	import { createDialogAttachment } from "./dialog-attachment.svelte";
 	import { getDialogContext } from "./dialog-context.svelte";
-	import type { DialogContentProps } from "./types";
+	import type { DialogContentProps, DialogSide } from "./types";
 
 	const generatedId = $props.id();
 
 	let {
 		size = "medium",
+		position = "viewport",
+		side = "bottom",
+		align = "start",
+		sideOffset = 8,
+		collisionPadding = 12,
 		closeOnEscape = true,
 		closeOnOutsidePointer,
 		preventScroll,
@@ -28,22 +33,29 @@
 	const dialog = getDialogContext("DialogContent");
 	const unregisterId = dialog.registerContentId(() => id ?? generatedId);
 	let effectiveModal = $state(dialog.modal);
+	let resolvedSide = $state<DialogSide | null>(null);
 
 	onDestroy(unregisterId);
 
 	const dialogAttachment = createDialogAttachment({
+		getAlign: () => align,
+		getCollisionPadding: () => collisionPadding,
 		getCloseOnEscape: () => closeOnEscape,
 		getCloseOnOutsidePointer: (modal) => closeOnOutsidePointer ?? modal,
 		getInitialFocus: () => initialFocus,
 		getModal: () => dialog.modal,
 		getOpen: () => dialog.open,
+		getPosition: () => position,
 		getPreventScroll: (modal) => preventScroll ?? modal,
 		getRestoreFocus: () => restoreFocus,
 		getReturnFocus: () => returnFocus,
+		getSide: () => side,
+		getSideOffset: () => sideOffset,
 		getTitleId: () => dialog.titleId,
 		getTrigger: dialog.getTrigger,
 		requestOpenChange: dialog.requestOpenChange,
 		setEffectiveModal: (modal) => (effectiveModal = modal),
+		setResolvedSide: (nextSide) => (resolvedSide = nextSide),
 		synchronizeProgrammaticChange: dialog.synchronizeProgrammaticChange
 	});
 </script>
@@ -62,6 +74,8 @@
 	data-state={dialog.open ? "open" : "closed"}
 	data-modal={effectiveModal ? "true" : "false"}
 	data-size={size}
+	data-position={position}
+	data-side={resolvedSide ?? side}
 	{@attach dialogAttachment}
 >
 	{@render children()}
@@ -113,12 +127,19 @@
 		max-height: calc(100dvh - 2rem);
 	}
 
-	.dialog-content[data-modal="false"] {
+	.dialog-content[data-modal="false"][data-position="viewport"] {
 		position: fixed;
 		inset: 1.5rem 1.5rem auto auto;
 		margin: 0;
 		border-width: 2px;
 		border-color: var(--reading-ink);
+	}
+
+	.dialog-content[data-modal="false"][data-position="trigger"] {
+		position: fixed;
+		z-index: 20;
+		inset: 0 auto auto 0;
+		margin: 0;
 	}
 
 	.dialog-content::backdrop {
@@ -150,7 +171,7 @@
 			padding: 1rem;
 		}
 
-		.dialog-content[data-modal="false"] {
+		.dialog-content[data-modal="false"][data-position="viewport"] {
 			inset: 1rem 1rem auto;
 		}
 	}

@@ -4,6 +4,9 @@ import type { HTMLAttributes, HTMLButtonAttributes, HTMLDialogAttributes } from 
 export type DialogOpenReason = "trigger" | "close" | "escape" | "outside" | "native" | "programmatic";
 export type DialogSize = "small" | "medium" | "large" | "viewport";
 export type DialogHeadingLevel = 2 | 3 | 4 | 5 | 6;
+export type DialogPosition = "viewport" | "trigger";
+export type DialogSide = "top" | "bottom";
+export type DialogAlign = "start" | "center" | "end";
 
 export interface DialogRootProps {
 	open?: boolean;
@@ -23,6 +26,11 @@ export interface DialogTriggerProps extends Omit<
 
 export interface DialogContentProps extends Omit<HTMLDialogAttributes, "children" | "open" | "closedby" | "aria-modal"> {
 	size?: DialogSize;
+	position?: DialogPosition;
+	side?: DialogSide;
+	align?: DialogAlign;
+	sideOffset?: number;
+	collisionPadding?: number;
 	closeOnEscape?: boolean;
 	closeOnOutsidePointer?: boolean;
 	preventScroll?: boolean;

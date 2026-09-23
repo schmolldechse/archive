@@ -5,7 +5,7 @@ export type CaptureOrder = "asc" | "desc";
 export interface SearchDraft {
 	query: string;
 	title: string;
-	tags: string;
+	tags: string[];
 	sourceType: SourceType | "";
 	quality: SnapshotQuality | "";
 	from: string;
@@ -42,7 +42,7 @@ export const pageSize = 24;
 export const emptyDraft = (): SearchDraft => ({
 	query: "",
 	title: "",
-	tags: "",
+	tags: [],
 	sourceType: "",
 	quality: "",
 	from: "",
@@ -72,7 +72,7 @@ export function draftFromState(state: SearchState): SearchDraft {
 	return {
 		query: state.query,
 		title: state.title,
-		tags: state.tags.join(", "),
+		tags: [...state.tags],
 		sourceType: state.sourceType ?? "",
 		quality: state.quality ?? "",
 		from: boundaryDate(state.capturedFrom),
@@ -80,15 +80,10 @@ export function draftFromState(state: SearchState): SearchDraft {
 		order: state.order
 	};
 }
-export function normalizeTags(value: string): string[] {
-	return [
-		...new Set(
-			value
-				.split(",")
-				.map((tag) => tag.trim().replace(/^#+/, "").toLowerCase())
-				.filter(Boolean)
-		)
-	];
+export function normalizeTags(value: string | readonly string[]): string[] {
+	const tags = typeof value === "string" ? value.split(",") : value;
+
+	return [...new Set(tags.map((tag) => tag.trim().replace(/^#+/, "").toLowerCase()).filter(Boolean))];
 }
 export function validateDraft(draft: SearchDraft): SearchErrors {
 	const errors: SearchErrors = {};
@@ -223,7 +218,7 @@ export function isDraftDirty(draft: SearchDraft, state: SearchState): boolean {
 		...value,
 		query: value.query.trim(),
 		title: value.title.trim(),
-		tags: normalizeTags(value.tags).sort().join(",")
+		tags: normalizeTags(value.tags).sort()
 	});
 	return JSON.stringify(normalize(draft)) !== JSON.stringify(normalize(draftFromState(state)));
 }

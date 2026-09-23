@@ -8,12 +8,15 @@ export { default as DialogTrigger } from "./DialogTrigger.svelte";
 
 export type {
 	DialogActionsProps,
+	DialogAlign,
 	DialogCloseProps,
 	DialogContentProps,
 	DialogDescriptionProps,
 	DialogHeadingLevel,
 	DialogOpenReason,
+	DialogPosition,
 	DialogRootProps,
+	DialogSide,
 	DialogSize,
 	DialogTitleProps,
 	DialogTriggerProps

@@ -12,16 +12,34 @@
 	interface Props {
 		label: string;
 		value: string | null;
+		class?: string;
 		placeholder?: string;
 		options: { value: string; label: string }[];
 		error?: string;
 		disabled?: boolean;
 		onChange: (value: string | null) => void;
 	}
-	let { label, value, placeholder = "Choose an option", options, error, disabled = false, onChange }: Props = $props();
+	let {
+		label,
+		value,
+		class: className,
+		placeholder = "Choose an option",
+		options,
+		error,
+		disabled = false,
+		onChange
+	}: Props = $props();
 </script>
 
-<SelectRoot type="single" {value} invalid={Boolean(error)} {disabled} onValueChange={onChange} data-component="search-select">
+<SelectRoot
+	type="single"
+	{value}
+	invalid={Boolean(error)}
+	{disabled}
+	class={className}
+	onValueChange={onChange}
+	data-component="search-select"
+>
 	<SelectLabel>{label}</SelectLabel>
 	<SelectTrigger
 		><SelectValue {placeholder}>{options.find((option) => option.value === value)?.label ?? placeholder}</SelectValue
