@@ -10,7 +10,7 @@
 			docs: {
 				description: {
 					component:
-						"A composable, labelled single-line input family with deterministic relationships for supporting and validation text."
+						"Composable labelled inputs for text, files, and longer notes, with deterministic relationships for supporting and validation text."
 				}
 			}
 		}
@@ -19,7 +19,7 @@
 
 <script lang="ts">
 	import Button from "$lib/components/ui/Button.svelte";
-	import { InputControl, InputDescription, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
+	import { InputControl, InputDescription, InputError, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 
 	let boundValue = $state("Editable value");
 	let boundRoot = $state<HTMLDivElement | null>(null);
@@ -28,6 +28,7 @@
 	let changeEvents = $state(0);
 	let focusEvents = $state(0);
 	let blurEvents = $state(0);
+	let selectedFiles = $state<string[]>([]);
 </script>
 
 <Story name="Anatomy" asChild>
@@ -50,6 +51,31 @@
 				<InputError>Enter a value in the requested format.</InputError>
 			</InputRoot>
 		</section>
+	</div>
+</Story>
+
+<Story name="Files and Multiline" asChild>
+	<div class="story-grid">
+		<InputRoot id="input-file" hasDescription required>
+			<InputLabel>Attachment</InputLabel>
+			<InputControl
+				type="file"
+				accept=".txt,.pdf"
+				onFilesChange={(files) => (selectedFiles = files.map((file) => file.name))}
+			/>
+			<InputDescription>Choose a file or drop it onto the field.</InputDescription>
+			<p class="story-note" aria-live="polite">{selectedFiles.length ? selectedFiles.join(", ") : "No file selected"}</p>
+		</InputRoot>
+		<InputRoot id="input-textarea" hasDescription>
+			<InputLabel>Longer note</InputLabel>
+			<InputTextarea placeholder="Write a note" rows={4} />
+			<InputDescription>The field grows vertically when resized.</InputDescription>
+		</InputRoot>
+		<InputRoot id="input-file-invalid" invalid>
+			<InputLabel>Invalid attachment</InputLabel>
+			<InputControl type="file" />
+			<InputError>Choose a supported file.</InputError>
+		</InputRoot>
 	</div>
 </Story>
 

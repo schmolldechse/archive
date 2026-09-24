@@ -93,9 +93,9 @@ export type CaptureYearResponse = {
 export type CreateArchiveFileRequest = {
     file: Blob | File;
     /**
-     * Optional original public URL for the uploaded content.
+     * Original public HTTP or HTTPS URL for the uploaded content.
      */
-    originalLink?: null | string;
+    originalLink: string;
     /**
      * Title for the snapshot that will be created.
      */

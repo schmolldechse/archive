@@ -1,9 +1,9 @@
 import type { Snippet } from "svelte";
-import type { HTMLAttributes, HTMLInputAttributes, HTMLLabelAttributes } from "svelte/elements";
+import type { HTMLAttributes, HTMLInputAttributes, HTMLLabelAttributes, HTMLTextareaAttributes } from "svelte/elements";
 
 export type InputState = "default" | "invalid" | "disabled";
 export type InputType =
-	"text" | "search" | "email" | "url" | "tel" | "password" | "number" | "date" | "time" | "datetime-local";
+	"text" | "search" | "email" | "url" | "tel" | "password" | "number" | "date" | "time" | "datetime-local" | "file";
 export type InputValue = string | number | undefined;
 export type InputValueKind = "text" | "record";
 
@@ -30,12 +30,25 @@ export interface InputLabelProps extends NativeLabelProps {
 	ref?: HTMLLabelElement | null;
 }
 
-export interface InputControlProps extends NativeInputProps {
-	type?: InputType;
-	value?: InputValue;
+interface InputControlBaseProps extends NativeInputProps {
 	ref?: HTMLInputElement | null;
 	"aria-describedby"?: HTMLInputAttributes["aria-describedby"];
 	"data-value-kind"?: InputValueKind;
+}
+
+export type InputControlProps = InputControlBaseProps &
+	(
+		| { type?: Exclude<InputType, "file">; value?: InputValue; onFilesChange?: never }
+		| { type: "file"; value?: never; onFilesChange?: (files: File[]) => void }
+	);
+
+export interface InputTextareaProps extends Omit<
+	HTMLTextareaAttributes,
+	"aria-describedby" | "aria-invalid" | "children" | "disabled" | "id" | "required" | "value"
+> {
+	value?: string;
+	ref?: HTMLTextAreaElement | null;
+	"aria-describedby"?: HTMLTextareaAttributes["aria-describedby"];
 }
 
 export interface InputDescriptionProps extends NativeParagraphProps {

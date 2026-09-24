@@ -82,7 +82,7 @@ The Compose example uses `Development` for local OpenAPI access and diagnostics.
 
 | .NET key | Meaning | Default |
 | --- | --- | ---: |
-| `Archive:MaxUploadBytes` | Maximum uploaded HTML, MHTML, or Webarchive file size | 250,000,000 |
+| `Archive:MaxUploadBytes` | Maximum uploaded HTML, MHTML, or Webarchive file size; also sets the API multipart limit and the archive upload request size with 1 MB for form overhead | 250,000,000 |
 | `Archive:MaxDurationSeconds` | Capture deadline | 120 |
 | `Archive:MaxStorageBytes` | Maximum stored snapshot bytes | 250,000,000 |
 | `Archive:MaxResources` | Maximum retained resource responses | 500 |

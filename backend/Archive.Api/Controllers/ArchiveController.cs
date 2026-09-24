@@ -99,7 +99,11 @@ public sealed class ArchiveController(
             if (!UrlNormalizer.TryNormalizeSource(sourceUrl, out originUrl, out var error))
                 return BadRequest(error);
         }
-        else if (!string.IsNullOrWhiteSpace(originalLink) && !UrlNormalizer.TryNormalizeSource(originalLink, out originUrl, out var originalLinkError))
+        else if (string.IsNullOrWhiteSpace(originalLink))
+        {
+            return BadRequest("An original page URL is required.");
+        }
+        else if (!UrlNormalizer.TryNormalizeSource(originalLink, out originUrl, out var originalLinkError))
         {
             return BadRequest(originalLinkError);
         }

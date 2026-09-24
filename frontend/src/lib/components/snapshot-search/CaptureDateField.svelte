@@ -9,6 +9,7 @@
 	let {
 		id,
 		label,
+		description,
 		action,
 		value,
 		error,
@@ -18,6 +19,7 @@
 	}: {
 		id: string;
 		label: string;
+		description?: string;
 		action: string;
 		value: string;
 		error?: string;
@@ -35,6 +37,7 @@
 	const controlId = $derived(`${id}-control`);
 	const dialogId = $derived(`${id}-dialog`);
 	const errorId = $derived(`${id}-error`);
+	const descriptionId = $derived(`${id}-description`);
 
 	function prepareDialog(): void {
 		today = DateTime.local().startOf("day");
@@ -53,13 +56,13 @@
 </script>
 
 <div class="date-field" data-component="capture-date-field" data-state={error ? "invalid" : "default"}>
-	<label for={controlId}>{label}</label>
+	<label for={controlId}>{label} <span class="field-qualifier">Optional</span></label>
 	<DialogRoot {open} modal={false} onOpenChange={handleOpenChange}>
 		<DialogTrigger
 			id={controlId}
 			class="date-control"
 			aria-invalid={error ? "true" : undefined}
-			aria-describedby={error ? errorId : undefined}
+			aria-describedby={[description ? descriptionId : null, error ? errorId : null].filter(Boolean).join(" ") || undefined}
 			aria-label={`${action}${value ? `, ${value}` : ", no date selected"}`}
 		>
 			<span class:date-value={Boolean(value)} class:date-placeholder={!value}>{value || "Choose date"}</span>
@@ -80,6 +83,7 @@
 			/>
 		{/if}
 	</DialogRoot>
+	{#if description}<p class="date-description" id={descriptionId}>{description}</p>{/if}
 	{#if error}
 		<p class="date-error" id={errorId} role="alert">
 			<CircleAlert aria-hidden="true" />{error}
@@ -138,6 +142,12 @@
 		font-size: 0.875rem;
 		line-height: 1.43;
 		color: var(--reading-ink);
+	}
+	.date-description {
+		margin: 0;
+		color: var(--marginal-note);
+		font-size: 0.875rem;
+		line-height: 1.43;
 	}
 
 	.date-error :global(svg) {

@@ -1,24 +1,15 @@
 <script lang="ts">
 	import Menu from "@lucide/svelte/icons/menu";
 	import X from "@lucide/svelte/icons/x";
+	import { page } from "$app/state";
 
 	import ThemeToggle from "./ThemeToggle.svelte";
 	import BrandMark from "./BrandMark.svelte";
 
-	interface SiteHeaderProps {
-		onArchivePage?: () => void;
-	}
-
-	let { onArchivePage }: SiteHeaderProps = $props();
 	let menuOpen = $state(false);
 
 	function closeMenu(): void {
 		menuOpen = false;
-	}
-
-	function openArchiveDialog(): void {
-		closeMenu();
-		onArchivePage?.();
 	}
 </script>
 
@@ -32,9 +23,14 @@
 			class:primary-navigation--open={menuOpen}
 			aria-label="Primary navigation"
 		>
-			<a href="/#browse" aria-current="page" onclick={closeMenu}>Browse</a>
+			<a href="/#browse" aria-current={page.url.pathname === "/" ? "page" : undefined} onclick={closeMenu}>Browse</a>
 			<a href="/#about" onclick={closeMenu}>About</a>
-			<button class="primary-navigation__archive" type="button" onclick={openArchiveDialog}>Archive a page&nbsp;↗</button>
+			<a
+				class="primary-navigation__archive"
+				href="/archive/new"
+				aria-current={page.url.pathname === "/archive/new" ? "page" : undefined}
+				onclick={closeMenu}>Archive a page</a
+			>
 		</nav>
 
 		<div class="site-header__actions">
@@ -84,8 +80,7 @@
 		align-items: stretch;
 	}
 
-	.primary-navigation a,
-	.primary-navigation button {
+	.primary-navigation a {
 		position: relative;
 		display: inline-flex;
 		min-height: 2.75rem;
@@ -100,8 +95,7 @@
 		cursor: pointer;
 	}
 
-	.primary-navigation a:hover,
-	.primary-navigation button:hover {
+	.primary-navigation a:hover {
 		background: var(--archive-layer);
 	}
 
@@ -174,8 +168,7 @@
 			display: grid;
 		}
 
-		.primary-navigation a,
-		.primary-navigation button {
+		.primary-navigation a {
 			justify-content: flex-start;
 			border-bottom: 1px solid var(--border-trace);
 			padding: 0.875rem 1.125rem;

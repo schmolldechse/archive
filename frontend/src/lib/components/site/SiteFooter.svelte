@@ -3,10 +3,9 @@
 
 	interface SiteFooterProps {
 		healthUrl: string;
-		onArchivePage?: () => void;
 	}
 
-	let { healthUrl, onArchivePage }: SiteFooterProps = $props();
+	let { healthUrl }: SiteFooterProps = $props();
 </script>
 
 <footer class="site-footer" data-component="site-footer">
@@ -20,7 +19,7 @@
 			<div>
 				<h2>Archive</h2>
 				<a href="/#browse">Browse snapshots</a>
-				<button type="button" onclick={onArchivePage}>Archive a page</button>
+				<a href="/archive/new">Archive a page</a>
 			</div>
 			<div>
 				<h2>Context</h2>
@@ -87,8 +86,7 @@
 		text-transform: uppercase;
 	}
 
-	.site-footer__links a,
-	.site-footer__links button {
+	.site-footer__links a {
 		min-height: 2.75rem;
 		border: 0;
 		background: transparent;
@@ -102,8 +100,7 @@
 		cursor: pointer;
 	}
 
-	.site-footer__links a:hover,
-	.site-footer__links button:hover {
+	.site-footer__links a:hover {
 		color: var(--register-mark);
 		text-decoration-thickness: 0.14em;
 	}

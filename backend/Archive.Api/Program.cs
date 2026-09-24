@@ -2,6 +2,7 @@ using Archive.Api.OpenApi;
 using Archive.Api.Storage;
 using Archive.Core;
 using Archive.Core.Storage;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -15,6 +16,10 @@ if (args is ["--healthcheck"])
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+var maxUploadBytes = builder.Configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L);
+var maxUploadRequestBytes = checked(maxUploadBytes + 1_000_000L); // Multipart fields and boundaries sit outside the file limit.
+builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = maxUploadBytes);
 
 builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<ArchiveRequestBodyOperationTransformer>());
@@ -37,6 +42,19 @@ if (app.Configuration.GetValue("Database:Initialize", true))
 }
 
 app.UseCors("public");
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsPost(context.Request.Method) &&
+        string.Equals(context.Request.Path.Value, "/api/archive", StringComparison.OrdinalIgnoreCase) &&
+        context.Request.ContentType?.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true)
+    {
+        var bodyLimit = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (bodyLimit is { IsReadOnly: false })
+            bodyLimit.MaxRequestBodySize = maxUploadRequestBytes;
+    }
+
+    await next(context);
+});
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 

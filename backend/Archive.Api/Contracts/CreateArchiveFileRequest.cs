@@ -18,10 +18,12 @@ public sealed class CreateArchiveFileRequest
 
     [FromForm(Name = "originalLink")]
     [JsonPropertyName("originalLink")]
-    [Description("Optional original public URL for the uploaded content.")]
+    [Description("Original public HTTP or HTTPS URL for the uploaded content.")]
+    [BindRequired]
+    [Required(AllowEmptyStrings = false, ErrorMessage = "An original page URL is required.")]
     [Url]
     [StringLength(2_048)]
-    public string? OriginalLink { get; init; }
+    public required string OriginalLink { get; init; }
 
     [FromForm(Name = "title")]
     [JsonPropertyName("title")]

@@ -160,6 +160,13 @@
 }
 
 @layer components {
+	.field-qualifier {
+		margin-left: 0.35rem;
+		color: var(--marginal-note);
+		font-size: 0.875rem;
+		font-weight: 400;
+	}
+
 	.archive-field {
 		min-height: 3.5rem;
 		border: 1px solid var(--border-trace);

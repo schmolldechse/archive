@@ -10,10 +10,10 @@
 		AccordionRoot,
 		AccordionTrigger
 	} from "$lib/components/ui/accordion";
-	import { InputControl, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
+	import { InputControl, InputDescription, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
 	import CaptureDateField from "./CaptureDateField.svelte";
 	import SearchSelect from "./SearchSelect.svelte";
-	import TagInput from "./TagInput.svelte";
+	import TagEditor from "$lib/components/tags/TagEditor.svelte";
 	import type { SearchDraft, SearchErrors } from "./search-state";
 
 	let {
@@ -73,19 +73,30 @@
 			</div>
 			<AccordionContent region class="filter-content">
 				<div class="filter-grid">
-					<InputRoot id="search-title" invalid={Boolean(errors.title)} class="wide-field">
-						<InputLabel>Title contains</InputLabel>
+					<InputRoot id="search-title" invalid={Boolean(errors.title)} hasDescription class="wide-field">
+						<InputLabel>Title contains <span class="field-qualifier">Optional</span></InputLabel>
 						<InputControl
 							name="title"
 							value={draft.title}
 							placeholder="e.g. observatory"
 							oninput={(event) => change({ title: event.currentTarget.value })}
 						/>
+						<InputDescription>Find records with these words in the title.</InputDescription>
 						{#if errors.title}<InputError>{errors.title}</InputError>{/if}
 					</InputRoot>
-					<TagInput tags={draft.tags} error={errors.tags} onChange={(tags) => change({ tags })} />
+					<TagEditor
+						id="search-tags"
+						label="Tags to match"
+						requirement="optional"
+						listLabel="Added required tags"
+						description="Add a tag and press Enter. Results must include every tag you add."
+						tags={draft.tags}
+						error={errors.tags}
+						onChange={(tags) => change({ tags })}
+					/>
 					<SearchSelect
 						label="Source type"
+						description="Narrow results to a source format."
 						value={draft.sourceType}
 						error={errors.sourceType}
 						options={[
@@ -99,6 +110,7 @@
 					/>
 					<SearchSelect
 						label="Capture quality"
+						description="Show captures by their recorded condition."
 						value={draft.quality}
 						error={errors.quality}
 						options={[
@@ -111,6 +123,8 @@
 					<SearchSelect
 						class="order-field"
 						label="Capture order"
+						requirement="required"
+						description="Choose which captures appear first."
 						value={errors.order ? null : draft.order}
 						placeholder="Choose capture order"
 						error={errors.order}
@@ -125,6 +139,7 @@
 					<CaptureDateField
 						id="capture-from"
 						label="Captured from"
+						description="Include captures on or after this date."
 						action="Choose start date"
 						value={draft.from}
 						error={errors.from}
@@ -134,6 +149,7 @@
 					<CaptureDateField
 						id="capture-through"
 						label="Captured through"
+						description="Include captures on or before this date."
 						action="Choose end date"
 						value={draft.through}
 						error={errors.through}
@@ -218,7 +234,7 @@
 	}
 
 	.filter-grid :global(.wide-field),
-	.filter-grid :global(.tag-input) {
+	.filter-grid :global(.tag-editor) {
 		grid-column: span 3;
 	}
 
@@ -236,7 +252,7 @@
 		}
 
 		.filter-grid :global(.wide-field),
-		.filter-grid :global(.tag-input),
+		.filter-grid :global(.tag-editor),
 		.filter-grid :global([data-select-root]),
 		.filter-grid :global([data-component="capture-date-field"]) {
 			grid-column: auto;
@@ -273,7 +289,7 @@
 		}
 
 		.filter-grid :global(.wide-field),
-		.filter-grid :global(.tag-input),
+		.filter-grid :global(.tag-editor),
 		.filter-grid :global(.order-field) {
 			grid-column: auto;
 		}

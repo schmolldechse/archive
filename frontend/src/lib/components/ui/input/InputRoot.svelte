@@ -76,7 +76,7 @@
 				if (!attached || !element.isConnected) return;
 
 				warn("label", !hasOwnPart("[data-input-label]"), "InputRoot requires an InputLabel.");
-				warn("control", !hasOwnPart("[data-input-control]"), "InputRoot requires an InputControl.");
+				warn("control", !hasOwnPart("[data-input-control]"), "InputRoot requires an InputControl or InputTextarea.");
 				warn(
 					"description",
 					expectsDescription && !hasOwnPart("[data-input-description]"),

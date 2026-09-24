@@ -1,4 +1,5 @@
 import { SnapshotOrder, SnapshotQuality, SourceType, type CaptureDistributionResponse, type ListSnapshotsData } from "$api";
+import { normalizeTags } from "$lib/components/tags/tags";
 import { DateTime } from "luxon";
 
 export type CaptureOrder = "asc" | "desc";
@@ -79,11 +80,6 @@ export function draftFromState(state: SearchState): SearchDraft {
 		through: boundaryDate(state.capturedUntil, true),
 		order: state.order
 	};
-}
-export function normalizeTags(value: string | readonly string[]): string[] {
-	const tags = typeof value === "string" ? value.split(",") : value;
-
-	return [...new Set(tags.map((tag) => tag.trim().replace(/^#+/, "").toLowerCase()).filter(Boolean))];
 }
 export function validateDraft(draft: SearchDraft): SearchErrors {
 	const errors: SearchErrors = {};
@@ -228,9 +224,16 @@ export function filterChips(state: SearchState): FilterChip[] {
 	if (state.query) chips.push({ field: "query", label: `Source: ${state.query}` });
 	if (state.title) chips.push({ field: "title", label: `Title: ${state.title}` });
 	if (state.tags.length) chips.push({ field: "tags", label: `Tags: ${state.tags.join(" + ")}` });
-	if (state.sourceType) chips.push({ field: "sourceType", label: {
-		URL: "Web URL", HTML: "Uploaded HTML", MHTML: "Uploaded MHTML", WEBARCHIVE: "Uploaded Webarchive"
-	}[state.sourceType] });
+	if (state.sourceType)
+		chips.push({
+			field: "sourceType",
+			label: {
+				URL: "Web URL",
+				HTML: "Uploaded HTML",
+				MHTML: "Uploaded MHTML",
+				WEBARCHIVE: "Uploaded Webarchive"
+			}[state.sourceType]
+		});
 	if (state.quality) chips.push({ field: "quality", label: state.quality === "COMPLETE" ? "Complete" : "Incomplete" });
 	if (draft.from) chips.push({ field: "from", label: `From ${draft.from}` });
 	if (draft.through) chips.push({ field: "through", label: `Through ${draft.through}` });

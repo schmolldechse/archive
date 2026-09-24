@@ -4,7 +4,7 @@
 	import X from "@lucide/svelte/icons/x";
 	import Button from "$lib/components/ui/Button.svelte";
 	import Separator from "$lib/components/ui/Separator.svelte";
-	import { InputControl, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
+	import { InputControl, InputDescription, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
 	import SearchFilters from "./SearchFilters.svelte";
 	import { searchHref, type SearchDraft, type SearchErrors, type SearchState } from "./search-state";
 	let {
@@ -43,8 +43,8 @@
 	>
 		<div class="query-section">
 			<div class="search-main">
-				<InputRoot id="snapshot-query" invalid={Boolean(errors.query)} class="query-field">
-					<InputLabel>Exact snapshot link</InputLabel>
+				<InputRoot id="snapshot-query" invalid={Boolean(errors.query)} hasDescription class="query-field">
+					<InputLabel>Exact snapshot link <span class="field-qualifier">Optional</span></InputLabel>
 					<div class="query-input">
 						<InputControl
 							type="url"
@@ -64,6 +64,7 @@
 								onclick={() => onChange({ query: "" })}><X aria-hidden="true" /></Button
 							>{/if}
 					</div>
+					<InputDescription>Enter a complete page URL to find its captures.</InputDescription>
 					{#if errors.query}<InputError>{errors.query}</InputError>{/if}
 				</InputRoot>
 				<Button type="submit" variant="primary" size="large" loading={pending} loadingLabel="Searching register…"

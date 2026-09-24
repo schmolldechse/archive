@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		SelectContent,
+		SelectDescription,
 		SelectError,
 		SelectItem,
 		SelectLabel,
@@ -11,6 +12,8 @@
 	} from "$lib/components/ui/select";
 	interface Props {
 		label: string;
+		description?: string;
+		requirement?: "optional" | "required";
 		value: string | null;
 		class?: string;
 		placeholder?: string;
@@ -21,6 +24,8 @@
 	}
 	let {
 		label,
+		description,
+		requirement = "optional",
 		value,
 		class: className,
 		placeholder = "Choose an option",
@@ -40,7 +45,7 @@
 	onValueChange={onChange}
 	data-component="search-select"
 >
-	<SelectLabel>{label}</SelectLabel>
+	<SelectLabel>{label} <span class="field-qualifier">{requirement === "required" ? "Required" : "Optional"}</span></SelectLabel>
 	<SelectTrigger
 		><SelectValue {placeholder}>{options.find((option) => option.value === value)?.label ?? placeholder}</SelectValue
 		></SelectTrigger
@@ -52,5 +57,6 @@
 			{/each}
 		</SelectViewport></SelectContent
 	>
+	{#if description}<SelectDescription>{description}</SelectDescription>{/if}
 	{#if error}<SelectError>{error}</SelectError>{/if}
 </SelectRoot>

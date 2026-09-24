@@ -46,13 +46,15 @@
 <Button
 	variant="text"
 	class="copy-source-button"
-	title={copied ? "Source URL copied" : copyFailed ? "Copy failed; try again" : label}
-	aria-label={copied ? "Source URL copied" : copyFailed ? "Copy failed; try again" : label}
+	title={copied ? "Source copied" : copyFailed ? "Copy failed; try again" : label}
+	aria-label={copied ? "Source copied" : copyFailed ? "Copy failed; try again" : label}
 	onclick={copySource}
 >
 	{#if copied}<Check size={18} aria-hidden="true" />{:else}<Copy size={18} aria-hidden="true" />{/if}
 </Button>
-<span class="sr-only" role="status" aria-live="polite">{copied ? "Source URL copied" : copyFailed ? "Source URL could not be copied" : ""}</span>
+<span class="sr-only" role="status" aria-live="polite"
+	>{copied ? "Source copied" : copyFailed ? "Source could not be copied" : ""}</span
+>
 
 <style>
 	:global(.copy-source-button) {

@@ -2,14 +2,24 @@
 	import X from "@lucide/svelte/icons/x";
 	import Tag from "@lucide/svelte/icons/tag";
 	import Badge from "$lib/components/ui/Badge.svelte";
-	import { InputControl, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
-	import { normalizeTags } from "./search-state";
+	import { InputControl, InputDescription, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
+	import { normalizeTags } from "./tags";
 
 	let {
+		id,
+		label,
+		listLabel,
+		description,
+		requirement,
 		tags,
 		error,
 		onChange
 	}: {
+		id: string;
+		label: string;
+		listLabel: string;
+		description?: string;
+		requirement?: "optional" | "required";
 		tags: string[];
 		error?: string;
 		onChange: (tags: string[]) => void;
@@ -54,19 +64,23 @@
 	}
 </script>
 
-<InputRoot id="search-tags" invalid={Boolean(error)} class="tag-input">
-	<InputLabel>Required tags</InputLabel>
+<InputRoot {id} invalid={Boolean(error)} hasDescription={Boolean(description)} class="tag-editor">
+	<InputLabel
+		>{label}
+		{#if requirement}<span class="field-qualifier">{requirement === "required" ? "Required" : "Optional"}</span
+			>{/if}</InputLabel
+	>
 	<InputControl
 		name="tagInput"
 		value={input}
 		autocomplete="off"
-		placeholder="Add tag — press Enter"
+		placeholder="e.g. local history"
 		oninput={handleInput}
 		onkeydown={handleKeydown}
 		onblur={commitInput}
 	/>
 	{#if tags.length}
-		<ul class="tag-list" aria-label="Added required tags">
+		<ul class="tag-list" aria-label={listLabel}>
 			{#each tags as tag (tag)}
 				<li>
 					<Badge variant="info" class="tag-badge">
@@ -85,6 +99,7 @@
 			{/each}
 		</ul>
 	{/if}
+	{#if description}<InputDescription>{description}</InputDescription>{/if}
 	{#if error}<InputError>{error}</InputError>{/if}
 </InputRoot>
 
