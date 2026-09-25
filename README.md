@@ -34,44 +34,16 @@ Format-specific behavior and replay limits for uploads are described in [File im
 
 See [Architecture](docs/architecture.md) for component boundaries, persistence rules, concurrency behavior, and the code map.
 
-## Quick start with Docker Compose
+## Docker Compose deployment
 
-Requirements:
-
-- Docker Desktop or Docker Engine with Compose;
-- enough memory for Chromium and at least 1 GB of shared memory for the worker.
-
-Create your local environment file:
-
-```sh
-cp .env.example .env
-```
-
-On PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Replace at least `POSTGRES_PASSWORD`, `OBJECT_STORAGE_ACCESS_KEY`, and `OBJECT_STORAGE_SECRET_KEY` in `.env`. The file is ignored by Git.
-
-Start the complete stack:
-
-```sh
-docker compose config --quiet
-docker compose up --build
-```
-
-The local services are then available at:
-
-- frontend: http://localhost:3000
-- API: http://localhost:5200
-- Scalar/OpenAPI in Development: http://localhost:5200/scalar
-- MinIO console: http://localhost:9001
-
-Web Bot Auth is disabled in `.env.example`. The empty `.secrets/` directory is mounted read-only so the stack can start without a key. To enable signed bot requests, place a private key at `.secrets/web-bot-auth-private-key.pem` and follow [Cloudflare and Web Bot Auth](docs/cloudflare-capture.md).
+The Compose files and startup commands are in [deploy/production](deploy/production/README.md).
+They keep PostgreSQL and MinIO private and expect a reverse proxy for the API
+and frontend. For local application development, use the steps below.
 
 ## Create an archive job
+
+These examples assume the API is running locally on port 5200. Replace the URL
+with your deployed API origin when using the production stack.
 
 Submit a public URL:
 
@@ -111,11 +83,9 @@ curl "http://localhost:5200/api/snapshots?text=example&page=1&pageSize=24"
 
 ## Local development without application containers
 
-1. Start PostgreSQL and MinIO:
-
-   ```sh
-   docker compose up -d postgres minio minio-init
-   ```
+1. Provide PostgreSQL 18.6 on `localhost:5432` and S3-compatible storage on
+   `localhost:9000`, with a `snapshots` bucket. The production Compose services
+   do not publish those ports to the host.
 
 2. Create local application configuration if it does not already exist:
 
@@ -177,6 +147,8 @@ The generated files are written directly to `frontend/src/lib/api/`. Review chan
 ## Configuration and deployment
 
 [Configuration and operations](docs/configuration.md) documents every supported setting, configuration precedence, secret handling, image boundaries, database initialization, production safeguards, and backup responsibilities.
+
+The separate [production Compose files](deploy/production/README.md) follow the Phoc No deployment layout.
 
 Important production facts:
 

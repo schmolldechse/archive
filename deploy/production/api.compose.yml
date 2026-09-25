@@ -1,0 +1,59 @@
+services:
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Archive.Api/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      PublicBaseUrl: ${ARCHIVE_PUBLIC_BASE_URL:?ARCHIVE_PUBLIC_BASE_URL is required}
+      ConnectionStrings__ArchiveDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DATABASE:?POSTGRES_DATABASE is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      ObjectStorage__ServiceUrl: http://minio:9000
+      ObjectStorage__AccessKey: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY is required}
+      ObjectStorage__SecretKey: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY is required}
+      ObjectStorage__Bucket: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+    healthcheck:
+      test: [CMD, dotnet, Archive.Api.dll, --healthcheck]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  worker:
+    build:
+      context: ../../backend
+      dockerfile: Archive.Worker/Dockerfile
+    restart: unless-stopped
+    init: true
+    shm_size: 1gb
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      Database__Initialize: "false"
+      ConnectionStrings__ArchiveDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DATABASE:?POSTGRES_DATABASE is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      ObjectStorage__ServiceUrl: http://minio:9000
+      ObjectStorage__AccessKey: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY is required}
+      ObjectStorage__SecretKey: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY is required}
+      ObjectStorage__Bucket: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
+      Archive__Browser__Headless: ${ARCHIVE_BROWSER_HEADLESS:-true}
+      Archive__Browser__UserAgent: ${ARCHIVE_BROWSER_USER_AGENT:-VoldechseArchiveBot/1.0 (+https://archive.voldechse.wtf/)}
+      Archive__CrawlPolicy__Enabled: ${ARCHIVE_CRAWL_POLICY_ENABLED:-true}
+      Archive__CrawlPolicy__UserAgentToken: ${ARCHIVE_CRAWL_USER_AGENT_TOKEN:-VoldechseArchiveBot}
+      Archive__CrawlPolicy__MinimumHostDelaySeconds: ${ARCHIVE_MINIMUM_HOST_DELAY_SECONDS:-2}
+      Archive__WebBotAuth__Enabled: ${ARCHIVE_WEB_BOT_AUTH_ENABLED:-false}
+      Archive__WebBotAuth__SignatureAgent: ${ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT:-https://archive.voldechse.wtf}
+      Archive__WebBotAuth__PrivateKeyPath: /run/secrets/web-bot-auth-private-key.pem
+    volumes:
+      - ${ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY:-../../.secrets}:/run/secrets:ro
+    depends_on:
+      api:
+        condition: service_healthy

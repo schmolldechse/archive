@@ -16,7 +16,7 @@ Nested .NET keys use double underscores in environment variables. For example, `
 Public `appsettings.json` files contain behavior limits and non-secret local endpoints only. Credentials belong in:
 
 - ignored `appsettings.Development.json` files for direct local .NET runs;
-- the ignored root `.env` for Docker Compose;
+- the ignored root `.env` for local tooling, or `deploy/production/.env` for Compose;
 - a production secret manager or orchestrator-provided environment variables after deployment.
 
 ## Initial local setup
@@ -29,7 +29,7 @@ Copy-Item backend/Archive.Api/appsettings.Development.example.json backend/Archi
 Copy-Item backend/Archive.Worker/appsettings.Development.example.json backend/Archive.Worker/appsettings.Development.json
 ```
 
-Choose local database and object-storage credentials and place the same values in `.env` and both development JSON files.
+Choose local database and object-storage credentials and place the same values in `.env` and both development JSON files. The production Compose setup uses its own environment file.
 
 Do not put real credentials into any `*.example` file.
 
@@ -37,13 +37,13 @@ Do not put real credentials into any `*.example` file.
 
 ### Application URLs
 
-| Variable | Purpose | Local default |
-| --- | --- | --- |
-| `PUBLIC_API_BASE_URL` | API URL embedded in and exposed to the frontend | `http://localhost:5200` |
-| `ARCHIVE_BACKEND_URL` | Local API URL used by frontend tooling | `http://localhost:5200` |
-| `ARCHIVE_PUBLIC_BASE_URL` | Base URL emitted in snapshot API responses | `http://localhost:5200` |
+| Variable | Purpose |
+| --- | --- |
+| `PUBLIC_API_BASE_URL` | Browser-visible API URL embedded in the frontend build |
+| `ARCHIVE_PUBLIC_BASE_URL` | Base URL emitted in snapshot API responses |
+| `FRONTEND_ORIGIN` | Browser-visible frontend origin |
 
-The frontend container uses `http://api:8080` internally. Browser-visible links must use an address reachable by the user's browser.
+The frontend container uses `http://api:8080` internally. Browser-visible links must use an address reachable by the user's browser. Local frontend tooling can use `ARCHIVE_BACKEND_URL` from the root `.env`.
 
 ### PostgreSQL
 
@@ -53,19 +53,19 @@ The frontend container uses `http://api:8080` internally. Browser-visible links 
 | `POSTGRES_USER` | Database role |
 | `POSTGRES_PASSWORD` | Database password; required by Compose |
 
-Compose constructs `ConnectionStrings__ArchiveDatabase` inside the API and worker containers. The database is exposed on port 5432 for local development; production deployments should remove that host publication unless an explicitly protected administrative path requires it.
+Compose constructs `ConnectionStrings__ArchiveDatabase` inside the API and worker containers. The production database has no published host port.
 
 ### Object storage
 
 | Variable | Purpose |
 | --- | --- |
-| `OBJECT_STORAGE_SERVICE_URL` | Host-visible S3-compatible endpoint |
-| `OBJECT_STORAGE_INTERNAL_SERVICE_URL` | Container-network endpoint used by API and worker |
 | `OBJECT_STORAGE_ACCESS_KEY` | Access key; required by Compose |
 | `OBJECT_STORAGE_SECRET_KEY` | Secret key; required by Compose |
 | `OBJECT_STORAGE_BUCKET` | Snapshot bucket |
 
-The S3 clients accept either both explicit key values or neither. Omitting both lets the AWS SDK use its normal credential provider chain. Supplying only one is treated as a configuration error.
+The production containers connect to `http://minio:9000`. Local development can use `OBJECT_STORAGE_SERVICE_URL` for a host-visible endpoint. The S3 clients accept either both explicit key values or neither. Omitting both lets the AWS SDK use its normal credential provider chain. Supplying only one is treated as a configuration error.
+
+The [production Compose setup](../deploy/production/README.md) builds MinIO and its `mc` bucket-initialization client from upstream source in `deploy/production/minio/Dockerfile` and uses PostgreSQL 18.6.
 
 ### Runtime environment
 
@@ -74,7 +74,7 @@ The S3 clients accept either both explicit key values or neither. Omitting both 
 | `ASPNETCORE_ENVIRONMENT` | API environment |
 | `DOTNET_ENVIRONMENT` | Worker environment |
 
-The Compose example uses `Development` for local OpenAPI access and diagnostics. Use `Production` for deployed services. Development JSON files are excluded from Docker build contexts, so containers rely on injected environment values.
+The production Compose files set both environments to `Production`. Development JSON files are excluded from Docker build contexts, so containers rely on injected environment values.
 
 ## Archive settings
 

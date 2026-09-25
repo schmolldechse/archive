@@ -58,32 +58,19 @@ stat -c '%a %n' .secrets/web-bot-auth-private-key.pem
 
 Do not print the key to verify it.
 
-## Local configuration
+## Compose configuration
 
-Copy `.env.example` to `.env` and set:
+In `deploy/production/.env`, set:
 
 ```dotenv
-ARCHIVE_BROWSER_HEADLESS=false
-ARCHIVE_BROWSER_USER_AGENT=VoldechseArchiveBot/1.0 (+https://archive.voldechse.wtf/)
 ARCHIVE_WEB_BOT_AUTH_ENABLED=true
 ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT=https://archive.voldechse.wtf
-ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY=./.secrets
-ARCHIVE_WEB_BOT_AUTH_PRIVATE_KEY_PATH=/run/secrets/web-bot-auth-private-key.pem
-ARCHIVE_WEB_BOT_AUTH_SIGNATURE_LIFETIME_SECONDS=60
-ARCHIVE_CRAWL_POLICY_ENABLED=true
-ARCHIVE_CRAWL_USER_AGENT_TOKEN=VoldechseArchiveBot
-ARCHIVE_MINIMUM_HOST_DELAY_SECONDS=2
+ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY=../../.secrets
 ```
 
-If the key lives elsewhere on the host, set `ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` to its containing directory. The filename inside that directory must still match `ARCHIVE_WEB_BOT_AUTH_PRIVATE_KEY_PATH`.
+If the key lives elsewhere on the host, set `ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` to its containing directory. The worker expects the filename `web-bot-auth-private-key.pem`.
 
-Validate and start the stack:
-
-```sh
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
-```
+Validate and start the stack using the [production Compose instructions](../deploy/production/README.md#deployment).
 
 ## Identity worker configuration
 
@@ -164,8 +151,9 @@ Read the returned job ID:
 
 ```sh
 curl http://localhost:5200/api/archive/ARCHIVE_ID
-docker compose logs --tail=150 worker
 ```
+
+For worker logs, use the same Compose file arguments from the production deployment command with `logs --tail=150 worker`.
 
 A successful job must contain the target document, not a challenge or interstitial page. The capture engine explicitly rejects recognized challenge responses and documents.
 
