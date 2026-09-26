@@ -106,6 +106,7 @@ public sealed class OfflineImportEngine(
         await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
             Headless = browserOptions.Headless,
+            Channel = browserOptions.Headless ? "chromium" : null,
             Timeout = (float)_captureLimits.MaxDuration.TotalMilliseconds
         });
         using var registration = cancellationToken.Register(() => _ = browser.CloseAsync());
