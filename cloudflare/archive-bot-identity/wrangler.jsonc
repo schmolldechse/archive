@@ -5,11 +5,11 @@
   "compatibility_date": "2026-09-08",
   "routes": [
     {
-      "pattern": "archive.voldechse.wtf",
-      "custom_domain": true
-    }
+      "pattern": "bot.archive.voldechse.wtf",
+      "custom_domain": true,
+    },
   ],
   "vars": {
-    "WEB_BOT_AUTH_PUBLIC_KEY_X": "vEGzzrjIozsfHasoAlWLo6AqD86rBrAZI9mBiYY6bNA"
-  }
+    "WEB_BOT_AUTH_PUBLIC_KEY_X": "vEGzzrjIozsfHasoAlWLo6AqD86rBrAZI9mBiYY6bNA",
+  },
 }

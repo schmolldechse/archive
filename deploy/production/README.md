@@ -12,6 +12,13 @@ needed.
 
 ## Deployment
 
+The Compose files join the external Docker network `archive`. Create it once on
+the deployment server before starting any of the services:
+
+```sh
+docker network create archive
+```
+
 From the repository root, copy `deploy/production/.env.example` to
 `deploy/production/.env` and set unique secrets and real HTTPS origins.
 Keep `.env` out of Git. The production Compose files
