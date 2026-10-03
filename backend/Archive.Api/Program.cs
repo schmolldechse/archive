@@ -1,3 +1,4 @@
+using Archive.Api.Authentication;
 using Archive.Api.OpenApi;
 using Archive.Api.Storage;
 using Archive.Core;
@@ -22,12 +23,17 @@ var maxUploadRequestBytes = checked(maxUploadBytes + 1_000_000L); // Multipart f
 builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = maxUploadBytes);
 
 builder.Services.AddOpenApi(options =>
-    options.AddOperationTransformer<ArchiveRequestBodyOperationTransformer>());
+{
+    options.AddOperationTransformer<ArchiveRequestBodyOperationTransformer>();
+    options.AddOperationTransformer<ProfileImageOperationTransformer>();
+    options.AddDocumentTransformer<AuthenticationDocumentTransformer>();
+});
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 builder.Services.AddArchiveCore(builder.Configuration);
+builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 builder.Services.AddCors(options => options.AddPolicy("public", policy =>
     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -42,6 +48,7 @@ if (app.Configuration.GetValue("Database:Initialize", true))
 }
 
 app.UseCors("public");
+app.UseArchiveAuthentication();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method) &&

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Archive.Core.Repositories.UserRepository;
+using Archive.Core.Repositories.AuthenticationRepository;
 
 namespace Archive.Core;
 
@@ -33,6 +35,9 @@ public static class Injection
         services.AddSingleton<IUploadFormatProbe, MhtmlUploadFormatProbe>();
         services.AddSingleton<IUploadFormatProbe, WebArchiveUploadFormatProbe>();
         services.AddSingleton<UploadFormatSelector>();
+
+        services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
+            .AddScoped<IUserRepository, UserRepository>();
         return services;
     }
 }
