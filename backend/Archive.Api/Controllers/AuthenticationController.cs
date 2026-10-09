@@ -19,7 +19,8 @@ namespace Archive.Api.Controllers;
 public sealed class AuthenticationController(
     IAuthenticationProviderCatalog providerCatalog,
     ArchiveAuthenticationOptions options,
-    AuthenticationMapper mapper) : ControllerBase
+    AuthenticationMapper mapper,
+    ArchiveSessionReader sessions) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("providers")]
@@ -43,16 +44,8 @@ public sealed class AuthenticationController(
     [EndpointDescription("Returns the authentication state and current user profile. Anonymous requests return an unauthenticated session with no user. An authenticated session with an invalid user identifier or a missing user returns HTTP 401.")]
     [ProducesResponseType<AuthenticationSession>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
-    public async Task<ActionResult<AuthenticationSession>> GetSession(
-        [FromServices] ArchiveSessionReader sessions, CancellationToken cancellationToken)
-    {
-        var session = await sessions.ReadAsync(User, cancellationToken);
-        if (session is null)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid session",
-                detail: "The current session could not be validated.");
-
-        return Ok(session);
-    }
+    public async Task<ActionResult<AuthenticationSession>> GetSession(CancellationToken cancellationToken) =>
+        Ok(await sessions.ReadAsync(User, cancellationToken));
 
     [HttpPost("login/{provider}"), Consumes("application/x-www-form-urlencoded")]
     [EndpointName("BeginExternalLogin")]

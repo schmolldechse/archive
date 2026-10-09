@@ -1,4 +1,5 @@
 using Archive.Api.Authentication;
+using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
 using Archive.Api.Storage;
@@ -37,6 +38,7 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
 builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
