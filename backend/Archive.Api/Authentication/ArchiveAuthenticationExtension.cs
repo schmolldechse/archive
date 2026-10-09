@@ -6,8 +6,6 @@ using Archive.Core.Entities.Authentication;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
-using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.Extensions.Options;
 
 namespace Archive.Api.Authentication;
@@ -28,8 +26,6 @@ public static class ArchiveAuthenticationExtension
                 options.PublicApiOrigin?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true &&
                 options.FrontendOrigin?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true,
                 "Authentication requires HTTPS API and frontend origins outside development.")
-            .Validate(options => isDevelopment || !string.IsNullOrWhiteSpace(options.DataProtectionKeyPath),
-                "Authentication:DataProtectionKeyPath is required outside development.")
             .ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveAuthenticationOptions>>().Value);
         services.AddSingleton<AuthenticationMapper>();
@@ -50,12 +46,9 @@ public static class ArchiveAuthenticationExtension
             cors.AddPolicy(CorsPolicy, policy => policy
                 .WithOrigins(options.FrontendOrigin.TrimEnd('/')).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
         services.AddAuthorization();
-        services.AddDataProtection().SetApplicationName("Archive.Api");
-        services.AddOptions<KeyManagementOptions>().Configure<ArchiveAuthenticationOptions, ILoggerFactory>((keys, options, logging) =>
-        {
-            if (!string.IsNullOrWhiteSpace(options.DataProtectionKeyPath))
-                keys.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(options.DataProtectionKeyPath), logging);
-        });
+        var dataProtection = services.AddDataProtection().SetApplicationName("Archive.Api");
+        if (!isDevelopment)
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "key-ring")));
 
         var authentication = services.AddAuthentication(SessionScheme).AddCookie(SessionScheme, cookie =>
         {

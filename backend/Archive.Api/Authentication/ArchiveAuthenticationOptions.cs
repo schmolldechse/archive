@@ -14,8 +14,6 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
     [Required]
     public string FrontendOrigin { get; init; } = "http://localhost:5173";
 
-    public string? DataProtectionKeyPath { get; init; }
-
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (!IsOrigin(PublicApiOrigin))
