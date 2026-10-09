@@ -20,7 +20,7 @@ public sealed class AuthenticationController(
     IAuthenticationProviderCatalog providerCatalog,
     ArchiveAuthenticationOptions options,
     AuthenticationMapper mapper,
-    ArchiveSessionReader sessions) : ControllerBase
+    ArchiveSessionReader sessionReader) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("providers")]
@@ -45,36 +45,37 @@ public sealed class AuthenticationController(
     [ProducesResponseType<AuthenticationSession>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public async Task<ActionResult<AuthenticationSession>> GetSession(CancellationToken cancellationToken) =>
-        Ok(await sessions.ReadAsync(User, cancellationToken));
+        Ok(await sessionReader.ReadAsync(User, cancellationToken));
 
-    [HttpPost("login/{provider}"), Consumes("application/x-www-form-urlencoded")]
+    [HttpPost("login/{provider}")]
+    [Consumes("application/x-www-form-urlencoded")]
     [EndpointName("BeginExternalLogin")]
     [EndpointSummary("Starts external authentication.")]
     [EndpointDescription("Redirects the browser to the selected authentication provider. The optional returnUrl form field specifies the local frontend path after authentication.")]
-    [ProducesResponseType(302)]
-    [ProducesResponseType<ProblemDetails>(400, "application/problem+json")]
-    [ProducesResponseType<ProblemDetails>(404, "application/problem+json")]
-    public IActionResult Login(string provider, [FromForm] LoginRequest request)
+    [ProducesResponseType(StatusCodes.Status302Found)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public IActionResult Login(string provider, [FromQuery] string? returnUrl)
     {
-        if (!ModelState.IsValid) return Error(400, "invalid_request", "The login form is invalid.");
-        if (!providers.TryGet(provider, out var selected))
-            return Error(404, "provider_unavailable", "This provider is unavailable.");
-        return Challenge(new AuthenticationProperties
-        {
-            RedirectUri = ArchiveAuthenticationOptions.LocalReturnUrl(request.ReturnUrl),
-            IsPersistent = false
-        }, selected.Scheme);
+        if (!providerCatalog.TryGet(provider, out var selected))
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Unknown authentication provider",
+                detail: "The requested authentication provider is not available.");
+
+        return Challenge(
+            new AuthenticationProperties { RedirectUri = ArchiveAuthenticationOptions.LocalReturnUrl(returnUrl) }, 
+            selected.Scheme);
     }
 
-    [HttpPost("logout"), EndpointName("Logout"), EndpointSummary("Ends the current session.")]
+    [HttpPost("logout")]
+    [EndpointName("Logout")] 
+    [EndpointSummary("Ends the current session.")]
     [EndpointDescription("Removes the local session cookie and redirects the browser to the frontend homepage. The external provider session remains active.")]
-    [ProducesResponseType(302)]
+    [ProducesResponseType(StatusCodes.Status302Found)]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(ArchiveAuthenticationExtension.SessionScheme);
         return Redirect(options.FrontendUrl("/"));
     }
-
-    private ObjectResult Error(int status, string code, string detail) => Problem(detail, statusCode: status,
-        extensions: new Dictionary<string, object?> { ["code"] = code, ["traceId"] = HttpContext.TraceIdentifier });
 }

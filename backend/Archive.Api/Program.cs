@@ -60,6 +60,8 @@ if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 
 app.UseExceptionHandler();
 app.UseCors("public");
+app.UseAuthentication();
+app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method) &&
