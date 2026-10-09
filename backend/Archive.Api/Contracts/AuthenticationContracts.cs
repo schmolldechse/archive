@@ -39,13 +39,3 @@ public sealed class UpdateUserProfileRequest
     [Description("Unique handle. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit."), JsonPropertyName("handle"), Required, StringLength(32, MinimumLength = 3)]
     public required string Handle { get; init; }
 }
-
-[Description("An authentication or profile API error with a stable machine-readable code.")]
-public sealed record AuthenticationProblemResponse(
-    [property: Description("Problem type URI."), JsonPropertyName("type")] string Type,
-    [property: Description("Short error title."), JsonPropertyName("title")] string Title,
-    [property: Description("HTTP status code."), JsonPropertyName("status")] int Status,
-    [property: Description("Safe explanation without provider tokens or internal diagnostics."), JsonPropertyName("detail")] string Detail,
-    [property: Description("Stable error code."), JsonPropertyName("code")] string Code,
-    [property: Description("Request correlation identifier."), JsonPropertyName("traceId")] string TraceId,
-    [property: Description("Validation messages indexed by JSON field name."), JsonPropertyName("errors"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<string, string[]>? Errors = null);

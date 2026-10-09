@@ -16,7 +16,7 @@ using System.Text.RegularExpressions;
 namespace Archive.Api.Controllers;
 
 [ApiController, Route("api/users/me"), Tags("Users"), Authorize, EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
-[ProducesResponseType<AuthenticationProblemResponse>(401), ProducesResponseType<AuthenticationProblemResponse>(503)]
+[ProducesResponseType<ProblemDetails>(401, "application/problem+json"), ProducesResponseType<ProblemDetails>(503, "application/problem+json")]
 public sealed class UsersController(IUserRepository users,
     ArchiveAuthenticationOptions options, AuthenticationMapper mapper) : ControllerBase
 {
@@ -27,8 +27,8 @@ public sealed class UsersController(IUserRepository users,
     [HttpPut, Consumes("application/json"), EndpointSummary("Updates the authenticated user's display name and handle.")]
     [EndpointName("UpdateCurrentUser")]
     [EndpointDescription("Normalizes the name to NFC and the handle to lowercase. A database constraint enforces handle uniqueness.")]
-    [ProducesResponseType<UserResponse>(200), ProducesResponseType<AuthenticationProblemResponse>(400), ProducesResponseType<AuthenticationProblemResponse>(409)]
-    [ProducesResponseType<AuthenticationProblemResponse>(415)]
+    [ProducesResponseType<UserResponse>(200), ProducesResponseType<ProblemDetails>(400, "application/problem+json"), ProducesResponseType<ProblemDetails>(409, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(415, "application/problem+json")]
     public async Task<ActionResult<UserResponse>> Update([FromBody] UpdateUserProfileRequest request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid || request is null)
@@ -69,7 +69,7 @@ public sealed class UsersController(IUserRepository users,
     [EndpointName("GetCurrentUserProfileImage")]
     [EndpointDescription("Returns the provider image imported at first sign-in as JPEG, PNG or WebP bytes. Private caching uses a SHA-256 ETag; a matching If-None-Match returns 304.")]
     [Produces("image/jpeg", "image/png", "image/webp"), ProducesResponseType(200), ProducesResponseType(304)]
-    [ProducesResponseType<AuthenticationProblemResponse>(404)]
+    [ProducesResponseType<ProblemDetails>(404, "application/problem+json")]
     public IActionResult GetImage()
     {
         var image = ArchiveAuthenticationExtension.CurrentUser(HttpContext)!.ProfileImage;

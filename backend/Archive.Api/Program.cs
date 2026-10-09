@@ -36,6 +36,7 @@ builder.Services.AddOpenApi(options =>
 });
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+builder.Services.AddProblemDetails();
 builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
@@ -55,6 +56,7 @@ if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
     await database.Database.MigrateAsync();
 }
 
+app.UseExceptionHandler();
 app.UseCors("public");
 app.UseArchiveAuthentication();
 app.Use(async (context, next) =>
