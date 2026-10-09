@@ -5,6 +5,17 @@
 
 	import ThemeToggle from "./ThemeToggle.svelte";
 	import BrandMark from "./BrandMark.svelte";
+	import { getAuthenticationContext } from "$lib/authentication/context.svelte";
+	import UserAvatar from "$lib/components/authentication/UserAvatar.svelte";
+	import {
+		DropdownMenuRoot,
+		DropdownMenuTrigger,
+		DropdownMenuContent,
+		DropdownMenuLabel,
+		DropdownMenuItem,
+		DropdownMenuSeparator
+	} from "$lib/components/ui/dropdown-menu";
+	const authentication = getAuthenticationContext();
 
 	let menuOpen = $state(false);
 
@@ -34,11 +45,29 @@
 		</nav>
 
 		<div class="site-header__actions">
+			{#if authentication.status === "loading"}
+				<span class="session-placeholder" aria-label="Loading account" aria-busy="true"></span>
+			{:else if authentication.user}
+				<DropdownMenuRoot>
+					<DropdownMenuTrigger class="account-trigger" aria-label={`Account menu for ${authentication.user.displayName}`}>
+						<UserAvatar user={authentication.user} />
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuLabel>{authentication.user.displayName}<br />@{authentication.user.handle}</DropdownMenuLabel>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem href="/account">Your profile</DropdownMenuItem>
+						<DropdownMenuItem onclick={() => authentication.signOut()}>Sign out</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenuRoot>
+			{:else}
+				<a class="sign-in-link" href="/login" aria-current={page.url.pathname === "/login" ? "page" : undefined}>Sign in</a>
+			{/if}
 			<button
 				class="menu-toggle"
 				type="button"
 				aria-controls="primary-navigation"
 				aria-expanded={menuOpen}
+				aria-label={menuOpen ? "Close navigation" : "Open navigation"}
 				onclick={() => (menuOpen = !menuOpen)}
 			>
 				{#if menuOpen}
@@ -116,6 +145,27 @@
 		align-items: center;
 		gap: 0.25rem;
 		padding-inline-start: 0.75rem;
+	}
+	.sign-in-link {
+		display: inline-flex;
+		min-height: 2.75rem;
+		align-items: center;
+		padding-inline: 0.75rem;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.sign-in-link:hover {
+		background: var(--archive-layer);
+	}
+	.session-placeholder {
+		display: block;
+		width: 2.75rem;
+		height: 2.75rem;
+	}
+	.site-header :global(.account-trigger) {
+		min-width: 2.75rem;
+		padding: 0.25rem;
 	}
 
 	.menu-toggle {
