@@ -6,10 +6,12 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
 {
     public const string SectionName = "Authentication";
 
-    [Required, Url]
+    [Url]
+    [Required]
     public string PublicApiOrigin { get; init; } = "http://localhost:5200";
 
-    [Required, Url]
+    [Url]
+    [Required]
     public string FrontendOrigin { get; init; } = "http://localhost:5173";
 
     public string? DataProtectionKeyPath { get; init; }
