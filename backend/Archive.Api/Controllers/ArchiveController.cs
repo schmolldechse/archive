@@ -1,13 +1,14 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Archive.Api.Contracts;
 using Archive.Core;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
+using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Core.Uploads;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Archive.Api.Controllers;
 
@@ -18,7 +19,7 @@ public sealed class ArchiveController(
     DataContext database,
     IArchiveObjectStore objectStore,
     UploadFormatSelector uploadFormatSelector,
-    IConfiguration configuration) : ControllerBase
+    ArchiveOptions options) : ControllerBase
 {
     private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -113,8 +114,7 @@ public sealed class ArchiveController(
         {
             if (upload.Length == 0)
                 return BadRequest("Provide a non-empty .html, .mhtml or .webarchive file.");
-            var maxUploadBytes = configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L);
-            if (upload.Length > maxUploadBytes)
+            if (upload.Length > options.MaxUploadBytes)
                 return StatusCode(StatusCodes.Status413PayloadTooLarge, "The uploaded file exceeds the system limit.");
 
             var prefix = new byte[Math.Min(upload.Length, 8_192)];

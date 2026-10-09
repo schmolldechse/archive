@@ -1,9 +1,11 @@
 using Archive.Core.Entities;
 using Archive.Core.Uploads;
+using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Archive.Core.Repositories.UserRepository;
 using Archive.Core.Repositories.AuthenticationRepository;
 
@@ -11,16 +13,36 @@ namespace Archive.Core;
 
 public static class Injection
 {
-    public static IServiceCollection AddArchiveCore(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddArchiveCore(this IServiceCollection services, IConfiguration configuration,
+        bool initializeDatabase = false)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var connectionString = configuration.GetConnectionString("ArchiveDatabase")
-            ?? throw new InvalidOperationException("The ArchiveDatabase connection string is required.");
+        services.AddOptions<ConnectionStringOptions>()
+            .Bind(configuration.GetSection(ConnectionStringOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddOptions<DatabaseOptions>()
+            .Configure(options => options.Initialize = initializeDatabase)
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<DatabaseOptions>>().Value);
+        services.AddOptions<ArchiveOptions>()
+            .Bind(configuration.GetSection(ArchiveOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveOptions>>().Value);
+        services.AddOptions<ObjectStorageOptions>()
+            .Bind(configuration.GetSection(ObjectStorageOptions.SectionName))
+            .PostConfigure(options =>
+            {
+                options.AccessKey = options.AccessKey?.Trim();
+                options.SecretKey = options.SecretKey?.Trim();
+            })
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<ObjectStorageOptions>>().Value);
 
-        services.AddDbContext<DataContext>(options => options.UseNpgsql(
-            connectionString,
+        services.AddDbContext<DataContext>((provider, options) => options.UseNpgsql(
+            provider.GetRequiredService<IOptions<ConnectionStringOptions>>().Value.ArchiveDatabase,
             options =>
             {
                 options.MigrationsHistoryTable(

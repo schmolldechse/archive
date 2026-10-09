@@ -1,4 +1,5 @@
 using Archive.Api.Contracts;
+using Archive.Api.Options;
 using Archive.Core;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
@@ -14,7 +15,7 @@ namespace Archive.Api.Controllers;
 public sealed class SnapshotsController(
     DataContext database,
     IArchiveObjectStore objectStore,
-    IConfiguration configuration) : ControllerBase
+    ArchiveApiOptions options) : ControllerBase
 {
     private static string ArchivedContentPolicy(string origin) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
@@ -24,7 +25,7 @@ public sealed class SnapshotsController(
 
     private string ArchivedContentOrigin()
     {
-        var publicBaseUrl = configuration["PublicBaseUrl"];
+        var publicBaseUrl = options.PublicBaseUrl;
         if (Uri.TryCreate(publicBaseUrl, UriKind.Absolute, out var publicUri) &&
             publicUri.Scheme is "http" or "https")
             return publicUri.GetLeftPart(UriPartial.Authority);
@@ -162,7 +163,7 @@ public sealed class SnapshotsController(
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
-        var publicBaseUrl = (configuration["PublicBaseUrl"] ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
+        var publicBaseUrl = (options.PublicBaseUrl ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
         return Ok(new SnapshotListResponse(
             page.Select(snapshot => snapshot.ToResponse(publicBaseUrl)).ToArray(),
             total,
@@ -185,7 +186,7 @@ public sealed class SnapshotsController(
         if (snapshot is null)
             return NotFound();
 
-        var publicBaseUrl = (configuration["PublicBaseUrl"] ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
+        var publicBaseUrl = (options.PublicBaseUrl ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
         return Ok(snapshot.ToResponse(publicBaseUrl));
     }
 

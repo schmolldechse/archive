@@ -8,10 +8,12 @@ RUN dotnet restore Archive.Api/Archive.Api.csproj
 COPY Archive.Core/ Archive.Core/
 COPY Archive.Api/ Archive.Api/
 RUN dotnet publish Archive.Api/Archive.Api.csproj -c Release -o /app/publish --no-restore -p:UseAppHost=false
+RUN mkdir -p /app/key-ring
 
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-noble-chiseled-composite-extra AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
+COPY --from=build --chown=$APP_UID:$APP_UID /app/key-ring /app/key-ring
 ENV ASPNETCORE_HTTP_PORTS=8080
 USER $APP_UID
 EXPOSE 8080

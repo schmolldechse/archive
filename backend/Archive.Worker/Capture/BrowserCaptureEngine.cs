@@ -4,16 +4,17 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
+using Archive.Core.Options;
 using Archive.Core.Storage;
 using Microsoft.Playwright;
 
 namespace Archive.Worker.Capture;
 
-public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, IConfiguration configuration,
+public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, ArchiveOptions options,
     ArchiveBrowserOptions browserOptions, WebBotAuthSigner webBotAuthSigner, CrawlPolicyService crawlPolicy,
     ILogger<BrowserCaptureEngine> logger)
 {
-    private readonly CaptureLimits _limits = CaptureLimits.FromConfiguration(configuration);
+    private readonly CaptureLimits _limits = options.ToCaptureLimits();
 
     public async Task<CaptureResult> CaptureAsync(ArchiveJob job, IProgress<ProgressUpdate>? progress, CancellationToken cancellationToken)
     {
