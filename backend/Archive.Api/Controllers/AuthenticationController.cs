@@ -3,14 +3,11 @@ using Archive.Api.Authentication.Catalog;
 using Archive.Api.Contracts;
 using Archive.Api.Contracts.Authentication;
 using Archive.Api.Mapping;
-using Archive.Core.Repositories.UserRepository;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel;
-using System.Security.Claims;
-using System.Security.Cryptography;
 
 namespace Archive.Api.Controllers;
 
@@ -47,29 +44,14 @@ public sealed class AuthenticationController(
     [ProducesResponseType<AuthenticationSession>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public async Task<ActionResult<AuthenticationSession>> GetSession(
-        [FromServices] IUserRepository users, CancellationToken cancellationToken)
+        [FromServices] ArchiveSessionReader sessions, CancellationToken cancellationToken)
     {
-        if (User.Identity?.IsAuthenticated != true)
-            return Ok(new AuthenticationSession { IsAuthenticated = false });
-
-        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) || userId == Guid.Empty)
+        var session = await sessions.ReadAsync(User, cancellationToken);
+        if (session is null)
             return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid session",
                 detail: "The current session could not be validated.");
 
-        var account = await users.GetByIdAsync(userId, cancellationToken);
-        if (account is null)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid session",
-                detail: "The current session could not be validated.");
-
-        var profileImageUrl = account.ProfileImage is { Length: > 0 } image
-            ? $"{options.PublicApiOrigin.TrimEnd('/')}/api/users/me/profile-image?v={Convert.ToHexStringLower(SHA256.HashData(image))}"
-            : null;
-
-        return Ok(new AuthenticationSession
-        {
-            IsAuthenticated = true,
-            User = mapper.ToResponse(account, profileImageUrl)
-        });
+        return Ok(session);
     }
 
     [HttpPost("login/{provider}"), Consumes("application/x-www-form-urlencoded")]

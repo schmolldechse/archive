@@ -29,6 +29,7 @@ public static class ArchiveAuthenticationExtension
             .ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveAuthenticationOptions>>().Value);
         services.AddSingleton<AuthenticationMapper>();
+        services.AddScoped<ArchiveSessionReader>();
         services.AddSingleton<IAuthenticationProviderCatalog, AuthenticationProviderCatalog>();
         services.AddScoped<ArchiveCookieAuthenticationEvents>();
         services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
