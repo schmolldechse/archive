@@ -3,13 +3,11 @@ using Archive.Api.Contracts.Authentication;
 using Archive.Api.Exceptions;
 using Archive.Api.Mapping;
 using Archive.Core.Repositories.UserRepository;
+using Archive.Core.Models.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using System.ComponentModel;
-using System.Text;
 
 namespace Archive.Api.Controllers.User;
 
@@ -54,39 +52,22 @@ public sealed class UserController(
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
 
-        try
+        var result = await userRepository.UpdateProfileAsync(User.ReadUserId(),
+            new(request.DisplayName, request.Handle), cancellationToken);
+        switch (result)
         {
-            request.DisplayName = request.DisplayName.Trim().Normalize(NormalizationForm.FormC);
-        }
-        catch (ArgumentException)
-        {
-            ModelState.AddModelError("displayName", "Enter a valid display name.");
-            return ValidationProblem(ModelState);
-        }
-
-        request.Handle = request.Handle.Trim().ToLowerInvariant();
-        ModelState.ClearValidationState(string.Empty);
-        if (!TryValidateModel(request))
-            return ValidationProblem(ModelState);
-
-        var current = await userRepository.GetByIdAsync(User.ReadUserId(), cancellationToken)
-            ?? throw new InvalidSessionException();
-        var owner = await userRepository.GetByHandleAsync(request.Handle, cancellationToken);
-        if (owner is not null && owner.Id != current.Id)
-            return HandleUnavailable();
-
-        var updated = mapper.ToModel(request);
-        updated.ProfileImage = current.ProfileImage;
-
-        try
-        {
-            var account = await userRepository.UpdateUserAsync(current.Id, updated, cancellationToken);
-            return Ok(mapper.ToResponse(account, account.GetProfileImageUrl(options.PublicApiOrigin)));
-        }
-        catch (DbUpdateException exception) when (exception.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_users_handle" })
-        {
-            return HandleUnavailable();
+            case UserProfileUpdateResult.Updated updated:
+                return Ok(mapper.ToResponse(updated.User, updated.User.GetProfileImageUrl(options.PublicApiOrigin)));
+            case UserProfileUpdateResult.NotFound:
+                throw new InvalidSessionException();
+            case UserProfileUpdateResult.HandleUnavailable:
+                return HandleUnavailable();
+            case UserProfileUpdateResult.Invalid invalid:
+                foreach (var error in invalid.Errors)
+                    ModelState.AddModelError(error.Field, error.Message);
+                return ValidationProblem(ModelState);
+            default:
+                throw new InvalidOperationException("Unknown profile update result.");
         }
     }
 

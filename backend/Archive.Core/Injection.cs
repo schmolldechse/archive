@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Archive.Core.Repositories.UserRepository;
 using Archive.Core.Repositories.AuthenticationRepository;
+using Archive.Core.Repositories.ArchiveRepository;
+using Archive.Core.Repositories.SnapshotRepository;
+using Archive.Core.Repositories.ProfileImageRepository;
 
 namespace Archive.Core;
 
@@ -59,7 +62,10 @@ public static class Injection
         services.AddSingleton<UploadFormatSelector>();
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
-            .AddScoped<IUserRepository, UserRepository>();
+            .AddScoped<IUserRepository, UserRepository>()
+            .AddScoped<IArchiveRepository, ArchiveRepository>()
+            .AddScoped<ISnapshotRepository, SnapshotRepository>()
+            .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;
     }
 }

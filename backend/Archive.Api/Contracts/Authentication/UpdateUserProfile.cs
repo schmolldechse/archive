@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
+using Archive.Core.Models.Users;
 
 namespace Archive.Api.Contracts.Authentication;
 
@@ -24,14 +24,6 @@ public sealed class UpdateUserProfile : IValidatableObject
     [Description("Display name of 6 to 64 characters after trimming and Unicode NFC normalization. Control characters are not permitted.")]
     public required string DisplayName { get; set; }
 
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-    {
-        if (DisplayName is not null && DisplayName.Trim().Any(char.IsControl))
-            yield return new ValidationResult("The display name cannot contain control characters.", ["displayName"]);
-
-        if (Handle is not null && !Regex.IsMatch(Handle.Trim().ToLowerInvariant(),
-            "^[a-z0-9][a-z0-9_-]*[a-z0-9]$", RegexOptions.CultureInvariant))
-            yield return new ValidationResult(
-                "Use letters or digits, with hyphens or underscores between them.", ["handle"]);
-    }
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+        new UserProfileUpdate(DisplayName, Handle).Validate(validationContext);
 }

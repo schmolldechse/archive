@@ -18,10 +18,4 @@ public partial class AuthenticationMapper
     [MapperIgnoreSource(nameof(AuthProviderDescriptor.Scheme))]
     public partial AuthenticationProvider ToResponse(AuthProviderDescriptor provider);
 
-    [MapperIgnoreTarget(nameof(ArchiveUser.Id))]
-    [MapperIgnoreTarget(nameof(ArchiveUser.ProfileImage))]
-    [MapperIgnoreTarget(nameof(ArchiveUser.CreatedAt))]
-    [MapperIgnoreTarget(nameof(ArchiveUser.UpdatedAt))]
-    [MapperIgnoreTarget(nameof(ArchiveUser.Identities))]
-    public partial ArchiveUser ToModel(UpdateUserProfile request);
 }
