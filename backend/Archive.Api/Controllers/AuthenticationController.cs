@@ -2,7 +2,9 @@ using Archive.Api.Authentication;
 using Archive.Api.Authentication.Catalog;
 using Archive.Api.Contracts;
 using Archive.Api.Contracts.Authentication;
+using Archive.Api.Exceptions;
 using Archive.Api.Mapping;
+using Archive.Core.Repositories.UserRepository;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
@@ -20,7 +22,7 @@ public sealed class AuthenticationController(
     IAuthenticationProviderCatalog providerCatalog,
     ArchiveAuthenticationOptions options,
     AuthenticationMapper mapper,
-    ArchiveSessionReader sessionReader) : ControllerBase
+    IUserRepository userRepository) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("providers")]
@@ -44,8 +46,20 @@ public sealed class AuthenticationController(
     [EndpointDescription("Returns the authentication state and current user profile. Anonymous requests return an unauthenticated session with no user. An authenticated session with an invalid user identifier or a missing user returns HTTP 401.")]
     [ProducesResponseType<AuthenticationSession>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
-    public async Task<ActionResult<AuthenticationSession>> GetSession(CancellationToken cancellationToken) =>
-        Ok(await sessionReader.ReadAsync(User, cancellationToken));
+    public async Task<ActionResult<AuthenticationSession>> GetSession(CancellationToken cancellationToken)
+    {
+        if (User.Identity?.IsAuthenticated != true)
+            return Ok(new AuthenticationSession { IsAuthenticated = false });
+
+        var account = await userRepository.GetByIdAsync(User.ReadUserId(), cancellationToken)
+            ?? throw new InvalidSessionException();
+
+        return Ok(new AuthenticationSession
+        {
+            IsAuthenticated = true,
+            User = mapper.ToResponse(account, account.GetProfileImageUrl(options.PublicApiOrigin))
+        });
+    }
 
     [HttpPost("login/{provider}")]
     [Consumes("application/x-www-form-urlencoded")]

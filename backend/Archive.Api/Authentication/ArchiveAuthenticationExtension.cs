@@ -11,7 +11,6 @@ public static class ArchiveAuthenticationExtension
 {
     public const string SessionScheme = "Archive.Session";
     public const string CorsPolicy = "Archive.Frontend";
-    internal const string CurrentUserKey = "Archive.CurrentUser";
 
     public static IServiceCollection AddArchiveAuthentication(this IServiceCollection services,
         IConfiguration configuration, bool isDevelopment)
@@ -28,7 +27,6 @@ public static class ArchiveAuthenticationExtension
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveAuthenticationOptions>>().Value);
 
         services.AddSingleton<AuthenticationMapper>();
-        services.AddScoped<ArchiveSessionReader>();
 
         services.AddSingleton<IAuthenticationProviderCatalog, AuthenticationProviderCatalog>();
 

@@ -35,17 +35,25 @@ builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<ProfileImageOperationTransformer>();
     options.AddDocumentTransformer<AuthenticationDocumentTransformer>();
 });
-builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
+
 builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
+
 builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
-builder.Services.AddCors(options => options.AddPolicy("public", policy =>
-    policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+
+builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
+    .AllowAnyOrigin()
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
 
 var app = builder.Build();
 
