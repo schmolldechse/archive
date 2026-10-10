@@ -22,7 +22,8 @@ if (args is ["--healthcheck"])
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOptions<FormOptions>().Configure<ArchiveOptions>((form, archive) =>
-    form.MultipartBodyLengthLimit = archive.MaxUploadBytes);
+    // Allow multipart framing before the controller applies the file limit and returns HTTP 413.
+    form.MultipartBodyLengthLimit = checked(archive.MaxUploadBytes + 1_000_000L));
 builder.Services.AddOptions<ArchiveApiOptions>().Bind(builder.Configuration)
     .PostConfigure(options => options.PublicBaseUrl = string.IsNullOrWhiteSpace(options.PublicBaseUrl)
         ? null : options.PublicBaseUrl.Trim().TrimEnd('/'))
@@ -31,9 +32,7 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<A
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddOperationTransformer<ArchiveRequestBodyOperationTransformer>();
-    options.AddOperationTransformer<ProfileImageOperationTransformer>();
-    options.AddDocumentTransformer<AuthenticationDocumentTransformer>();
+    options.AddOperationTransformer<ArchiveCreationOperationTransformer>();
 });
 builder.Services
     .AddControllers()
@@ -89,7 +88,14 @@ app.MapControllers();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference((options, context) => options
+        .WithTitle("Archive API")
+        .WithTheme(ScalarTheme.None)
+        .ShowOperationId()
+        .SortTagsAlphabetically()
+        .SortOperationsByMethod()
+        .DisableDefaultFonts()
+        .DisableAgent());
 }
 
 await app.RunAsync();

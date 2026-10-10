@@ -9,7 +9,7 @@ public sealed class AuthenticatedArchiveUser
 {
     [MaxLength(32)]
     [JsonPropertyName("handle")]
-    [Description("Unique lowercase user handle of 3 to 32 characters, or an empty string before profile setup.")]
+    [Description("Unique lowercase user handle, or an empty string before profile setup. New and updated handles must contain 6 to 32 characters.")]
     public required string Handle { get; set; }
 
     [MaxLength(64)]

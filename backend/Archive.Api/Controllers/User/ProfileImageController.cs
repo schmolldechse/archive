@@ -14,7 +14,7 @@ namespace Archive.Api.Controllers.User;
 [ApiController]
 [Route("api/users")]
 [Tags("User Profile Images")]
-[Description("Provider profile images for the current user.")]
+[Description("Profile images for the authenticated user.")]
 [Authorize]
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
@@ -23,10 +23,9 @@ public sealed class ProfileImageController(IUserRepository userRepository) : Con
     [HttpGet("profile-image")]
     [EndpointName("GetCurrentUserProfileImage")]
     [EndpointSummary("Returns the current user profile image.")]
-    [EndpointDescription("Returns the stored provider profile image encoded as WebP. Requests with a matching If-None-Match header return HTTP 304. A missing or unreadable image returns HTTP 404.")]
-    [Produces("image/webp")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status304NotModified)]
+    [EndpointDescription("Requires a browser session cookie. Returns a WebP profile image and an ETag. Send the ETag in If-None-Match to receive HTTP 304 without a body when unchanged. A missing or unreadable image returns HTTP 404.")]
+    [ProducesResponseType<Stream>(StatusCodes.Status200OK, "image/webp")]
+    [ProducesResponseType(typeof(void), StatusCodes.Status304NotModified)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<IActionResult> GetProfileImage(CancellationToken cancellationToken)
     {

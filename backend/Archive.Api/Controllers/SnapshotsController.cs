@@ -38,8 +38,8 @@ public sealed class SnapshotsController(
     [EndpointName("ListSnapshots")]
     [EndpointSummary("Lists and searches archived snapshots.")]
     [EndpointDescription("Returns a stably ordered page of snapshots using explicit text, source, tag, quality, source-type, and capture-time filters, with annual capture counts before capture-time filters and a global register summary.")]
-    [ProducesResponseType<SnapshotListResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<SnapshotListResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<SnapshotListResponse>> ListAsync(
         [FromQuery] SnapshotSearchRequest request,
         CancellationToken cancellationToken)
@@ -178,8 +178,8 @@ public sealed class SnapshotsController(
     [EndpointName("GetSnapshot")]
     [EndpointSummary("Gets a snapshot.")]
     [EndpointDescription("Returns metadata and public resource URLs for a stored snapshot.")]
-    [ProducesResponseType<SnapshotResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<SnapshotResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<SnapshotResponse>> GetAsync(Guid snapshotId, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots.AsNoTracking().Include(x => x.SnapshotTags).ThenInclude(x => x.Tag).SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);
@@ -193,10 +193,12 @@ public sealed class SnapshotsController(
     [HttpGet("{snapshotId:guid}/content/{**path}")]
     [EndpointName("GetSnapshotContent")]
     [EndpointSummary("Gets archived snapshot content.")]
-    [EndpointDescription("Returns a stored content resource; without a path, the archived start page is returned.")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [EndpointDescription("Returns the archived start page when path is empty, or the requested stored resource. The response Content-Type depends on the resource. Original uploaded source files are downloaded as application/octet-stream. Byte Range requests are supported and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
+    [ProducesResponseType<Stream>(StatusCodes.Status200OK, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
+    [ProducesResponseType<Stream>(StatusCodes.Status206PartialContent, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType(typeof(void), StatusCodes.Status416RangeNotSatisfiable)]
     public async Task<IActionResult> ContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots.AsNoTracking().SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);
@@ -226,8 +228,8 @@ public sealed class SnapshotsController(
     [EndpointName("GetSnapshotScreenshot")]
     [EndpointSummary("Gets a snapshot screenshot.")]
     [EndpointDescription("Returns the screenshot image created while archiving the snapshot.")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<Stream>(StatusCodes.Status200OK, "image/png")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<IActionResult> ScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots.AsNoTracking().SingleOrDefaultAsync(x => x.Id == snapshotId, cancellationToken);

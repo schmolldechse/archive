@@ -1,4 +1,5 @@
 using Archive.Api.Contracts;
+using Archive.Api.Contracts.Archive.Creation;
 using Archive.Core;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
@@ -30,92 +31,80 @@ public sealed class ArchiveController(
     [Consumes("application/json")]
     [EndpointName("CreateArchiveFromUrl")]
     [EndpointSummary("Creates an archive from a URL.")]
-    [EndpointDescription("Accepts a public HTTP or HTTPS URL as JSON and queues a new archive.")]
-    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ArchiveResponse>> CreateFromUrlAsync(
+    [EndpointDescription("Queues a public HTTP or HTTPS URL. Returns the job status immediately; snapshot creation runs asynchronously.")]
+    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
+    public async Task<ActionResult<ArchiveResponse>> CreateFromUrlAsync(
         [FromBody] CreateArchiveUrlRequest request,
-        CancellationToken cancellationToken) =>
-        CreateAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        return await CreateAsync(
             SourceType.Url,
             request.SourceUrl,
-            null,
             null,
             request.Title,
             request.Description,
             request.Tags,
             cancellationToken);
+    }
 
     [HttpPost]
     [Consumes("multipart/form-data")]
     [EndpointName("CreateArchiveFromFile")]
     [EndpointSummary("Creates an archive from an HTML, MHTML or Webarchive file.")]
     [EndpointDescription("Accepts a .html, .mhtml or .webarchive file and its metadata as multipart form data and queues a new archive.")]
-    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public Task<ActionResult<ArchiveResponse>> CreateFromFileAsync(
+    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
+    public async Task<ActionResult<ArchiveResponse>> CreateFromFileAsync(
         [FromForm] CreateArchiveFileRequest request,
-        CancellationToken cancellationToken) =>
-        CreateAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        return await CreateAsync(
             SourceType.HtmlFile,
-            null,
             request.OriginalLink,
             request.File,
             request.Title,
             request.Description,
             request.Tags,
             cancellationToken);
+    }
 
     private async Task<ActionResult<ArchiveResponse>> CreateAsync(
         SourceType sourceType,
-        string? sourceUrl,
-        string? originalLink,
+        string sourceUrl,
         IFormFile? upload,
         string title,
         string? description,
         string[]? requestTags,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid)
-            return ValidationProblem(ModelState);
-
-        sourceUrl = sourceUrl?.Trim() ?? string.Empty;
-        originalLink = originalLink?.Trim() ?? string.Empty;
         title = title.Trim();
         description = description?.Trim() ?? string.Empty;
 
-        if (requestTags is { Length: > 30 })
-            return BadRequest("At most 30 tags can be assigned.");
+        var tags = (requestTags ?? [])
+            .Select(ArchiveRequestValidation.NormalizeTag)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        var tags = NormalizeTags(requestTags ?? []);
-        if (tags is null)
-            return BadRequest("Each tag must contain between 1 and 100 characters.");
-
-        if (string.IsNullOrWhiteSpace(title))
-            return BadRequest("A title is required.");
-
-        string? originUrl = null;
-        if (sourceType == SourceType.Url)
-        {
-            if (!UrlNormalizer.TryNormalizeSource(sourceUrl, out originUrl, out var error))
-                return BadRequest(error);
-        }
-        else if (string.IsNullOrWhiteSpace(originalLink))
-        {
-            return BadRequest("An original page URL is required.");
-        }
-        else if (!UrlNormalizer.TryNormalizeSource(originalLink, out originUrl, out var originalLinkError))
-        {
-            return BadRequest(originalLinkError);
-        }
+        if (!UrlNormalizer.TryNormalizeSource(sourceUrl, out var originUrl, out var error))
+            return InvalidField(sourceType == SourceType.Url ? "sourceUrl" : "originalLink", error);
 
         IUploadFormatProbe? uploadFormat = null;
         if (upload is not null)
         {
-            if (upload.Length == 0)
-                return BadRequest("Provide a non-empty .html, .mhtml or .webarchive file.");
             if (upload.Length > options.MaxUploadBytes)
-                return StatusCode(StatusCodes.Status413PayloadTooLarge, "The uploaded file exceeds the system limit.");
+                return Problem(statusCode: StatusCodes.Status413PayloadTooLarge,
+                    title: "File too large", detail: "The uploaded file exceeds the system limit.");
 
             var prefix = new byte[Math.Min(upload.Length, 8_192)];
             await using (var probeStream = upload.OpenReadStream())
@@ -131,12 +120,8 @@ public sealed class ArchiveController(
                 uploadFormat = uploadFormatSelector.Select(upload.FileName, prefix.AsSpan(0, read));
             }
             if (uploadFormat is null)
-                return BadRequest("The file format is unsupported or does not match its extension.");
+                return InvalidField("file", "The file format is unsupported or does not match its extension.");
             sourceType = uploadFormat.SourceType;
-        }
-        else if (sourceType != SourceType.Url)
-        {
-            return BadRequest("Provide a non-empty .html, .mhtml or .webarchive file.");
         }
 
         var job = new ArchiveJob
@@ -151,9 +136,7 @@ public sealed class ArchiveController(
         };
         job.Tags = tags.Select(value => new ArchiveJobTag { JobId = job.Id, Value = value }).ToList();
 
-        var projectKey = originUrl is not null
-            ? UrlNormalizer.ProjectKey(originUrl)
-            : sourceType == SourceType.HtmlFile ? $"html:{job.Id:N}" : $"upload:{job.Id:N}";
+        var projectKey = UrlNormalizer.ProjectKey(originUrl);
 
         var project = await database.Projects.SingleOrDefaultAsync(x => x.ProjectKey == projectKey, cancellationToken);
         if (project is null)
@@ -195,8 +178,8 @@ public sealed class ArchiveController(
     [EndpointName("GetArchive")]
     [EndpointSummary("Gets an archive.")]
     [EndpointDescription("Returns the status, progress, and result data of an archive.")]
-    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<ArchiveResponse>> GetAsync(Guid archiveId, CancellationToken cancellationToken)
     {
         var archive = await database.ArchiveJobs.Include(x => x.Tags).SingleOrDefaultAsync(x => x.Id == archiveId, cancellationToken);
@@ -204,11 +187,10 @@ public sealed class ArchiveController(
     }
 
     [HttpGet("{archiveId:guid}/events")]
-    [Produces("text/event-stream")]
     [EndpointName("StreamArchiveEvents")]
     [EndpointSummary("Streams archive changes.")]
-    [EndpointDescription("Sends status changes as server-sent events until the archive reaches a terminal state.")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [EndpointDescription("Streams unnamed SSE events whose data is a JSON archive response. The stream closes when the job is completed, failed, cancelled, discarded or aborted. An unknown archive sends a JSON string error and closes the stream; its HTTP status is 200. Use curl -N to consume events without output buffering.")]
+    [ProducesResponseType<string>(StatusCodes.Status200OK, "text/event-stream")]
     public async Task EventsAsync(Guid archiveId, CancellationToken cancellationToken)
     {
         Response.StatusCode = StatusCodes.Status200OK;
@@ -246,9 +228,9 @@ public sealed class ArchiveController(
     [EndpointName("CancelArchive")]
     [EndpointSummary("Cancels an archive.")]
     [EndpointDescription("Cancels a queued or running archive and returns its updated status.")]
-    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<ArchiveResponse>> CancelAsync(Guid archiveId, CancellationToken cancellationToken)
     {
         var completedAt = DateTimeOffset.UtcNow;
@@ -262,8 +244,9 @@ public sealed class ArchiveController(
         {
             var exists = await database.ArchiveJobs.AnyAsync(x => x.Id == archiveId, cancellationToken);
             return exists
-                ? Conflict("This archive can no longer be cancelled.")
-                : NotFound("Archive not found.");
+                ? Problem(statusCode: StatusCodes.Status409Conflict, title: "Archive cannot be cancelled",
+                    detail: "Only queued or running archives can be cancelled.")
+                : Problem(statusCode: StatusCodes.Status404NotFound, title: "Archive not found");
         }
 
         var archive = await database.ArchiveJobs.Include(x => x.Tags).SingleAsync(x => x.Id == archiveId, cancellationToken);
@@ -324,17 +307,9 @@ public sealed class ArchiveController(
         await Response.Body.FlushAsync(cancellationToken);
     }
 
-    private static IReadOnlyList<string>? NormalizeTags(IEnumerable<string> values)
+    private ActionResult InvalidField(string field, string message)
     {
-        var tags = values
-            .Select(value => value.Trim().TrimStart('#').ToLowerInvariant())
-            .ToArray();
-
-        if (tags.Any(value => value.Length is 0 or > 100))
-            return null;
-
-        return tags
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        ModelState.AddModelError(field, message);
+        return ValidationProblem(ModelState);
     }
 }
