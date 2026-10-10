@@ -21,6 +21,6 @@ internal static class ArchiveIdentityClaims
             return null;
 
         var version = Convert.ToHexStringLower(SHA256.HashData(image));
-        return $"{publicApiOrigin.TrimEnd('/')}/api/users/me/profile-image?v={version}";
+        return $"{publicApiOrigin.TrimEnd('/')}/api/users/profile-image?v={version}";
     }
 }
