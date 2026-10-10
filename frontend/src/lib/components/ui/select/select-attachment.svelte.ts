@@ -88,14 +88,7 @@ function positionContent(content: HTMLDivElement, options: SelectAttachmentOptio
 	const preferredOverflow = verticalOverflow(coordinates, contentBounds, preferredSide, padding);
 
 	if (preferredOverflow > 0) {
-		const alternateCoordinates = coordinatesFor(
-			anchorBounds,
-			contentBounds,
-			alternateSide,
-			align,
-			sideOffset,
-			direction
-		);
+		const alternateCoordinates = coordinatesFor(anchorBounds, contentBounds, alternateSide, align, sideOffset, direction);
 		const alternateOverflow = verticalOverflow(alternateCoordinates, contentBounds, alternateSide, padding);
 
 		if (alternateOverflow < preferredOverflow) {

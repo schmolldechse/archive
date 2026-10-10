@@ -23,9 +23,7 @@
 	const fallbackId = select.triggerId;
 	const unregisterTrigger = select.registerTrigger(() => ref);
 	const unregisterId = select.registerTriggerId(() => id ?? fallbackId);
-	const describedBy = $derived(
-		joinIds(ariaDescribedby, select.descriptionId, select.invalid ? select.errorId : undefined)
-	);
+	const describedBy = $derived(joinIds(ariaDescribedby, select.descriptionId, select.invalid ? select.errorId : undefined));
 	const labelledBy = $derived(joinIds(select.labelId, ariaLabelledby));
 
 	onDestroy(() => {
@@ -52,10 +50,7 @@
 
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
-			select.requestOpenChange(
-				true,
-				event.key === "ArrowDown" ? "selected-or-first" : "selected-or-last"
-			);
+			select.requestOpenChange(true, event.key === "ArrowDown" ? "selected-or-first" : "selected-or-last");
 			return;
 		}
 

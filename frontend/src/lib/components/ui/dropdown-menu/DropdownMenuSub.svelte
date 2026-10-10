@@ -9,11 +9,7 @@
 	} from "./dropdown-menu-context.svelte";
 	import type { DropdownMenuFocusIntent, DropdownMenuSubProps, MenuOpenReason } from "./types";
 
-	let {
-		open = $bindable(false),
-		onOpenChange,
-		children
-	}: DropdownMenuSubProps = $props();
+	let { open = $bindable(false), onOpenChange, children }: DropdownMenuSubProps = $props();
 
 	const root = getDropdownMenuRootContext("DropdownMenuSub");
 	const parentMenu = getDropdownMenuContentContext("DropdownMenuSub");

@@ -2,15 +2,7 @@ import type { Snippet } from "svelte";
 import type { HTMLAnchorAttributes, HTMLAttributes, HTMLButtonAttributes } from "svelte/elements";
 
 export type MenuOpenReason =
-	| "trigger"
-	| "keyboard"
-	| "pointer"
-	| "outside"
-	| "escape"
-	| "selection"
-	| "tab"
-	| "native"
-	| "programmatic";
+	"trigger" | "keyboard" | "pointer" | "outside" | "escape" | "selection" | "tab" | "native" | "programmatic";
 
 export type DropdownMenuSide = "top" | "right" | "bottom" | "left";
 export type DropdownMenuAlign = "start" | "center" | "end";
@@ -138,14 +130,7 @@ export interface DropdownMenuSubProps {
 
 export interface DropdownMenuSubTriggerProps extends Omit<
 	HTMLButtonAttributes,
-	| "children"
-	| "type"
-	| "role"
-	| "tabindex"
-	| "aria-disabled"
-	| "aria-haspopup"
-	| "aria-expanded"
-	| "aria-controls"
+	"children" | "type" | "role" | "tabindex" | "aria-disabled" | "aria-haspopup" | "aria-expanded" | "aria-controls"
 > {
 	disabled?: boolean;
 	textValue?: string;

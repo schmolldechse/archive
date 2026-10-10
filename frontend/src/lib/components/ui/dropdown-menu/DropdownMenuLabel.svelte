@@ -6,26 +6,14 @@
 
 	const generatedId = $props.id();
 
-	let {
-		children,
-		ref = $bindable(null),
-		class: className,
-		id,
-		...restProps
-	}: DropdownMenuLabelProps = $props();
+	let { children, ref = $bindable(null), class: className, id, ...restProps }: DropdownMenuLabelProps = $props();
 
 	const group = getDropdownMenuGroupContext("DropdownMenuLabel");
 	const unregisterId = group.registerLabelId(() => id ?? generatedId);
 	onDestroy(unregisterId);
 </script>
 
-<div
-	{...restProps}
-	bind:this={ref}
-	id={id ?? generatedId}
-	class={["dropdown-menu-label", className]}
-	data-dropdown-menu-label
->
+<div {...restProps} bind:this={ref} id={id ?? generatedId} class={["dropdown-menu-label", className]} data-dropdown-menu-label>
 	{@render children()}
 </div>
 

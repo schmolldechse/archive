@@ -27,12 +27,7 @@
 		>
 	</header>
 	<main id="main-content" class="archived-page__content">
-		<iframe
-			src={contentHref}
-			title={`Archived page: ${data.snapshot.title}`}
-			sandbox=""
-			referrerpolicy="no-referrer"
-		></iframe>
+		<iframe src={contentHref} title={`Archived page: ${data.snapshot.title}`} sandbox="" referrerpolicy="no-referrer"></iframe>
 	</main>
 </div>
 

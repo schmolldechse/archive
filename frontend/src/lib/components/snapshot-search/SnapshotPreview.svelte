@@ -46,8 +46,8 @@
 				aria-describedby={undefined}
 			>
 				<div class="dialog-heading">
-					<DialogTitle>Snapshot preview</DialogTitle><LocalTimestamp value={snapshot.createdAt} /><DialogClose aria-label="Close snapshot preview"
-						><X aria-hidden="true" /></DialogClose
+					<DialogTitle>Snapshot preview</DialogTitle><LocalTimestamp value={snapshot.createdAt} /><DialogClose
+						aria-label="Close snapshot preview"><X aria-hidden="true" /></DialogClose
 					>
 				</div>
 				<SnapshotPreviewContent {snapshot} layout="desktop" />

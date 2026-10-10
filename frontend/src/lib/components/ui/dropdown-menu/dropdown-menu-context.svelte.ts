@@ -54,12 +54,7 @@ export interface DropdownMenuRootContext {
 	registerSubmenu(submenu: RegisteredDropdownSubmenu): () => void;
 	registerTrigger(getElement: ElementGetter<HTMLButtonElement>): () => void;
 	registerTriggerId(getId: IdGetter): () => void;
-	requestOpenChange(
-		open: boolean,
-		reason: MenuOpenReason,
-		focusIntent?: DropdownMenuFocusIntent,
-		restoreFocus?: boolean
-	): void;
+	requestOpenChange(open: boolean, reason: MenuOpenReason, focusIntent?: DropdownMenuFocusIntent, restoreFocus?: boolean): void;
 	restoreTriggerFocus(): void;
 	setLastTrigger(element: HTMLButtonElement): void;
 	synchronizeProgrammaticChange(): void;
@@ -79,12 +74,7 @@ export interface DropdownMenuSubContext {
 	registerMenu(getMenu: () => DropdownMenuContentContext): () => void;
 	registerTrigger(getElement: ElementGetter<HTMLButtonElement>): () => void;
 	registerTriggerId(getId: IdGetter): () => void;
-	requestOpenChange(
-		open: boolean,
-		reason: MenuOpenReason,
-		focusIntent?: DropdownMenuFocusIntent,
-		restoreFocus?: boolean
-	): void;
+	requestOpenChange(open: boolean, reason: MenuOpenReason, focusIntent?: DropdownMenuFocusIntent, restoreFocus?: boolean): void;
 	restoreTriggerFocus(): void;
 	synchronizeProgrammaticChange(): void;
 }

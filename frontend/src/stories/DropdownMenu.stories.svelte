@@ -95,9 +95,7 @@
 				</DropdownMenuItem>
 				<DropdownMenuItem disabled>Disabled item</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem closeOnSelect={false} onclick={() => (persistentCount += 1)}>
-					Persistent action
-				</DropdownMenuItem>
+				<DropdownMenuItem closeOnSelect={false} onclick={() => (persistentCount += 1)}>Persistent action</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenuRoot>
 		<div class="story-register" aria-live="polite">
@@ -143,10 +141,7 @@
 			<DropdownMenuContent>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>Choices</DropdownMenuLabel>
-					<DropdownMenuCheckboxGroup
-						bind:value={checkboxValues}
-						onValueChange={() => (checkboxChanges += 1)}
-					>
+					<DropdownMenuCheckboxGroup bind:value={checkboxValues} onValueChange={() => (checkboxChanges += 1)}>
 						<DropdownMenuCheckboxItem value="option-a">
 							{#snippet children({ checked })}<span>Option A{checked ? " — selected" : ""}</span>{/snippet}
 						</DropdownMenuCheckboxItem>
@@ -321,7 +316,9 @@
 
 <Story name="Content Resilience" asChild>
 	<div class="story-resilience">
-		<p class="story-note">The menu constrains width and height while preserving complete, wrapping labels and typeahead text.</p>
+		<p class="story-note">
+			The menu constrains width and height while preserving complete, wrapping labels and typeahead text.
+		</p>
 		<DropdownMenuRoot typeahead>
 			<DropdownMenuTrigger>Open constrained menu</DropdownMenuTrigger>
 			<DropdownMenuContent class="story-narrow-menu">
@@ -341,12 +338,18 @@
 	<div class="story-stack">
 		<div class="story-guide">
 			<dl>
-				<dt><kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Move among enabled items</dd>
-				<dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>Move to the first or last item</dd>
-				<dt><kbd>A–Z</kbd></dt><dd>Match the buffered item text</dd>
-				<dt><kbd>→</kbd> <kbd>←</kbd></dt><dd>Open or close one submenu level</dd>
-				<dt><kbd>Esc</kbd></dt><dd>Close the current menu and return focus</dd>
-				<dt><kbd>Tab</kbd></dt><dd>Close without trapping focus</dd>
+				<dt><kbd>↓</kbd> <kbd>↑</kbd></dt>
+				<dd>Move among enabled items</dd>
+				<dt><kbd>Home</kbd> <kbd>End</kbd></dt>
+				<dd>Move to the first or last item</dd>
+				<dt><kbd>A–Z</kbd></dt>
+				<dd>Match the buffered item text</dd>
+				<dt><kbd>→</kbd> <kbd>←</kbd></dt>
+				<dd>Open or close one submenu level</dd>
+				<dt><kbd>Esc</kbd></dt>
+				<dd>Close the current menu and return focus</dd>
+				<dt><kbd>Tab</kbd></dt>
+				<dd>Close without trapping focus</dd>
 			</dl>
 		</div>
 		<DropdownMenuRoot loop>

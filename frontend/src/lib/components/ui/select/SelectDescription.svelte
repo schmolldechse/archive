@@ -4,13 +4,7 @@
 	import { getSelectContext } from "./select-context.svelte";
 	import type { SelectDescriptionProps } from "./types";
 
-	let {
-		children,
-		ref = $bindable(null),
-		class: className,
-		id,
-		...restProps
-	}: SelectDescriptionProps = $props();
+	let { children, ref = $bindable(null), class: className, id, ...restProps }: SelectDescriptionProps = $props();
 
 	const select = getSelectContext("SelectDescription");
 	const fallbackId = select.defaultDescriptionId;
@@ -19,13 +13,7 @@
 	onDestroy(unregisterId);
 </script>
 
-<p
-	{...restProps}
-	bind:this={ref}
-	id={id ?? fallbackId}
-	class={["select-description", className]}
-	data-select-description
->
+<p {...restProps} bind:this={ref} id={id ?? fallbackId} class={["select-description", className]} data-select-description>
 	{@render children()}
 </p>
 

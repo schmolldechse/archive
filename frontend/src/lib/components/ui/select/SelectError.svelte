@@ -5,13 +5,7 @@
 	import { getSelectContext } from "./select-context.svelte";
 	import type { SelectErrorProps } from "./types";
 
-	let {
-		children,
-		ref = $bindable(null),
-		class: className,
-		id,
-		...restProps
-	}: SelectErrorProps = $props();
+	let { children, ref = $bindable(null), class: className, id, ...restProps }: SelectErrorProps = $props();
 
 	const select = getSelectContext("SelectError");
 	const fallbackId = select.defaultErrorId;

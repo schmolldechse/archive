@@ -3,13 +3,7 @@
 	import { mergeClasses } from "./helpers";
 	import type { AccordionHeaderProps } from "./types";
 
-	let {
-		level,
-		children,
-		ref = $bindable(null),
-		class: className,
-		...restProps
-	}: AccordionHeaderProps = $props();
+	let { level, children, ref = $bindable(null), class: className, ...restProps }: AccordionHeaderProps = $props();
 
 	const item = getAccordionItemContext("AccordionHeader");
 	const resolvedLevel = $derived(level ?? item.headingLevel);

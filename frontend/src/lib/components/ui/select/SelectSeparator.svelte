@@ -1,11 +1,7 @@
 <script lang="ts">
 	import type { SelectSeparatorProps } from "./types";
 
-	let {
-		ref = $bindable(null),
-		class: className,
-		...restProps
-	}: SelectSeparatorProps = $props();
+	let { ref = $bindable(null), class: className, ...restProps }: SelectSeparatorProps = $props();
 </script>
 
 <div

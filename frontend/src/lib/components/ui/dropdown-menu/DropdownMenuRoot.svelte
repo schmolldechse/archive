@@ -1,8 +1,5 @@
 <script lang="ts">
-	import {
-		setDropdownMenuRootContext,
-		type DropdownMenuContentContext
-	} from "./dropdown-menu-context.svelte";
+	import { setDropdownMenuRootContext, type DropdownMenuContentContext } from "./dropdown-menu-context.svelte";
 	import type { DropdownMenuFocusIntent, DropdownMenuRootProps, MenuOpenReason } from "./types";
 
 	let {

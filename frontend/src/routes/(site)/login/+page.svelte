@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/state";
+	import { apiUrl } from "$lib/authentication/api";
 	import { getAuthenticationContext } from "$lib/authentication/context.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import "$lib/authentication/pages.css";
@@ -28,8 +29,11 @@
 	{:else if authentication.providers.length}
 		<div class="account-actions">
 			{#each authentication.providers as provider (provider.key)}
-				<form method="post" action={provider.loginUrl} data-sveltekit-reload>
-					<input type="hidden" name="returnUrl" value={returnUrl} />
+				<form
+					method="post"
+					action={apiUrl(`/api/auth/login/${encodeURIComponent(provider.key)}?${new URLSearchParams({ returnUrl })}`)}
+					data-sveltekit-reload
+				>
 					<Button type="submit" variant="primary">Continue with {provider.displayName}</Button>
 				</form>
 			{/each}

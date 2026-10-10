@@ -1,9 +1,5 @@
 import type { Snippet } from "svelte";
-import type {
-	HTMLAttributes,
-	HTMLButtonAttributes,
-	HTMLLabelAttributes
-} from "svelte/elements";
+import type { HTMLAttributes, HTMLButtonAttributes, HTMLLabelAttributes } from "svelte/elements";
 
 export type SelectItemValue = string;
 
@@ -62,14 +58,7 @@ export interface SelectLabelProps extends Omit<HTMLLabelAttributes, "children" |
 
 export interface SelectTriggerProps extends Omit<
 	HTMLButtonAttributes,
-	| "children"
-	| "type"
-	| "disabled"
-	| "aria-haspopup"
-	| "aria-expanded"
-	| "aria-controls"
-	| "aria-required"
-	| "aria-invalid"
+	"children" | "type" | "disabled" | "aria-haspopup" | "aria-expanded" | "aria-controls" | "aria-required" | "aria-invalid"
 > {
 	children: Snippet;
 	ref?: HTMLButtonElement | null;
@@ -123,10 +112,7 @@ export interface SelectItemProps extends Omit<
 	ref?: HTMLDivElement | null;
 }
 
-export interface SelectSeparatorProps extends Omit<
-	HTMLAttributes<HTMLDivElement>,
-	"role" | "aria-orientation"
-> {
+export interface SelectSeparatorProps extends Omit<HTMLAttributes<HTMLDivElement>, "role" | "aria-orientation"> {
 	ref?: HTMLDivElement | null;
 }
 

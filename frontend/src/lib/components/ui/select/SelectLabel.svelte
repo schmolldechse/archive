@@ -4,13 +4,7 @@
 	import { getSelectContext } from "./select-context.svelte";
 	import type { SelectLabelProps } from "./types";
 
-	let {
-		children,
-		ref = $bindable(null),
-		class: className,
-		id,
-		...restProps
-	}: SelectLabelProps = $props();
+	let { children, ref = $bindable(null), class: className, id, ...restProps }: SelectLabelProps = $props();
 
 	const select = getSelectContext("SelectLabel");
 	const fallbackId = select.defaultLabelId;

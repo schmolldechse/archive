@@ -9,7 +9,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"generate:api": "openapi-ts",
 		"storybook": "storybook dev -p 6006",
-		"build:storybook": "storybook build"
+		"build:storybook": "storybook build",
+		"lint": "prettier --check .",
+		"format": "prettier --write ."
 	},
 	"devDependencies": {
 		"@hey-api/openapi-ts": "^0.99.0",
