@@ -9,6 +9,7 @@ namespace Archive.Api.Mapping;
 public partial class AuthenticationMapper
 {
     [MapperIgnoreSource(nameof(ArchiveUser.ProfileImage))]
+    [MapperIgnoreSource(nameof(ArchiveUser.Id))]
     [MapperIgnoreSource(nameof(ArchiveUser.CreatedAt))]
     [MapperIgnoreSource(nameof(ArchiveUser.UpdatedAt))]
     [MapperIgnoreSource(nameof(ArchiveUser.Identities))]
