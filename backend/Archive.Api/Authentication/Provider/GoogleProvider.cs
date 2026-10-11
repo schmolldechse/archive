@@ -23,7 +23,7 @@ public sealed class GoogleProvider : IAuthenticationProvider
             .BindConfiguration(GoogleProviderOptions.SectionName)
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        authentication.Services.AddHttpClient("GoogleProfileImage", client => client.Timeout = TimeSpan.FromSeconds(30))
+        authentication.Services.AddHttpClient("GoogleProfileImage", client => client.Timeout = TimeSpan.FromSeconds(3))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
         authentication.AddGoogle();
@@ -81,15 +81,18 @@ public sealed class GoogleProvider : IAuthenticationProvider
 
         var client = context.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("GoogleProfileImage");
 
-        using var response = await client.GetAsync(pictureUrl, HttpCompletionOption.ResponseHeadersRead, context.RequestAborted);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+
+        using var response = await client.GetAsync(pictureUrl, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
         if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxProfileImageBytes) return null;
 
-        await using var stream = await response.Content.ReadAsStreamAsync();
+        await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
 
         using var image = new MemoryStream();
         var buffer = new byte[8192];
         int count;
-        while ((count = await stream.ReadAsync(buffer)) != 0)
+        while ((count = await stream.ReadAsync(buffer, deadline.Token)) != 0)
         {
             if (image.Length + count > MaxProfileImageBytes) return null;
             image.Write(buffer, 0, count);
