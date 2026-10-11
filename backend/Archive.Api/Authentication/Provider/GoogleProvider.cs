@@ -48,6 +48,18 @@ public sealed class GoogleProvider : IAuthenticationProvider
             google.CorrelationCookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 
             google.Events.OnCreatingTicket = context => SignInAsync(context, options);
+            google.Events.OnRemoteFailure = context =>
+            {
+                context.HandleResponse();
+                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri));
+                return Task.CompletedTask;
+            };
+            google.Events.OnAccessDenied = context =>
+            {
+                context.HandleResponse();
+                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri));
+                return Task.CompletedTask;
+            };
         });
     }
 
@@ -56,24 +68,33 @@ public sealed class GoogleProvider : IAuthenticationProvider
         var subject = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(subject)) throw new InvalidOperationException("Google did not return a subject.");
 
-        var displayName = context.Principal?.FindFirstValue(ClaimTypes.Name) ?? "User";
         var pictureUrl = context.Principal?.FindFirstValue(PictureClaimType);
-        var image = await DownloadPictureAsync(context.HttpContext, pictureUrl);
+
+        byte[]? image = null;
+        try { image = await DownloadPictureAsync(context.HttpContext, pictureUrl); }
+        catch (HttpRequestException) { }
+        catch (IOException) { }
+        catch (OperationCanceledException) when (!context.HttpContext.RequestAborted.IsCancellationRequested) { }
 
         var repository = context.HttpContext.RequestServices.GetRequiredService<IAuthenticationRepository>();
         var user = await repository.GetOrCreateUserAsync(
-            new ExternalIdentityDescriptor(Id, DisplayName, subject, context.Principal?.FindFirstValue(ClaimTypes.Email), displayName, image),
+            new ExternalIdentityDescriptor(Id, DisplayName, subject, image),
             context.HttpContext.RequestAborted);
 
         context.Principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString("D")),
-            new Claim(ClaimTypes.Name, user.DisplayName)
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString("D"))
         ], ArchiveAuthenticationExtension.SessionScheme));
 
-        context.Properties.RedirectUri = options.FrontendUrl(
-            string.IsNullOrEmpty(user.Handle) ? "/account/setup" : context.Properties.RedirectUri);
+        var returnUrl = ArchiveAuthenticationOptions.LocalReturnUrl(context.Properties.RedirectUri);
+        context.Properties.RedirectUri = user.IsRegistrationComplete
+            ? options.FrontendUrl(returnUrl)
+            : options.FrontendOrigin.TrimEnd('/') + "/account/complete?returnUrl=" + Uri.EscapeDataString(returnUrl);
     }
+
+    private static string FailureUrl(ArchiveAuthenticationOptions options, string? returnUrl) =>
+        options.FrontendOrigin.TrimEnd('/') + "/login?error=1&returnUrl=" +
+        Uri.EscapeDataString(ArchiveAuthenticationOptions.LocalReturnUrl(returnUrl));
 
     private static async Task<byte[]?> DownloadPictureAsync(HttpContext context, string? pictureUrl)
     {
