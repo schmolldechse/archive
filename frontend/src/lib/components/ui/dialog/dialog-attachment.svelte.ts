@@ -299,6 +299,7 @@ export function createDialogAttachment(options: DialogAttachmentOptions): Attach
 
 		const handlePointerDown = (event: PointerEvent) => {
 			if (event.defaultPrevented || event.button !== 0 || !options.getOpen() || !isTopmostDialog(dialog)) return;
+			if (event.target instanceof Node && options.getTrigger()?.contains(event.target)) return;
 
 			const modal = openedAsModal ?? options.getModal();
 			if (!options.getCloseOnOutsidePointer(modal) || isPointerInsideDialog(dialog, event)) return;

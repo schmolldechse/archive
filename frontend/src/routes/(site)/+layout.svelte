@@ -3,8 +3,12 @@
 	import SiteFooter from "$lib/components/site/SiteFooter.svelte";
 	import SiteHeader from "$lib/components/site/SiteHeader.svelte";
 	import type { LayoutProps } from "./$types";
+	import { setAuthContext } from "$lib/auth/context";
 
-	let { children }: LayoutProps = $props();
+	let { children, data }: LayoutProps = $props();
+
+	setAuthContext(() => data.session);
+
 	const healthUrl = `${(env.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(/\/$/, "")}/healthz`;
 </script>
 
