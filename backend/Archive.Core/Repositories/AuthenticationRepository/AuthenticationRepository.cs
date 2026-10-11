@@ -1,7 +1,6 @@
 ﻿using Archive.Core.Entities.Authentication;
 using Archive.Core.Models.Authentication;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace Archive.Core.Repositories.AuthenticationRepository;
 
@@ -18,7 +17,6 @@ public sealed class AuthenticationRepository(DataContext dataContext) : IAuthent
         if (authIdentity is not null)
         {
             authIdentity.LastLoginAt = timestamp;
-            authIdentity.User.UpdatedAt = timestamp;
 
             await dataContext.SaveChangesAsync(cancellationToken);
             return authIdentity.User;
@@ -35,14 +33,8 @@ public sealed class AuthenticationRepository(DataContext dataContext) : IAuthent
             dataContext.AuthProviders.Add(authProvider);
         }
 
-        var displayName = TrimToMax(
-            string.IsNullOrWhiteSpace(descriptor.DisplayName) ? "User" : descriptor.DisplayName.Trim(),
-            64);
-
         var user = new ArchiveUser
         {
-            DisplayName = displayName,
-            Handle = "",
             ProfileImage = descriptor.ProfilePicture is { Length: > 0 } ? descriptor.ProfilePicture : null
         };
         authIdentity = new UserAuthIdentity
@@ -56,6 +48,4 @@ public sealed class AuthenticationRepository(DataContext dataContext) : IAuthent
         await dataContext.SaveChangesAsync(cancellationToken);
         return user;
     }
-
-    private static string TrimToMax(string value, int maxLength) => value.Length <= maxLength ? value : value[..maxLength];
 }

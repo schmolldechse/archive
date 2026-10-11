@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Archive.Core.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20261009115223_AddAuthentication")]
+    [Migration("20261011083335_AddAuthentication")]
     partial class AddAuthentication
     {
         /// <inheritdoc />
@@ -149,6 +149,10 @@ namespace Archive.Core.Migrations
                     b.Property<byte[]>("ProfileImage")
                         .HasColumnType("bytea")
                         .HasColumnName("profile_image");
+
+                    b.Property<DateTimeOffset?>("RegistrationCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registration_completed_at");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

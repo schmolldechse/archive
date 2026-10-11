@@ -8,11 +8,11 @@ namespace Archive.Api.Mapping;
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
 public partial class AuthenticationMapper
 {
-    [MapperIgnoreSource(nameof(ArchiveUser.Id))]
     [MapperIgnoreSource(nameof(ArchiveUser.ProfileImage))]
     [MapperIgnoreSource(nameof(ArchiveUser.CreatedAt))]
     [MapperIgnoreSource(nameof(ArchiveUser.UpdatedAt))]
     [MapperIgnoreSource(nameof(ArchiveUser.Identities))]
+    [MapperIgnoreSource(nameof(ArchiveUser.RegistrationCompletedAt))]
     public partial AuthenticatedArchiveUser ToResponse(ArchiveUser account, string? profileImageUrl);
 
     [MapperIgnoreSource(nameof(AuthProviderDescriptor.Scheme))]

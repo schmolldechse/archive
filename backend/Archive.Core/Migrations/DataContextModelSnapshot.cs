@@ -147,6 +147,10 @@ namespace Archive.Core.Migrations
                         .HasColumnType("bytea")
                         .HasColumnName("profile_image");
 
+                    b.Property<DateTimeOffset?>("RegistrationCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registration_completed_at");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");

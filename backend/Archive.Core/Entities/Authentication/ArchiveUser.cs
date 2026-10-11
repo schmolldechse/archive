@@ -13,15 +13,13 @@ public sealed class ArchiveUser
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    [Required]
     [MaxLength(64)]
     [Column("display_name")]
-    public required string DisplayName { get; set; }
+    public string? DisplayName { get; set; }
 
-    [Required]
     [MaxLength(32)]
     [Column("handle")]
-    public required string Handle { get; set; }
+    public string? Handle { get; set; }
 
     [Column("profile_image", TypeName = "bytea")]
     public byte[]? ProfileImage { get; set; }
@@ -33,6 +31,12 @@ public sealed class ArchiveUser
     [Required]
     [Column("updated_at")]
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    [Column("registration_completed_at")]
+    public DateTimeOffset? RegistrationCompletedAt { get; set; }
+
+    [NotMapped]
+    public bool IsRegistrationComplete => RegistrationCompletedAt.HasValue;
 
     [InverseProperty(nameof(UserAuthIdentity.User))]
     public ICollection<UserAuthIdentity> Identities { get; set; } = [];
