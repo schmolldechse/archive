@@ -14,6 +14,8 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
     [Required]
     public string FrontendOrigin { get; init; } = "http://localhost:5173";
 
+    public string? SessionCookieDomain { get; init; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (!IsOrigin(PublicApiOrigin))
@@ -24,10 +26,17 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
 
     public string FrontendUrl(string? path) => FrontendOrigin.TrimEnd('/') + LocalReturnUrl(path);
 
-    public static string LocalReturnUrl(string? path) =>
-        !string.IsNullOrWhiteSpace(path) && path.Length <= 2048 && path.StartsWith('/') &&
-        !path.StartsWith("//", StringComparison.Ordinal) && !path.Contains('\\') && !path.Any(char.IsControl)
-            ? path : "/account";
+    public static string LocalReturnUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path.Length > 2048 ||
+            !path.StartsWith('/') || path.StartsWith("//", StringComparison.Ordinal) ||
+            path.Contains('\\') || path.Any(char.IsControl)) return "/";
+
+        if (!Uri.TryCreate(new Uri("https://archive.invalid"), path, out var parsed) || parsed.Host != "archive.invalid") return "/";
+        var route = parsed.AbsolutePath.Split('/')[1].ToLowerInvariant();
+        if (route is "login" or "account" or "api") return "/";
+        return path;
+    }
 
     private static bool IsOrigin(string origin) =>
         Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" &&

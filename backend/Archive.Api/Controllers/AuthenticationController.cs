@@ -95,7 +95,6 @@ public sealed class AuthenticationController(
     {
         await HttpContext.SignOutAsync(ArchiveAuthenticationExtension.SessionScheme);
 
-        Response.Cookies.Delete("__Host-archive.session", new CookieOptions { Path = "/", Secure = true, HttpOnly = true });
         Response.Headers.Location = options.FrontendUrl("/");
         return StatusCode(StatusCodes.Status303SeeOther);
     }

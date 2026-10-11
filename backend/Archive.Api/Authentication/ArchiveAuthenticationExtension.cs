@@ -1,6 +1,7 @@
 using Archive.Api.Authentication.Catalog;
 using Archive.Api.Authentication.Provider;
 using Archive.Api.Mapping;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
@@ -44,24 +45,19 @@ public static class ArchiveAuthenticationExtension
         if (!isDevelopment)
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(AppContext.BaseDirectory, "key-ring")));
 
-        var authentication = services.AddAuthentication(SessionScheme).AddCookie(SessionScheme, cookie =>
+        var authentication = services.AddAuthentication(SessionScheme).AddCookie(SessionScheme);
+        services.AddOptions<CookieAuthenticationOptions>(SessionScheme)
+            .Configure<ArchiveAuthenticationOptions>((cookie, options) =>
         {
             cookie.Cookie.Name = isDevelopment ? "archive.session" : "__Secure-archive.session";
+            cookie.Cookie.Domain = options.SessionCookieDomain;
             cookie.Cookie.Path = "/";
             cookie.Cookie.HttpOnly = true;
             cookie.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
             cookie.Cookie.SameSite = SameSiteMode.Lax;
             cookie.ExpireTimeSpan = TimeSpan.FromHours(12);
             cookie.SlidingExpiration = false;
-            cookie.Events.OnSigningIn = context =>
-            {
-                if (!isDevelopment) context.Response.Cookies.Delete("__Host-archive.session", new CookieOptions { Path = "/", Secure = true, HttpOnly = true });
-                return Task.CompletedTask;
-            };
         });
-
-        services.AddOptions<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(SessionScheme)
-            .Configure<ArchiveAuthenticationOptions>((cookie, options) => cookie.Cookie.Domain = options.SessionCookieDomain);
 
         IAuthenticationProvider google = new GoogleProvider();
         services.AddSingleton(google);
