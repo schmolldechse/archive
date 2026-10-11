@@ -33,9 +33,12 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
             path.Contains('\\') || path.Any(char.IsControl)) return "/";
 
         if (!Uri.TryCreate(new Uri("https://archive.invalid"), path, out var parsed) || parsed.Host != "archive.invalid") return "/";
-        var route = parsed.AbsolutePath.Split('/')[1].ToLowerInvariant();
+        var decodedPath = Uri.UnescapeDataString(parsed.AbsolutePath);
+        if (decodedPath.Contains('\\') || decodedPath.Contains('%') || decodedPath.Any(char.IsControl) ||
+            parsed.AbsolutePath.Contains("%2f", StringComparison.OrdinalIgnoreCase)) return "/";
+        var route = decodedPath.Split('/')[1].ToLowerInvariant();
         if (route is "login" or "account" or "api") return "/";
-        return path;
+        return parsed.PathAndQuery + parsed.Fragment;
     }
 
     private static bool IsOrigin(string origin) =>

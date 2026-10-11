@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { replaceState } from "$app/navigation";
+	import { beforeNavigate, replaceState } from "$app/navigation";
 	import { page } from "$app/state";
-	import { env } from "$env/dynamic/public";
+	import { apiOrigin } from "$lib/api-url";
 	import { JobStatus, ProgressStep, type ArchiveResponse } from "$api";
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import Check from "@lucide/svelte/icons/check";
@@ -38,7 +38,7 @@
 	} from "$lib/archive-submission";
 	import { onMount, tick } from "svelte";
 
-	const apiBaseUrl = (env.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(/\/$/, "");
+	const apiBaseUrl = apiOrigin();
 	const jobIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 	const initialJobId = page.url.searchParams.get("job");
 	const steps = [

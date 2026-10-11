@@ -51,13 +51,13 @@ public sealed class GoogleProvider : IAuthenticationProvider
             google.Events.OnRemoteFailure = context =>
             {
                 context.HandleResponse();
-                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri));
+                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri, "failed"));
                 return Task.CompletedTask;
             };
             google.Events.OnAccessDenied = context =>
             {
                 context.HandleResponse();
-                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri));
+                context.Response.Redirect(FailureUrl(options, context.Properties?.RedirectUri, "cancelled"));
                 return Task.CompletedTask;
             };
         });
@@ -89,12 +89,19 @@ public sealed class GoogleProvider : IAuthenticationProvider
         var returnUrl = ArchiveAuthenticationOptions.LocalReturnUrl(context.Properties.RedirectUri);
         context.Properties.RedirectUri = user.IsRegistrationComplete
             ? options.FrontendUrl(returnUrl)
-            : options.FrontendOrigin.TrimEnd('/') + "/account/complete?returnUrl=" + Uri.EscapeDataString(returnUrl);
+            : WithReturnUrl(options, "/account/complete", returnUrl);
     }
 
-    private static string FailureUrl(ArchiveAuthenticationOptions options, string? returnUrl) =>
-        options.FrontendOrigin.TrimEnd('/') + "/login?error=1&returnUrl=" +
-        Uri.EscapeDataString(ArchiveAuthenticationOptions.LocalReturnUrl(returnUrl));
+    private static string FailureUrl(ArchiveAuthenticationOptions options, string? returnUrl, string error) =>
+        WithReturnUrl(options, "/login?error=" + error, returnUrl);
+
+    private static string WithReturnUrl(ArchiveAuthenticationOptions options, string path, string? returnUrl)
+    {
+        var destination = ArchiveAuthenticationOptions.LocalReturnUrl(returnUrl);
+        var url = options.FrontendOrigin.TrimEnd('/') + path;
+        return destination == "/" ? url : url + (path.Contains('?') ? "&" : "?") +
+            "returnUrl=" + Uri.EscapeDataString(destination);
+    }
 
     private static async Task<byte[]?> DownloadPictureAsync(HttpContext context, string? pictureUrl)
     {

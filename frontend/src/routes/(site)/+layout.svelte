@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { env } from "$env/dynamic/public";
+	import { apiUrl } from "$lib/api-url";
 	import SiteFooter from "$lib/components/site/SiteFooter.svelte";
 	import SiteHeader from "$lib/components/site/SiteHeader.svelte";
 	import type { LayoutProps } from "./$types";
@@ -7,9 +7,13 @@
 
 	let { children, data }: LayoutProps = $props();
 
-	setAuthContext(() => data.session);
+	setAuthContext({
+		get session() {
+			return data.session;
+		}
+	});
 
-	const healthUrl = `${(env.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(/\/$/, "")}/healthz`;
+	const healthUrl = apiUrl("/healthz");
 </script>
 
 <a class="skip-link" href="#main-content">Skip to the archive</a>

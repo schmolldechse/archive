@@ -1,6 +1,5 @@
 import { getRequestEvent, query } from "$app/server";
-import { env } from "$env/dynamic/private";
-import { env as publicEnv } from "$env/dynamic/public";
+import { backendOrigin } from "$lib/server/api";
 import type { ListSnapshotsData, SnapshotListResponse } from "$api";
 import { error } from "@sveltejs/kit";
 import type { SearchErrors } from "$lib/components/snapshot-search/search-state";
@@ -10,10 +9,7 @@ type SnapshotSearchQuery = NonNullable<ListSnapshotsData["query"]>;
 export const searchSnapshotIndex = query<SnapshotSearchQuery, { results: SnapshotListResponse | null; errors: SearchErrors }>(
 	"unchecked",
 	async (searchQuery) => {
-		const apiBaseUrl = (env.INTERNAL_API_BASE_URL || publicEnv.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(
-			/\/$/,
-			""
-		);
+		const apiBaseUrl = backendOrigin();
 		const parameters = new URLSearchParams();
 
 		for (const [name, value] of Object.entries(searchQuery)) {

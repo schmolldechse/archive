@@ -4,13 +4,25 @@ export function safeReturnUrl(value: string | null | undefined): string {
 	try {
 		if (!value.startsWith("/") || value.startsWith("//") || /[\\\p{Cc}]/u.test(value)) return "/";
 		const url = new URL(value, "https://archive.invalid");
-		if (url.origin !== "https://archive.invalid" || /^\/(?:login|account|api)(?:\/|$)/i.test(url.pathname)) return "/";
-		return value;
+		const path = decodeURIComponent(url.pathname);
+		if (
+			url.origin !== "https://archive.invalid" ||
+			/[\\%\p{Cc}]/u.test(path) ||
+			/%2f/i.test(url.pathname) ||
+			/^\/(?:login|account|api)(?:\/|$)/i.test(path)
+		)
+			return "/";
+		return url.pathname + url.search + url.hash;
 	} catch {
 		return "/";
 	}
 }
 
-export const loginHref = (returnUrl: string) => `/login?returnUrl=${encodeURIComponent(safeReturnUrl(returnUrl))}`;
-export const completeHref = (returnUrl: string) =>
-	`/account/complete?returnUrl=${encodeURIComponent(safeReturnUrl(returnUrl))}`;
+export function withReturnUrl(path: string, returnUrl: string): string {
+	const destination = safeReturnUrl(returnUrl);
+	if (destination === "/") return path;
+	return `${path}${path.includes("?") ? "&" : "?"}returnUrl=${encodeURIComponent(destination)}`;
+}
+
+export const loginHref = (returnUrl: string) => withReturnUrl("/login", returnUrl);
+export const completeHref = (returnUrl: string) => withReturnUrl("/account/complete", returnUrl);

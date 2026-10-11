@@ -4,7 +4,7 @@
 	import X from "@lucide/svelte/icons/x";
 	import type { AuthenticatedArchiveUser } from "$api";
 	import { page } from "$app/state";
-	import { apiUrl } from "$lib/auth/api";
+	import { apiUrl } from "$lib/api-url";
 	import { completeHref } from "$lib/auth/return-url";
 	import Avatar from "$lib/components/ui/Avatar.svelte";
 	import Button from "$lib/components/ui/Button.svelte";

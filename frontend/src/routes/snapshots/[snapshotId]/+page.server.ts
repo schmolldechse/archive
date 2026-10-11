@@ -1,6 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { env as privateEnv } from "$env/dynamic/private";
-import { env as publicEnv } from "$env/dynamic/public";
+import { backendOrigin } from "$lib/server/api";
 import type { SnapshotResponse } from "$api";
 import type { PageServerLoad } from "./$types";
 
@@ -9,10 +8,7 @@ const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	if (!snapshotIdPattern.test(params.snapshotId)) error(404, "Snapshot not found");
 
-	const apiBaseUrl = (privateEnv.INTERNAL_API_BASE_URL || publicEnv.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(
-		/\/$/,
-		""
-	);
+	const apiBaseUrl = backendOrigin();
 	let response: Response;
 	try {
 		response = await fetch(`${apiBaseUrl}/api/snapshots/${params.snapshotId}`);
