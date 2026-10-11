@@ -1,11 +1,8 @@
 ﻿using Archive.Core.Entities.Authentication;
 using Microsoft.EntityFrameworkCore;
-
 using Archive.Core.Models.Users;
 using Archive.Core.Models;
-using Npgsql;
 using System.ComponentModel.DataAnnotations;
-using System.Text;
 
 namespace Archive.Core.Repositories.UserRepository;
 
@@ -24,32 +21,32 @@ internal sealed class UserRepository(DataContext dataContext) : IUserRepository
 
     public async Task<UserProfileUpdateResult> UpdateProfileAsync(Guid userId, UserProfileUpdate profile, CancellationToken cancellationToken = default)
     {
-        string displayName;
-        try
+        var validationErrors = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(profile, new ValidationContext(profile), validationErrors, validateAllProperties: true))
         {
-            displayName = (profile.DisplayName ?? string.Empty).Trim().Normalize(NormalizationForm.FormC);
-        }
-        catch (ArgumentException)
-        {
-            return new UserProfileUpdateResult.Invalid([new("displayName", "Enter a valid display name.")]);
+            var errors = validationErrors
+                .SelectMany(error => error.MemberNames.Select(field => new FieldValidationError(field, error.ErrorMessage!)))
+                .ToList();
+
+            return new UserProfileUpdateResult.Invalid(errors);
         }
 
-        var normalized = new UserProfileUpdate(displayName, (profile.Handle ?? string.Empty).Trim().ToLowerInvariant());
-        var validation = new List<ValidationResult>();
-        if (!Validator.TryValidateObject(normalized, new ValidationContext(normalized), validation, validateAllProperties: true))
-            return new UserProfileUpdateResult.Invalid(validation.SelectMany(error => error.MemberNames
-                .Select(field => new FieldValidationError(field, error.ErrorMessage!))).ToArray());
+        var user = await dataContext.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
+        if (user is null)
+            return new UserProfileUpdateResult.NotFound();
 
-        var user = await dataContext.Users.FirstOrDefaultAsync(item => item.Id == userId, cancellationToken);
-        if (user is null) return new UserProfileUpdateResult.NotFound();
-        if (await dataContext.Users.AnyAsync(item => item.Handle == normalized.Handle && item.Id != userId, cancellationToken))
+        var handleExists = await dataContext.Users.AnyAsync(
+            other => other.Handle == profile.Handle && other.Id != userId, cancellationToken);
+        if (handleExists)
             return new UserProfileUpdateResult.HandleUnavailable();
 
-        user.DisplayName = normalized.DisplayName;
-        user.Handle = normalized.Handle;
+        user.DisplayName = profile.DisplayName;
+        user.Handle = profile.Handle;
         user.UpdatedAt = DateTimeOffset.UtcNow;
+        user.RegistrationCompletedAt ??= user.UpdatedAt;
 
         await dataContext.SaveChangesAsync(cancellationToken);
+
         return new UserProfileUpdateResult.Updated(user);
     }
 }

@@ -46,14 +46,22 @@ public static class ArchiveAuthenticationExtension
 
         var authentication = services.AddAuthentication(SessionScheme).AddCookie(SessionScheme, cookie =>
         {
-            cookie.Cookie.Name = isDevelopment ? "archive.session" : "__Host-archive.session";
+            cookie.Cookie.Name = isDevelopment ? "archive.session" : "__Secure-archive.session";
             cookie.Cookie.Path = "/";
             cookie.Cookie.HttpOnly = true;
             cookie.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
             cookie.Cookie.SameSite = SameSiteMode.Lax;
             cookie.ExpireTimeSpan = TimeSpan.FromHours(12);
             cookie.SlidingExpiration = false;
+            cookie.Events.OnSigningIn = context =>
+            {
+                if (!isDevelopment) context.Response.Cookies.Delete("__Host-archive.session", new CookieOptions { Path = "/", Secure = true, HttpOnly = true });
+                return Task.CompletedTask;
+            };
         });
+
+        services.AddOptions<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(SessionScheme)
+            .Configure<ArchiveAuthenticationOptions>((cookie, options) => cookie.Cookie.Domain = options.SessionCookieDomain);
 
         IAuthenticationProvider google = new GoogleProvider();
         services.AddSingleton(google);

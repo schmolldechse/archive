@@ -9,7 +9,7 @@ public sealed class AuthenticatedArchiveUser
 {
     [MaxLength(32)]
     [JsonPropertyName("handle")]
-    [Description("Unique lowercase user handle, or an empty string before profile setup. New and updated handles must contain 6 to 32 characters.")]
+    [Description("Unique lowercase user handle, or an empty string before registration completion. New and updated handles must contain 4 to 32 characters.")]
     public required string Handle { get; set; }
 
     [MaxLength(64)]
@@ -21,4 +21,8 @@ public sealed class AuthenticatedArchiveUser
     [JsonPropertyName("profileImageUrl")]
     [Description("Absolute URL of the stored provider profile image, or null when no image is available.")]
     public required string? ProfileImageUrl { get; set; }
+
+    [JsonPropertyName("isRegistrationComplete")]
+    [Description("True only after valid display name and handle have been explicitly saved and registration completion has been recorded.")]
+    public required bool IsRegistrationComplete { get; set; }
 }

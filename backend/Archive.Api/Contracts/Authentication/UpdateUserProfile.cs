@@ -11,10 +11,10 @@ namespace Archive.Api.Contracts.Authentication;
 public sealed class UpdateUserProfile : IValidatableObject
 {
     [Required]
-    [MinLength(6)]
+    [MinLength(4)]
     [MaxLength(32)]
     [JsonPropertyName("handle")]
-    [Description("Unique handle of 6 to 32 characters. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.")]
+    [Description("Unique handle of 4 to 32 characters after trimming. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.")]
     public required string Handle { get; set; }
 
     [Required]

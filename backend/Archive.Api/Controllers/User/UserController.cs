@@ -28,7 +28,7 @@ public sealed class UserController(
     [EndpointSummary("Returns the current user profile.")]
     [EndpointDescription("Requires a browser session cookie. Returns the authenticated user's display name, handle and profile image URL.")]
     [ProducesResponseType<AuthenticatedArchiveUser>(StatusCodes.Status200OK, "application/json")]
-    public async Task<ActionResult<AuthenticatedArchiveUser>> GetUser(CancellationToken cancellationToken)
+    public async Task<ActionResult<AuthenticatedArchiveUser>> GetCurrentUser(CancellationToken cancellationToken)
     {
         var account = await userRepository.GetByIdAsync(User.ReadUserId(), cancellationToken)
             ?? throw new InvalidSessionException();
@@ -40,12 +40,12 @@ public sealed class UserController(
     [Consumes("application/json")]
     [EndpointName("UpdateCurrentUser")]
     [EndpointSummary("Updates the current user profile.")]
-    [EndpointDescription("Requires a browser session cookie. Updates the display name and handle. Whitespace is trimmed, the display name is normalized to Unicode NFC, and the handle is stored in lowercase. Handles are unique; an unavailable handle returns HTTP 409 with field validation errors.")]
+    [EndpointDescription("Requires a session cookie, the configured frontend Origin, X-Archive-Request: browser and X-Archive-User containing the displayed user ID. A changed account returns 412 without saving. Saves display name (6–64) and handle (4–32) after normalization and records registration completion atomically. An unavailable handle returns HTTP 409 with field validation errors.")]
     [ProducesResponseType<AuthenticatedArchiveUser>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
-    public async Task<ActionResult<AuthenticatedArchiveUser>> UpdateUser(
+    public async Task<ActionResult<AuthenticatedArchiveUser>> UpdateCurrentUser(
         [FromBody] UpdateUserProfile request,
         CancellationToken cancellationToken)
     {
