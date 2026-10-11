@@ -70,6 +70,8 @@ export {
 	type ListSnapshotsResponse,
 	type ListSnapshotsResponses,
 	type LogoutData,
+	type LogoutError,
+	type LogoutErrors,
 	type ProblemDetails,
 	ProgressStep,
 	type SnapshotListResponse,

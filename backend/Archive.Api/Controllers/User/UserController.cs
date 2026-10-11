@@ -40,7 +40,7 @@ public sealed class UserController(
     [Consumes("application/json")]
     [EndpointName("UpdateCurrentUser")]
     [EndpointSummary("Updates the current user profile.")]
-    [EndpointDescription("Requires a session cookie, the configured frontend Origin, X-Archive-Request: browser and X-Archive-User containing the displayed user ID. A changed account returns 412 without saving. Saves display name (6–64) and handle (4–32) after normalization and records registration completion atomically. An unavailable handle returns HTTP 409 with field validation errors.")]
+    [EndpointDescription("Requires a session cookie. Saves display name (6–64) and handle (4–32) after normalization and records the first registration completion. An unavailable handle returns HTTP 409 with field validation errors.")]
     [ProducesResponseType<AuthenticatedArchiveUser>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]

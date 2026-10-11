@@ -65,17 +65,21 @@ export type ArchiveResponse = {
  */
 export type AuthenticatedArchiveUser = {
 	/**
-	 * Unique lowercase user handle, or an empty string before profile setup. New and updated handles must contain 6 to 32 characters.
+	 * Unique lowercase user handle of 4 to 32 characters, or null until the user chooses one.
 	 */
-	handle: string;
+	handle: null | string;
 	/**
-	 * User display name of 1 to 64 characters.
+	 * User display name of 6 to 64 characters, or null until the user chooses one.
 	 */
-	displayName: string;
+	displayName: null | string;
 	/**
 	 * Absolute URL of the stored provider profile image, or null when no image is available.
 	 */
 	profileImageUrl: null | string;
+	/**
+	 * True only after valid display name and handle have been explicitly saved and registration completion has been recorded.
+	 */
+	isRegistrationComplete: boolean;
 };
 
 /**
@@ -305,7 +309,7 @@ export type Stream = Blob | File;
  */
 export type UpdateUserProfile = {
 	/**
-	 * Unique handle of 6 to 32 characters. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.
+	 * Unique handle of 4 to 32 characters after trimming. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.
 	 */
 	handle: string;
 	/**
@@ -517,7 +521,7 @@ export type BeginExternalLoginData = {
 	};
 	query?: {
 		/**
-		 * Local frontend path beginning with a single slash, up to 2,048 characters. Invalid values fall back to /account.
+		 * Local public frontend path, up to 2,048 characters. Invalid and recursive auth paths fall back to /.
 		 */
 		returnUrl?: string;
 	};
@@ -529,6 +533,10 @@ export type BeginExternalLoginErrors = {
 	 * Bad Request
 	 */
 	400: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
 	/**
 	 * Not Found
 	 */
@@ -543,6 +551,15 @@ export type LogoutData = {
 	query?: never;
 	url: "/api/auth/logout";
 };
+
+export type LogoutErrors = {
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+};
+
+export type LogoutError = LogoutErrors[keyof LogoutErrors];
 
 export type ListSnapshotsData = {
 	body?: never;

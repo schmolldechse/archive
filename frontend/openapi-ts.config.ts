@@ -4,7 +4,8 @@ export default defineConfig({
 	input: "http://localhost:5200/openapi/v1.json",
 	output: {
 		path: "src/lib/api",
-		clean: true
+		clean: true,
+		postProcess: ["prettier"]
 	},
 	plugins: [
 		{
