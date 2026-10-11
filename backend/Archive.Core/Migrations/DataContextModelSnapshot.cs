@@ -132,13 +132,11 @@ namespace Archive.Core.Migrations
                         .HasColumnName("created_at");
 
                     b.Property<string>("DisplayName")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("display_name");
 
                     b.Property<string>("Handle")
-                        .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("handle");
