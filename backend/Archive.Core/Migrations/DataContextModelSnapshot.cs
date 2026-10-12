@@ -42,6 +42,10 @@ namespace Archive.Core.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<string>("Description")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -89,6 +93,8 @@ namespace Archive.Core.Migrations
                         .HasColumnName("uploaded_object_key");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("Status", "CreatedAt");
 
@@ -279,6 +285,10 @@ namespace Archive.Core.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
                     b.Property<string>("Description")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -322,6 +332,8 @@ namespace Archive.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("ProjectId");
 
@@ -368,6 +380,16 @@ namespace Archive.Core.Migrations
                     b.ToTable("tags", "archive");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.ArchiveJob", b =>
+                {
+                    b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedBy");
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.ArchiveJobTag", b =>
                 {
                     b.HasOne("Archive.Core.Entities.ArchiveJob", "Job")
@@ -400,11 +422,18 @@ namespace Archive.Core.Migrations
 
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>
                 {
+                    b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Archive.Core.Entities.Project", "Project")
                         .WithMany("Snapshots")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("CreatedBy");
 
                     b.Navigation("Project");
                 });

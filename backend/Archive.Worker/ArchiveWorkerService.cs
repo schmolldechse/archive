@@ -136,6 +136,7 @@ public sealed class ArchiveWorkerService(
             var snapshot = new Snapshot
             {
                 Id = job.Id,
+                CreatedByUserId = job.CreatedByUserId,
                 Project = project,
                 SourceType = job.SourceType,
                 OriginUrl = job.OriginUrl,

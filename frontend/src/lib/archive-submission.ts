@@ -163,7 +163,7 @@ export async function createArchive(
 		if (description) body.append("description", description);
 		for (const tag of tags) body.append("tags", tag);
 	}
-	return archiveResponse(await fetcher(endpoint, { method: "POST", headers, body }));
+	return archiveResponse(await fetcher(endpoint, { method: "POST", headers, body, credentials: "include" }));
 }
 
 export async function getArchive(baseUrl: string, id: string, fetcher: typeof fetch = fetch): Promise<ArchiveResponse> {

@@ -3,10 +3,8 @@
 	import { page } from "$app/state";
 	import type { SnapshotResponse } from "$api";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
-	import Badge from "$lib/components/ui/Badge.svelte";
+	import SnapshotMetadata from "$lib/components/archive/SnapshotMetadata.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
-	import { formatBytes } from "$lib/components/archive/format";
 	let { snapshot, layout = "sheet" }: { snapshot: SnapshotResponse; layout?: "sheet" | "desktop" } = $props();
 	let failedImage = $state<string | null>(null);
 	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink);
@@ -16,10 +14,6 @@
 </script>
 
 <div class="preview-content" data-component="snapshot-preview-content" data-layout={layout}>
-	<div class="preview-register">
-		<p class="label">Snapshot preview</p>
-		<LocalTimestamp value={snapshot.createdAt} />
-	</div>
 	<div class="archive-frame">
 		{#if failedImage === snapshot.screenshotUrl}
 			<div class="image-error">
@@ -46,24 +40,9 @@
 				<CopySourceButton value={source} />
 			</div>
 		{/if}
-		<dl>
-			<div>
-				<dt>Condition</dt>
-				<dd>
-					<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact"
-						>{snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</Badge
-					>
-				</dd>
-			</div>
-			<div>
-				<dt>Resources</dt>
-				<dd>{snapshot.resourceCount}</dd>
-			</div>
-			<div>
-				<dt>Storage</dt>
-				<dd>{formatBytes(Number(snapshot.storageBytes))}</dd>
-			</div>
-		</dl>
+		<div class="preview-metadata">
+			<SnapshotMetadata {snapshot} />
+		</div>
 		<div class="preview-actions">
 			<Button href={archivedHref} variant="primary">Open archived page <span aria-hidden="true">→</span></Button>
 		</div>
@@ -71,20 +50,6 @@
 </div>
 
 <style>
-	.preview-register {
-		border-bottom: 1px solid var(--border-trace);
-		padding: 1rem;
-	}
-	.label {
-		color: var(--marginal-note);
-		font-size: 0.75rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		margin: 0 0 0.5rem;
-	}
-	.preview-register :global(time) {
-		font-size: 0.75rem;
-	}
 	.archive-frame {
 		background: var(--archive-frame);
 		padding: 0.5rem;
@@ -101,6 +66,7 @@
 		min-width: 0;
 	}
 	h3 {
+		overflow-wrap: anywhere;
 		font-family: var(--font-editorial);
 		font-size: 1.5rem;
 		font-weight: 500;
@@ -122,31 +88,12 @@
 		overflow-wrap: anywhere;
 		margin: 0;
 	}
-	dl {
-		margin-block: 1.5rem;
-	}
-	dl > div {
-		display: grid;
-		grid-template-columns: auto minmax(0, 1fr);
-		align-items: start;
-		gap: 1rem;
-		padding-block: 0.75rem;
-		border-top: 1px solid var(--border-trace);
-	}
-	dt {
-		font-size: 0.75rem;
-		color: var(--marginal-note);
-	}
-	dd {
-		margin: 0;
-		font-family: var(--font-record);
-		font-size: 0.75rem;
-		text-align: right;
-		overflow-wrap: anywhere;
-	}
 	.preview-actions {
 		display: grid;
 		gap: 0.5rem;
+	}
+	.preview-metadata {
+		margin-block: 1.5rem;
 	}
 	.preview-actions :global(a),
 	.preview-actions :global(button) {
@@ -174,9 +121,6 @@
 		flex: 1;
 		grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.55fr);
 		grid-template-rows: minmax(0, 1fr);
-	}
-	.preview-content[data-layout="desktop"] .preview-register {
-		display: none;
 	}
 	.preview-content[data-layout="desktop"] .archive-frame {
 		display: flex;

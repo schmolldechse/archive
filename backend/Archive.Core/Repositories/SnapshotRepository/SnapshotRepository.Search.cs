@@ -122,6 +122,7 @@ internal sealed partial class SnapshotRepository
         var page = await ordered
             .Skip((search.Page - 1) * search.PageSize)
             .Take(search.PageSize)
+            .Include(snapshot => snapshot.CreatedBy)
             .Include(snapshot => snapshot.SnapshotTags)
             .ThenInclude(snapshotTag => snapshotTag.Tag)
             .AsSplitQuery()

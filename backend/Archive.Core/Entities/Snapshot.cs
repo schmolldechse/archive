@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
+using Archive.Core.Entities.Authentication;
 
 namespace Archive.Core.Entities;
 
@@ -13,6 +14,13 @@ public sealed class Snapshot
     [Column("id")]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Column("created_by_user_id")]
+    public Guid? CreatedByUserId { get; set; }
+
+    [ForeignKey(nameof(CreatedByUserId))]
+    [DeleteBehavior(DeleteBehavior.SetNull)]
+    public ArchiveUser? CreatedBy { get; set; }
 
     [Column("project_id")]
     public Guid ProjectId { get; set; }

@@ -68,7 +68,7 @@
 		box-shadow: var(--overlay-shadow);
 		overflow-y: auto;
 	}
-	:global([data-dialog-content].snapshot-desktop-dialog) {
+	:global([data-dialog-content][data-size="viewport"].snapshot-desktop-dialog) {
 		position: fixed;
 		inset: 0;
 		width: min(90vw, 86rem);
@@ -83,6 +83,11 @@
 		display: flex;
 	}
 	.dialog-heading {
+		position: sticky;
+		z-index: 1;
+		top: 0;
+		flex-shrink: 0;
+		background: var(--reading-room);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;

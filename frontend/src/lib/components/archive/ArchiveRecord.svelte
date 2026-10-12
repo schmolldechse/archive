@@ -1,10 +1,11 @@
 <script lang="ts">
 	import type { SnapshotResponse } from "$api";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
 	import CopySourceButton from "./CopySourceButton.svelte";
+	import ArchiveAttribution from "./ArchiveAttribution.svelte";
 	import { formatBytes } from "./format";
 
 	interface ArchiveRecordProps {
@@ -25,9 +26,11 @@
 </script>
 
 <article class="archive-record" data-component="archive-record" data-state={selected ? "selected" : "idle"}>
-	<div class="archive-record__time">
-		<LocalTimestamp value={snapshot.createdAt} format="date" class="archive-record__day" />
-		<LocalTimestamp value={snapshot.createdAt} format="time" class="archive-record__zone" />
+	<div class="archive-record__provenance">
+		<ArchiveCaptureTime value={snapshot.createdAt} />
+		<div class="archive-record__attribution">
+			<ArchiveAttribution creator={snapshot.createdBy} />
+		</div>
 	</div>
 
 	<div class="archive-record__main">
@@ -88,7 +91,7 @@
 	.archive-record {
 		position: relative;
 		display: grid;
-		grid-template-columns: 8.5rem minmax(0, 1fr) 10.5rem;
+		grid-template-columns: 13rem minmax(0, 1fr) 10.5rem;
 		gap: 2rem;
 		border-bottom: 1px solid var(--border-trace);
 		padding: 2rem 1rem;
@@ -100,25 +103,11 @@
 		background: color-mix(in srgb, var(--archive-layer) 55%, transparent);
 	}
 
-	.archive-record__time {
-		padding-top: 0.1875rem;
-	}
-
-	.archive-record__time :global(time) {
-		display: block;
-	}
-
-	:global(.archive-record__day) {
-		color: var(--reading-ink);
-		font-size: 0.8125rem;
-		font-weight: 500;
-	}
-
-	:global(.archive-record__zone) {
-		margin-top: 0.375rem;
-		color: var(--marginal-note);
-		font-size: 0.75rem;
-		line-height: 1.45;
+	.archive-record__provenance {
+		min-width: 0;
+		border-left: 2px solid var(--time-marker);
+		padding-left: 1rem;
+		align-self: start;
 	}
 
 	.archive-record__main {
@@ -126,6 +115,7 @@
 	}
 
 	.archive-record__main h3 {
+		overflow-wrap: anywhere;
 		margin: 0;
 		font-family: var(--font-editorial);
 		font-size: clamp(1.35rem, 2.5vw, 1.75rem);
@@ -170,6 +160,11 @@
 		flex-direction: column;
 		justify-content: space-between;
 		gap: 1.5rem;
+	}
+	.archive-record__attribution {
+		margin-top: 1.125rem;
+		border-top: 1px solid var(--border-trace);
+		padding-top: 1rem;
 	}
 	.archive-record__actions {
 		display: flex;
@@ -228,7 +223,7 @@
 
 	@media (max-width: 64rem) {
 		.archive-record {
-			grid-template-columns: 7rem minmax(0, 1fr);
+			grid-template-columns: 12.5rem minmax(0, 1fr);
 		}
 
 		.archive-record__side {
@@ -266,14 +261,16 @@
 			padding: 1.75rem 1rem;
 		}
 
-		.archive-record__time {
-			display: flex;
-			align-items: baseline;
-			gap: 0.625rem;
+		.archive-record__provenance {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 1rem;
 		}
-
-		:global(.archive-record__zone) {
-			margin-top: 0;
+		.archive-record__attribution {
+			margin: 0;
+			border-top: 0;
+			border-left: 1px solid var(--border-trace);
+			padding: 0 0 0 1rem;
 		}
 
 		.archive-record__side {
@@ -292,6 +289,13 @@
 	}
 
 	@media (max-width: 34rem) {
+		.archive-record__provenance {
+			grid-template-columns: 1fr;
+		}
+		.archive-record__attribution {
+			border-left: 0;
+			padding-left: 0;
+		}
 		.archive-record__meta {
 			grid-template-columns: 1fr;
 			gap: 0;

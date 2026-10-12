@@ -19,4 +19,5 @@ public sealed record ArchiveResponse(
     [property: JsonPropertyName("completedAt"), Description("Timestamp at which the archive completed, including its UTC offset.")] DateTimeOffset? CompletedAt,
     [property: JsonPropertyName("durationMilliseconds"), Description("Processing duration in milliseconds."), Range(0, long.MaxValue)] long DurationMilliseconds,
     [property: JsonPropertyName("storageBytes"), Description("Storage used by the archived snapshot in bytes."), Range(0, long.MaxValue)] long StorageBytes,
-    [property: JsonPropertyName("resourceCount"), Description("Number of resources in the archived snapshot."), Range(0, int.MaxValue)] int ResourceCount);
+    [property: JsonPropertyName("resourceCount"), Description("Number of resources in the archived snapshot."), Range(0, int.MaxValue)] int ResourceCount,
+    [property: JsonPropertyName("createdBy"), Description("Public profile of the user who submitted the archive while signed in with a completed registration. Null for unattributed archives or deleted users.")] ArchiveCreatorResponse? CreatedBy);

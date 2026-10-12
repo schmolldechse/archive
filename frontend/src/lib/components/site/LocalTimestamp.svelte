@@ -7,7 +7,7 @@
 
 	interface LocalTimestampProps extends NativeTimeProps {
 		value: string;
-		format?: "date" | "datetime" | "time";
+		format?: "date" | "datetime" | "time" | "day" | "month-year" | "time-zone";
 		ref?: HTMLTimeElement | null;
 	}
 
@@ -18,11 +18,14 @@
 	const local = $derived(mounted ? parsed.toLocal() : parsed);
 	const formatted = $derived(
 		local.isValid
-			? local.toFormat(
+			? local.setLocale("en").toFormat(
 					{
 						date: "yyyy-LL-dd",
 						datetime: "yyyy-LL-dd · HH:mm:ss",
-						time: "HH:mm:ss"
+						time: "HH:mm:ss",
+						day: "dd",
+						"month-year": "LLL yyyy",
+						"time-zone": "HH:mm:ss 'UTC'ZZ"
 					}[format]
 				)
 			: "Invalid timestamp"
