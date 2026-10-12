@@ -52,6 +52,16 @@ The API creates an `ArchiveJob` in PostgreSQL with:
 
 The request returns a job ID immediately. Clients can poll the job or receive changed state through server-sent events.
 
+### User attribution
+
+Anyone can submit a URL or an uploaded document. The API derives the submitting user from the authenticated session cookie and checks the user's stored registration completion before enqueuing the job. A completed registration requires an explicitly saved display name and handle. Request fields cannot select or override the creator.
+
+When both conditions are met at submission, the job stores the user's ID in `created_by_user_id`. The worker copies that association to the published snapshot. Signing out while the job runs does not change it. Anonymous submissions, incomplete registrations, and existing records remain unattributed; completing registration later does not claim earlier jobs.
+
+Archive status and snapshot metadata expose `createdBy` with the creator's current public `handle` and `displayName`, or `null` when no creator is recorded. Public metadata does not expose provider identities or the internal user ID. Deleting a user clears the association on jobs and snapshots without deleting archived content.
+
+Core repositories construct archive status and snapshot details directly. Mapperly generates the public API mappings in `Archive.Api/Mapping`. The register groups the capture time and submitter in one column. Snapshot inspection and the archived page's information dialog share the same provenance and metadata display; submission progress does not display the submitter.
+
 ### 3. Claim the job
 
 The worker that owns the PostgreSQL advisory lease selects the oldest queued job in a transaction. Row-level locking with `FOR UPDATE SKIP LOCKED` prevents duplicate ownership even if queue concurrency is introduced later.
@@ -229,14 +239,14 @@ The UI should present quality as capture completeness, not legal authenticity or
 
 The default limits are:
 
-| Limit | Default |
-| --- | ---: |
-| Capture duration | 120 seconds |
-| Stored bytes per snapshot | 250,000,000 |
-| Captured resources | 500 |
-| Dynamic scroll rounds | 24 |
-| Quiet period | 1,000 milliseconds |
-| Uploaded file size | 250,000,000 bytes |
+| Limit                     |            Default |
+| ------------------------- | -----------------: |
+| Capture duration          |        120 seconds |
+| Stored bytes per snapshot |        250,000,000 |
+| Captured resources        |                500 |
+| Dynamic scroll rounds     |                 24 |
+| Quiet period              | 1,000 milliseconds |
+| Uploaded file size        |  250,000,000 bytes |
 
 Exceeding duration, storage, or resource limits produces `DISCARDED`. Explicit cancellation produces `CANCELLED`. Access, policy, browser, or storage errors produce `FAILED`. Work left running by a prior worker process becomes `ABORTED` after restart.
 

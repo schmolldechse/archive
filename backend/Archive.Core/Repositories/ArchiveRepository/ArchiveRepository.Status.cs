@@ -1,5 +1,6 @@
 using Archive.Core.Entities;
 using Archive.Core.Models.Archive;
+using Archive.Core.Models.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Core.Repositories.ArchiveRepository;
@@ -34,6 +35,7 @@ internal sealed partial class ArchiveRepository
         int? queuePosition = archive.Status == JobStatus.Queued
             ? await database.ArchiveJobs.CountAsync(job => job.Status == JobStatus.Queued && job.CreatedAt < archive.CreatedAt, cancellationToken) + 1
             : null;
+
         var message = archive.Status switch
         {
             JobStatus.Queued => "Waiting for archiving",
@@ -52,13 +54,36 @@ internal sealed partial class ArchiveRepository
             JobStatus.Failed => "Archiving failed",
             _ => "Unknown status"
         };
+
         var snapshot = archive.Status == JobStatus.Completed
-            ? await database.Snapshots.AsNoTracking().Where(item => item.Id == archive.Id)
-                .Select(item => new { item.Id, item.Quality, item.DurationMilliseconds, item.StorageBytes, item.ResourceCount })
+            ? await database.Snapshots
+                .AsNoTracking()
+                .Where(snapshot => snapshot.Id == archive.Id)
+                .Select(snapshot => new { snapshot.Id, snapshot.Quality, snapshot.DurationMilliseconds, snapshot.StorageBytes, snapshot.ResourceCount })
                 .SingleOrDefaultAsync(cancellationToken)
             : null;
-        return new(archive.Id, archive.Status, archive.ProgressStep, archive.ProgressPercent, message, queuePosition,
-            snapshot?.Id, snapshot?.Quality, archive.ErrorMessage, archive.CreatedAt, archive.CompletedAt,
-            snapshot?.DurationMilliseconds ?? 0, snapshot?.StorageBytes ?? 0, snapshot?.ResourceCount ?? 0);
+        var creator = archive.CreatedByUserId is { } userId
+            ? await database.Users.AsNoTracking()
+                .Where(user => user.Id == userId)
+                .Select(user => new ArchiveCreator(user.Handle!, user.DisplayName!, user.ProfileImage))
+                .SingleOrDefaultAsync(cancellationToken)
+            : null;
+
+        return new ArchiveStatus(
+            Id: archive.Id,
+            Status: archive.Status,
+            ProgressStep: archive.ProgressStep,
+            ProgressPercent: archive.ProgressPercent,
+            Message: message,
+            QueuePosition: queuePosition,
+            SnapshotId: snapshot?.Id,
+            SnapshotQuality: snapshot?.Quality,
+            ErrorMessage: archive.ErrorMessage,
+            CreatedAt: archive.CreatedAt,
+            CompletedAt: archive.CompletedAt,
+            DurationMilliseconds: snapshot?.DurationMilliseconds ?? 0,
+            StorageBytes: snapshot?.StorageBytes ?? 0,
+            ResourceCount: snapshot?.ResourceCount ?? 0,
+            CreatedBy: creator);
     }
 }

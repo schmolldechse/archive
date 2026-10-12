@@ -78,8 +78,16 @@ internal sealed partial class ArchiveRepository(
         }
 
         var description = request.Description?.Trim();
+        var creatorId = request.CreatedByUserId is { } userId
+            ? await database.Users
+                .Where(user => user.Id == userId && user.RegistrationCompletedAt != null)
+                .Select(user => (Guid?)user.Id)
+                .SingleOrDefaultAsync(cancellationToken)
+            : null;
+
         var job = new ArchiveJob
         {
+            CreatedByUserId = creatorId,
             SourceType = format?.SourceType ?? SourceType.Url,
             OriginUrl = originUrl,
             Title = title,
