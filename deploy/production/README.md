@@ -40,8 +40,9 @@ docker compose --env-file deploy/production/.env -p archive-production \
 
 Route the public frontend origin to `frontend:3000` and the API origin to
 `api:8080` through a reverse proxy attached to the same Docker network.
-`PUBLIC_API_BASE_URL` is embedded during the frontend build, so rebuild the
-frontend when that URL changes. The API applies database migrations at startup;
+`PUBLIC_API_BASE_URL` is read at runtime through SvelteKit's dynamic environment.
+Recreate the frontend container when that URL changes; rebuilding is unnecessary.
+The API applies database migrations at startup;
 the worker waits for a healthy API and does not run migrations itself.
 
 The `minio-init` service creates the snapshot bucket once MinIO is healthy.

@@ -3,8 +3,6 @@ services:
     build:
       context: ../../frontend
       dockerfile: Dockerfile
-      args:
-        PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
     restart: unless-stopped
     init: true
     environment:

@@ -48,7 +48,6 @@
 				{#each snapshot.tags as tag (tag)}<li><span>#</span>{tag}</li>{/each}
 			</ul>
 		{/if}
-
 	</div>
 
 	<div class="archive-record__side">

@@ -1,6 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { env as privateEnv } from "$env/dynamic/private";
-import { env as publicEnv } from "$env/dynamic/public";
+import { backendOrigin } from "$lib/server/api";
 import type { RequestHandler } from "./$types";
 
 const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,10 +18,7 @@ export const GET: RequestHandler = async ({ params, request, fetch }) => {
 		error(404, "Archived resource not found");
 	}
 
-	const apiBaseUrl = (privateEnv.INTERNAL_API_BASE_URL || publicEnv.PUBLIC_API_BASE_URL || "http://localhost:5200").replace(
-		/\/$/,
-		""
-	);
+	const apiBaseUrl = backendOrigin();
 	const resourcePath = params.path.split("/").map(encodeURIComponent).join("/");
 	let response: Response;
 	try {

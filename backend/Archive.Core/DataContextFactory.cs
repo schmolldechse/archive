@@ -1,4 +1,6 @@
 using Archive.Core.Entities;
+using Archive.Core.Options;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -11,6 +13,8 @@ public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext
     public DataContext CreateDbContext(string[] args)
     {
         var connectionString = FindConnectionString();
+        var connectionOptions = new ConnectionStringOptions { ArchiveDatabase = connectionString };
+        Validator.ValidateObject(connectionOptions, new ValidationContext(connectionOptions), validateAllProperties: true);
         var optionsBuilder = new DbContextOptionsBuilder<DataContext>();
         optionsBuilder.UseNpgsql(
             connectionString,

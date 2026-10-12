@@ -3,11 +3,7 @@
 	import { stringArraysEqual } from "./helpers";
 	import type { DropdownMenuCheckboxGroupProps } from "./types";
 
-	let {
-		value = $bindable([]),
-		onValueChange,
-		children
-	}: DropdownMenuCheckboxGroupProps = $props();
+	let { value = $bindable([]), onValueChange, children }: DropdownMenuCheckboxGroupProps = $props();
 
 	const registeredValueGetters: Array<() => string> = [];
 

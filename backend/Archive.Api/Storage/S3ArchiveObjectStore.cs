@@ -1,13 +1,14 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Archive.Core.Storage;
+using Archive.Core.Options;
 
 namespace Archive.Api.Storage;
 
-public sealed class S3ArchiveObjectStore(IConfiguration configuration) : IArchiveObjectStore
+public sealed class S3ArchiveObjectStore(ObjectStorageOptions options) : IArchiveObjectStore
 {
-    private readonly string _bucket = configuration["ObjectStorage:Bucket"] ?? "snapshots";
-    private readonly IAmazonS3 _client = CreateClient(configuration);
+    private readonly string _bucket = options.Bucket;
+    private readonly IAmazonS3 _client = CreateClient(options);
 
     public async Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
     {
@@ -37,22 +38,16 @@ public sealed class S3ArchiveObjectStore(IConfiguration configuration) : IArchiv
     public Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
         _client.DeleteObjectAsync(_bucket, key, cancellationToken);
 
-    private static AmazonS3Client CreateClient(IConfiguration configuration)
+    private static AmazonS3Client CreateClient(ObjectStorageOptions options)
     {
-        var accessKey = configuration["ObjectStorage:AccessKey"]?.Trim();
-        var secretKey = configuration["ObjectStorage:SecretKey"]?.Trim();
-        if (string.IsNullOrWhiteSpace(accessKey) != string.IsNullOrWhiteSpace(secretKey))
-            throw new InvalidOperationException(
-                "ObjectStorage:AccessKey and ObjectStorage:SecretKey must either both be configured or both be omitted.");
-
         var config = new AmazonS3Config
         {
-            ServiceURL = configuration["ObjectStorage:ServiceUrl"] ?? "http://localhost:9000",
+            ServiceURL = options.ServiceUrl,
             ForcePathStyle = true
         };
 
-        return string.IsNullOrWhiteSpace(accessKey)
+        return string.IsNullOrWhiteSpace(options.AccessKey)
             ? new AmazonS3Client(config)
-            : new AmazonS3Client(accessKey, secretKey, config);
+            : new AmazonS3Client(options.AccessKey, options.SecretKey, config);
     }
 }

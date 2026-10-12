@@ -74,9 +74,9 @@
 	tabindex={-1}
 	class={["select-viewport", className]}
 	aria-label={ariaLabel}
-	aria-labelledby={ariaLabelledby ?? (ariaLabel ? undefined : select.labelId ?? select.triggerId)}
+	aria-labelledby={ariaLabelledby ?? (ariaLabel ? undefined : (select.labelId ?? select.triggerId))}
 	aria-multiselectable={select.type === "multiple" ? "true" : undefined}
-	aria-activedescendant={select.open ? select.highlightedId ?? undefined : undefined}
+	aria-activedescendant={select.open ? (select.highlightedId ?? undefined) : undefined}
 	data-select-viewport
 	data-type={select.type}
 	onkeydown={handleKeydown}

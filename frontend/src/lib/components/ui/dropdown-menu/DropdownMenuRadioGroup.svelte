@@ -2,11 +2,7 @@
 	import { setDropdownMenuRadioGroupContext } from "./dropdown-menu-context.svelte";
 	import type { DropdownMenuRadioGroupProps } from "./types";
 
-	let {
-		value = $bindable(""),
-		onValueChange,
-		children
-	}: DropdownMenuRadioGroupProps = $props();
+	let { value = $bindable(""), onValueChange, children }: DropdownMenuRadioGroupProps = $props();
 
 	const registeredValueGetters: Array<() => string> = [];
 

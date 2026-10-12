@@ -96,7 +96,9 @@
 
 <Story name="Non-modal" asChild>
 	<div class="story-stack">
-		<p class="story-note">The dialog follows its trigger while the outside action remains operable.</p>
+		<p class="story-note">
+			The dialog follows its trigger. Select the trigger again to close; outside actions remain operable.
+		</p>
 		<div class="story-row">
 			<DialogRoot modal={false}>
 				<DialogTrigger>Open non-modal dialog</DialogTrigger>

@@ -323,12 +323,18 @@
 	<div class="story-keyboard-layout">
 		<div class="story-guide">
 			<dl>
-				<dt><kbd>Enter</kbd> <kbd>Space</kbd></dt><dd>Open or select the highlighted option</dd>
-				<dt><kbd>↓</kbd> <kbd>↑</kbd></dt><dd>Open or move among enabled options</dd>
-				<dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>Move to the first or last enabled option</dd>
-				<dt><kbd>A–Z</kbd></dt><dd>Match the buffered option text</dd>
-				<dt><kbd>Esc</kbd></dt><dd>Close without changing selection and return focus</dd>
-				<dt><kbd>Tab</kbd></dt><dd>Close and continue normal document order</dd>
+				<dt><kbd>Enter</kbd> <kbd>Space</kbd></dt>
+				<dd>Open or select the highlighted option</dd>
+				<dt><kbd>↓</kbd> <kbd>↑</kbd></dt>
+				<dd>Open or move among enabled options</dd>
+				<dt><kbd>Home</kbd> <kbd>End</kbd></dt>
+				<dd>Move to the first or last enabled option</dd>
+				<dt><kbd>A–Z</kbd></dt>
+				<dd>Match the buffered option text</dd>
+				<dt><kbd>Esc</kbd></dt>
+				<dd>Close without changing selection and return focus</dd>
+				<dt><kbd>Tab</kbd></dt>
+				<dd>Close and continue normal document order</dd>
 			</dl>
 		</div>
 		<div class="story-stack">

@@ -75,12 +75,7 @@ function getCoordinates(
 	return { left, top };
 }
 
-function mainAxisOverflow(
-	coordinates: Coordinates,
-	content: DOMRect,
-	side: DropdownMenuSide,
-	padding: number
-): number {
+function mainAxisOverflow(coordinates: Coordinates, content: DOMRect, side: DropdownMenuSide, padding: number): number {
 	if (side === "top") return Math.max(0, padding - coordinates.top);
 	if (side === "bottom") return Math.max(0, coordinates.top + content.height + padding - window.innerHeight);
 	if (side === "left") return Math.max(0, padding - coordinates.left);
@@ -105,15 +100,7 @@ function positionPopover(popover: HTMLDivElement, options: DropdownMenuAttachmen
 	const direction = getComputedStyle(anchor).direction;
 
 	let resolvedSide = preferredSide;
-	let coordinates = getCoordinates(
-		anchorBounds,
-		contentBounds,
-		resolvedSide,
-		align,
-		sideOffset,
-		alignOffset,
-		direction
-	);
+	let coordinates = getCoordinates(anchorBounds, contentBounds, resolvedSide, align, sideOffset, alignOffset, direction);
 	const preferredOverflow = mainAxisOverflow(coordinates, contentBounds, resolvedSide, padding);
 
 	if (preferredOverflow > 0) {
@@ -143,9 +130,7 @@ function positionPopover(popover: HTMLDivElement, options: DropdownMenuAttachmen
 	options.setResolvedPosition(resolvedSide, align);
 }
 
-export function createDropdownMenuAttachment(
-	options: DropdownMenuAttachmentOptions
-): Attachment<HTMLDivElement> {
+export function createDropdownMenuAttachment(options: DropdownMenuAttachmentOptions): Attachment<HTMLDivElement> {
 	return (popover) => {
 		let visible = false;
 		let openSequence = 0;

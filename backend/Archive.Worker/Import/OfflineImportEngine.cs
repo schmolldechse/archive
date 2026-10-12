@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
+using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
 using Microsoft.Playwright;
@@ -14,17 +15,14 @@ namespace Archive.Worker.Import;
 public sealed class OfflineImportEngine(
     IEnumerable<IUploadedDocumentDecoder> decoders,
     IArchiveObjectStore objectStore,
-    IConfiguration configuration,
+    ArchiveOptions options,
     ArchiveBrowserOptions browserOptions,
     ILogger<OfflineImportEngine> logger)
 {
     private readonly IReadOnlyDictionary<SourceType, IUploadedDocumentDecoder> _decoders = BuildDecoders(decoders);
-    private readonly CaptureLimits _captureLimits = CaptureLimits.FromConfiguration(configuration);
+    private readonly CaptureLimits _captureLimits = options.ToCaptureLimits();
     private readonly ImportLimits _importLimits = new(
-        configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L),
-        configuration.GetValue("Archive:MaxResources", 500),
-        configuration.GetValue("Archive:MaxImportDepth", 32),
-        configuration.GetValue("Archive:MaxImportObjects", 100_000));
+        options.MaxUploadBytes, options.MaxResources, options.MaxImportDepth, options.MaxImportObjects);
 
     private static IReadOnlyDictionary<SourceType, IUploadedDocumentDecoder> BuildDecoders(
         IEnumerable<IUploadedDocumentDecoder> decoders)

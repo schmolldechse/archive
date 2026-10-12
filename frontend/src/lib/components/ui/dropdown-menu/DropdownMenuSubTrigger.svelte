@@ -87,11 +87,14 @@
 		menu.activateItem(generatedId, true);
 		if (submenu.open || (event.movementX === 0 && event.movementY === 0)) return;
 		clearOpenTimer();
-		openTimer = setTimeout(() => {
-			openTimer = undefined;
-			if (!root.open || isDisabled || menu.activeItemId !== generatedId) return;
-			menu.openSubmenu(submenu.id, "pointer");
-		}, Math.max(0, openDelay));
+		openTimer = setTimeout(
+			() => {
+				openTimer = undefined;
+				if (!root.open || isDisabled || menu.activeItemId !== generatedId) return;
+				menu.openSubmenu(submenu.id, "pointer");
+			},
+			Math.max(0, openDelay)
+		);
 	};
 </script>
 

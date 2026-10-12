@@ -200,6 +200,7 @@ The manifest is descriptive metadata, not a signed preservation manifest. See [H
 | `GET /healthz` | Process health endpoint |
 
 OpenAPI and Scalar are mapped only in the Development environment.
+See [API reference](api-reference.md) for request formats, limits, authentication and documentation configuration.
 
 ## Trust boundaries
 

@@ -120,6 +120,115 @@ namespace Archive.Core.Migrations
                     b.ToTable("archive_job_tags", "processing");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.ArchiveUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Handle")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("handle");
+
+                    b.Property<byte[]>("ProfileImage")
+                        .HasColumnType("bytea")
+                        .HasColumnName("profile_image");
+
+                    b.Property<DateTimeOffset?>("RegistrationCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("registration_completed_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Handle")
+                        .IsUnique()
+                        .HasFilter("handle <> ''");
+
+                    b.ToTable("users", "authentication");
+                });
+
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.AuthProvider", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider_key");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProviderKey")
+                        .IsUnique();
+
+                    b.ToTable("auth_providers", "authentication");
+                });
+
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.UserAuthIdentity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuthProviderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auth_provider_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExternalSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("external_subject");
+
+                    b.Property<DateTimeOffset>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthProviderId", "ExternalSubject")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "AuthProviderId")
+                        .IsUnique();
+
+                    b.ToTable("user_auth_identities", "authentication");
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -270,6 +379,25 @@ namespace Archive.Core.Migrations
                     b.Navigation("Job");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.UserAuthIdentity", b =>
+                {
+                    b.HasOne("Archive.Core.Entities.Authentication.AuthProvider", "AuthProvider")
+                        .WithMany("Identities")
+                        .HasForeignKey("AuthProviderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "User")
+                        .WithMany("Identities")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthProvider");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>
                 {
                     b.HasOne("Archive.Core.Entities.Project", "Project")
@@ -303,6 +431,16 @@ namespace Archive.Core.Migrations
             modelBuilder.Entity("Archive.Core.Entities.ArchiveJob", b =>
                 {
                     b.Navigation("Tags");
+                });
+
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.ArchiveUser", b =>
+                {
+                    b.Navigation("Identities");
+                });
+
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.AuthProvider", b =>
+                {
+                    b.Navigation("Identities");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Project", b =>

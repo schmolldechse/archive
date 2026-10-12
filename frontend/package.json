@@ -9,7 +9,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"generate:api": "openapi-ts",
 		"storybook": "storybook dev -p 6006",
-		"build:storybook": "storybook build"
+		"build:storybook": "storybook build",
+		"lint": "prettier --check .",
+		"format": "prettier --write ."
 	},
 	"devDependencies": {
 		"@hey-api/openapi-ts": "^0.99.0",
@@ -21,6 +23,7 @@
 		"@sveltejs/mcp": "^0.1.26",
 		"@sveltejs/vite-plugin-svelte": "7.3.0",
 		"@tailwindcss/vite": "4.3.3",
+		"@types/bun": "^1.4.2",
 		"@types/luxon": "^3.7.5",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^4.1.1",

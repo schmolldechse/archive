@@ -1,40 +1,30 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Archive.Worker.Capture;
 
-public sealed record WebBotAuthOptions(
-    bool Enabled,
-    Uri? SignatureAgent,
-    string? PrivateKeyPath,
-    TimeSpan SignatureLifetime)
+public sealed class WebBotAuthOptions : IValidatableObject
 {
-    public static WebBotAuthOptions FromConfiguration(IConfiguration configuration)
+    public const string SectionName = "Archive:WebBotAuth";
+
+    public bool Enabled { get; set; }
+    public string? SignatureAgent { get; set; }
+    public string? PrivateKeyPath { get; set; }
+
+    [Range(10, 300)]
+    public int SignatureLifetimeSeconds { get; set; } = 60;
+
+    public TimeSpan SignatureLifetime => TimeSpan.FromSeconds(SignatureLifetimeSeconds);
+    public Uri? SignatureAgentUri => Uri.TryCreate(SignatureAgent, UriKind.Absolute, out var uri) ? uri : null;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        var section = configuration.GetSection("Archive:WebBotAuth");
-        var enabled = section.GetValue("Enabled", false);
-        var agentValue = section["SignatureAgent"]?.Trim();
-        var keyPath = section["PrivateKeyPath"]?.Trim();
-        var lifetimeSeconds = section.GetValue("SignatureLifetimeSeconds", 60);
-
-        if (lifetimeSeconds is < 10 or > 300)
-            throw new InvalidOperationException(
-                "Archive:WebBotAuth:SignatureLifetimeSeconds muss zwischen 10 und 300 liegen.");
-
-        Uri? agent = null;
-        if (!string.IsNullOrWhiteSpace(agentValue) &&
-            (!Uri.TryCreate(agentValue, UriKind.Absolute, out agent) ||
-             agent.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(agent.Query) ||
-             !string.IsNullOrEmpty(agent.Fragment) || agent.AbsolutePath is not ("" or "/")))
-        {
-            throw new InvalidOperationException(
-                "Archive:WebBotAuth:SignatureAgent muss ein HTTPS-Ursprung ohne Pfad, Query oder Fragment sein.");
-        }
-
-        if (enabled && agent is null)
-            throw new InvalidOperationException(
-                "Archive:WebBotAuth:SignatureAgent ist bei aktivierter Signierung erforderlich.");
-        if (enabled && string.IsNullOrWhiteSpace(keyPath))
-            throw new InvalidOperationException(
-                "Archive:WebBotAuth:PrivateKeyPath ist bei aktivierter Signierung erforderlich.");
-
-        return new WebBotAuthOptions(enabled, agent, keyPath, TimeSpan.FromSeconds(lifetimeSeconds));
+        if (!string.IsNullOrWhiteSpace(SignatureAgent) &&
+            (!Uri.TryCreate(SignatureAgent, UriKind.Absolute, out var agent) || agent.Scheme != Uri.UriSchemeHttps ||
+             agent.UserInfo.Length != 0 || agent.Query.Length != 0 || agent.Fragment.Length != 0 || agent.AbsolutePath != "/"))
+            yield return new ValidationResult("SignatureAgent must be an HTTPS origin without credentials, path, query or fragment.", [nameof(SignatureAgent)]);
+        if (Enabled && string.IsNullOrWhiteSpace(SignatureAgent))
+            yield return new ValidationResult("SignatureAgent is required when Web Bot Auth is enabled.", [nameof(SignatureAgent)]);
+        if (Enabled && string.IsNullOrWhiteSpace(PrivateKeyPath))
+            yield return new ValidationResult("PrivateKeyPath is required when Web Bot Auth is enabled.", [nameof(PrivateKeyPath)]);
     }
 }

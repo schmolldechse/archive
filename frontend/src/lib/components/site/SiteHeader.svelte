@@ -5,6 +5,7 @@
 
 	import ThemeToggle from "./ThemeToggle.svelte";
 	import BrandMark from "./BrandMark.svelte";
+	import AccountControl from "./account/AccountControl.svelte";
 
 	let menuOpen = $state(false);
 
@@ -34,11 +35,13 @@
 		</nav>
 
 		<div class="site-header__actions">
+			<AccountControl onopen={closeMenu} />
 			<button
 				class="menu-toggle"
 				type="button"
 				aria-controls="primary-navigation"
 				aria-expanded={menuOpen}
+				aria-label={menuOpen ? "Close navigation" : "Open navigation"}
 				onclick={() => (menuOpen = !menuOpen)}
 			>
 				{#if menuOpen}
@@ -133,6 +136,9 @@
 		font-size: 0.875rem;
 		font-weight: 600;
 		cursor: pointer;
+		transition:
+			border-color 150ms ease,
+			background-color 150ms ease;
 	}
 
 	.menu-toggle:hover {

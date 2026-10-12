@@ -2,10 +2,7 @@
 	import { onDestroy } from "svelte";
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 
-	import {
-		getDropdownMenuContentContext,
-		getDropdownMenuRootContext
-	} from "./dropdown-menu-context.svelte";
+	import { getDropdownMenuContentContext, getDropdownMenuRootContext } from "./dropdown-menu-context.svelte";
 	import { createDropdownMenuSelectEvent } from "./helpers";
 	import type { DropdownMenuItemProps } from "./types";
 
@@ -92,7 +89,7 @@
 		bind:this={ref}
 		href={isDisabled ? undefined : href}
 		role="menuitem"
-		tabindex={isDisabled ? -1 : (isHighlighted ? 0 : -1)}
+		tabindex={isDisabled ? -1 : isHighlighted ? 0 : -1}
 		class={["dropdown-menu-item", className]}
 		aria-disabled={isDisabled ? "true" : undefined}
 		data-dropdown-menu-item

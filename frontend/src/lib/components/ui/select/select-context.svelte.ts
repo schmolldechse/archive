@@ -1,10 +1,6 @@
 import { getContext, setContext } from "svelte";
 
-import type {
-	SelectChangeSource,
-	SelectItemValue,
-	SelectValueState
-} from "./types";
+import type { SelectChangeSource, SelectItemValue, SelectValueState } from "./types";
 
 export type SelectHighlightIntent = "selected-or-first" | "selected-or-last" | "first" | "last";
 

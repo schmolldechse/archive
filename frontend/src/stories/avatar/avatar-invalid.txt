@@ -1,0 +1,1 @@
+This local resource deliberately contains text instead of image data.

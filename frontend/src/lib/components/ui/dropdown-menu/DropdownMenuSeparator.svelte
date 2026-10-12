@@ -1,11 +1,7 @@
 <script lang="ts">
 	import type { DropdownMenuSeparatorProps } from "./types";
 
-	let {
-		ref = $bindable(null),
-		class: className,
-		...restProps
-	}: DropdownMenuSeparatorProps = $props();
+	let { ref = $bindable(null), class: className, ...restProps }: DropdownMenuSeparatorProps = $props();
 </script>
 
 <div

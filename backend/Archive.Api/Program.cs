@@ -1,12 +1,16 @@
+using Archive.Api.Authentication;
+using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
+using Archive.Api.Options;
 using Archive.Api.Storage;
 using Archive.Core;
+using Archive.Core.Options;
 using Archive.Core.Storage;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 if (args is ["--healthcheck"])
@@ -17,31 +21,54 @@ if (args is ["--healthcheck"])
 
 var builder = WebApplication.CreateBuilder(args);
 
-var maxUploadBytes = builder.Configuration.GetValue("Archive:MaxUploadBytes", 250_000_000L);
-var maxUploadRequestBytes = checked(maxUploadBytes + 1_000_000L); // Multipart fields and boundaries sit outside the file limit.
-builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = maxUploadBytes);
+builder.Services.AddOptions<FormOptions>().Configure<ArchiveOptions>((form, archive) =>
+    // Allow multipart framing before the controller applies the file limit and returns HTTP 413.
+    form.MultipartBodyLengthLimit = checked(archive.MaxUploadBytes + 1_000_000L));
+builder.Services.AddOptions<ArchiveApiOptions>().Bind(builder.Configuration)
+    .PostConfigure(options => options.PublicBaseUrl = string.IsNullOrWhiteSpace(options.PublicBaseUrl)
+        ? null : options.PublicBaseUrl.Trim().TrimEnd('/'))
+    .ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveApiOptions>>().Value);
 
 builder.Services.AddOpenApi(options =>
-    options.AddOperationTransformer<ArchiveRequestBodyOperationTransformer>());
-builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+{
+    options.AddOperationTransformer<ArchiveCreationOperationTransformer>();
+});
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
+
 builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
-builder.Services.AddArchiveCore(builder.Configuration);
+
+builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
+builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
+
 builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
-builder.Services.AddCors(options => options.AddPolicy("public", policy =>
-    policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+
+builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
+    .AllowAnyOrigin()
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
 
 var app = builder.Build();
 
-if (app.Configuration.GetValue("Database:Initialize", true))
+app.Services.GetRequiredService<IStartupValidator>().Validate();
+var maxUploadRequestBytes = checked(app.Services.GetRequiredService<ArchiveOptions>().MaxUploadBytes + 1_000_000L);
+if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 {
     using var scope = app.Services.CreateScope();
     var database = scope.ServiceProvider.GetRequiredService<DataContext>();
     await database.Database.MigrateAsync();
 }
 
+app.UseExceptionHandler();
 app.UseCors("public");
+app.UseAuthentication();
+app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method) &&
@@ -61,7 +88,14 @@ app.MapControllers();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference((options, context) => options
+        .WithTitle("Archive API")
+        .WithTheme(ScalarTheme.None)
+        .ShowOperationId()
+        .SortTagsAlphabetically()
+        .SortOperationsByMethod()
+        .DisableDefaultFonts()
+        .DisableAgent());
 }
 
 await app.RunAsync();

@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from "svelte";
 
-	import {
-		setSelectContext,
-		type RegisteredSelectItem,
-		type SelectHighlightIntent
-	} from "./select-context.svelte";
+	import { setSelectContext, type RegisteredSelectItem, type SelectHighlightIntent } from "./select-context.svelte";
 	import { normalizeSelectText, stringArraysEqual } from "./helpers";
 	import type {
 		SelectChangeSource,
@@ -81,15 +77,9 @@
 		const selectedValues = new Set(Array.isArray(value) ? value : []);
 		return orderedItems.filter((item) => selectedValues.has(item.value));
 	});
-	const selectedLabels = $derived(
-		selectedItems.map((item) => item.getTextValue().trim()).filter((label) => label.length > 0)
-	);
+	const selectedLabels = $derived(selectedItems.map((item) => item.getTextValue().trim()).filter((label) => label.length > 0));
 	const currentValue: SelectItemValue | null | SelectItemValue[] = $derived.by(() =>
-		type === "single"
-			? typeof value === "string"
-				? value
-				: null
-			: selectedItems.map((item) => item.value)
+		type === "single" ? (typeof value === "string" ? value : null) : selectedItems.map((item) => item.value)
 	);
 	const empty = $derived(type === "single" ? currentValue === null : (currentValue as SelectItemValue[]).length === 0);
 
@@ -99,7 +89,6 @@
 			const index = getters.indexOf(getter);
 			if (index !== -1) getters.splice(index, 1);
 		};
-
 	};
 
 	const registerId = (
@@ -137,8 +126,7 @@
 		else if (intent === "last") highlightedId = available.at(-1)?.id ?? null;
 		else {
 			const selected = selectedItems.find((item) => !item.getDisabled());
-			highlightedId =
-				selected?.id ?? (intent === "selected-or-last" ? available.at(-1)?.id : available[0]?.id) ?? null;
+			highlightedId = selected?.id ?? (intent === "selected-or-last" ? available.at(-1)?.id : available[0]?.id) ?? null;
 		}
 	};
 
@@ -169,10 +157,7 @@
 		onOpenChange?.(nextOpen);
 	};
 
-	const notifyValueChange = (
-		nextValue: SelectItemValue | null | SelectItemValue[],
-		source: SelectChangeSource
-	) => {
+	const notifyValueChange = (nextValue: SelectItemValue | null | SelectItemValue[], source: SelectChangeSource) => {
 		if (type === "single") {
 			(onValueChange as SelectSingleProps["onValueChange"])?.(nextValue as SelectItemValue | null, source);
 		} else {
@@ -363,7 +348,7 @@
 			items = [...items, item];
 			return () => {
 				items = items.filter((entry) => entry !== item);
-				if (highlightedId === item.id) highlightedId = open ? enabledItems()[0]?.id ?? null : null;
+				if (highlightedId === item.id) highlightedId = open ? (enabledItems()[0]?.id ?? null) : null;
 			};
 		},
 		registerLabelId(getId) {

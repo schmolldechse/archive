@@ -39,11 +39,16 @@ Do not put real credentials into any `*.example` file.
 
 | Variable | Purpose |
 | --- | --- |
-| `PUBLIC_API_BASE_URL` | Browser-visible API URL embedded in the frontend build |
+| `PUBLIC_API_BASE_URL` | Browser-visible API origin, read by SvelteKit at runtime |
+| `INTERNAL_API_BASE_URL` | Optional server-only API address; defaults to `PUBLIC_API_BASE_URL` |
 | `ARCHIVE_PUBLIC_BASE_URL` | Base URL emitted in snapshot API responses |
 | `FRONTEND_ORIGIN` | Browser-visible frontend origin |
 
-The frontend container uses `http://api:8080` internally. Browser-visible links must use an address reachable by the user's browser. Local frontend tooling can use `ARCHIVE_BACKEND_URL` from the root `.env`.
+The frontend container uses `http://api:8080` internally. Browser-visible links must use an address reachable by the user's browser.
+
+For local frontend development, copy `frontend/.env.example` to `frontend/.env`. SvelteKit loads `.env` from the frontend project directory during development; it does not automatically load the repository root `.env`. One `PUBLIC_API_BASE_URL` is sufficient locally. `ARCHIVE_BACKEND_URL` had no consumers and has been removed from the examples.
+
+`$env/dynamic/public` exposes variables prefixed with `PUBLIC_` to the server and browser. `$env/dynamic/private` is restricted to server code, so `INTERNAL_API_BASE_URL` never reaches the browser. These dynamic modules use runtime values; unlike `$env/static/*`, the URLs are not embedded at build time. The production container receives both values through Compose. Recreate the container when they change; rebuilding the image is unnecessary.
 
 ### PostgreSQL
 

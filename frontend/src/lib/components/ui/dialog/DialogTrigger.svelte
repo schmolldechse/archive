@@ -24,7 +24,7 @@
 		if (event.defaultPrevented || disabled) return;
 
 		dialog.setLastTrigger(event.currentTarget);
-		dialog.requestOpenChange(true, "trigger");
+		dialog.requestOpenChange(!dialog.open, "trigger");
 	};
 </script>
 

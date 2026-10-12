@@ -107,11 +107,7 @@
 				<code>{boundSingle ?? "null"}</code>
 				<span>{singleChanges} changes</span>
 			</div>
-			<AccordionRoot
-				type="single"
-				bind:value={boundSingle}
-				onValueChange={() => (singleChanges += 1)}
-			>
+			<AccordionRoot type="single" bind:value={boundSingle} onValueChange={() => (singleChanges += 1)}>
 				{@render StandardItems()}
 			</AccordionRoot>
 		</section>
@@ -121,11 +117,7 @@
 				<code>{boundMultiple.length ? boundMultiple.join(", ") : "[]"}</code>
 				<span>{multipleChanges} changes</span>
 			</div>
-			<AccordionRoot
-				type="multiple"
-				bind:value={boundMultiple}
-				onValueChange={() => (multipleChanges += 1)}
-			>
+			<AccordionRoot type="multiple" bind:value={boundMultiple} onValueChange={() => (multipleChanges += 1)}>
 				{@render StandardItems()}
 			</AccordionRoot>
 		</section>
@@ -189,8 +181,7 @@
 <Story name="Mounted Content" asChild>
 	<div class="story-stack">
 		<p class="story-note">
-			Inspect the DOM to compare mounting. Use browser Find for “Searchable reference phrase” to reveal
-			the final panel.
+			Inspect the DOM to compare mounting. Use browser Find for “Searchable reference phrase” to reveal the final panel.
 		</p>
 		<section>
 			<p class="story-label">Unmounted by default</p>
@@ -234,10 +225,7 @@
 					</AccordionTrigger>
 				</AccordionHeader>
 				<AccordionContent>
-					<p>
-						Long supporting text reflows naturally within a constrained width and remains readable at
-						increased text sizes.
-					</p>
+					<p>Long supporting text reflows naturally within a constrained width and remains readable at increased text sizes.</p>
 				</AccordionContent>
 			</AccordionItem>
 			<AccordionItem value="structured">
@@ -259,8 +247,8 @@
 <Story name="Keyboard Navigation" asChild>
 	<div class="story-stack">
 		<p class="story-note">
-			Focus a trigger, then use Arrow keys to move, Home for the first trigger, and End for the last.
-			Enter and Space retain native button behavior; Tab follows document order.
+			Focus a trigger, then use Arrow keys to move, Home for the first trigger, and End for the last. Enter and Space retain
+			native button behavior; Tab follows document order.
 		</p>
 		<AccordionRoot type="single" value="label" keyboardNavigation loop>
 			{@render StandardItems()}

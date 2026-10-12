@@ -1,13 +1,13 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
-namespace Archive.Api.Contracts;
+namespace Archive.Api.Contracts.Archive.Creation;
 
-public sealed class CreateArchiveFileRequest
+/// <summary>A supported document upload and metadata for a new archive job.</summary>
+public sealed class CreateArchiveFileRequest : IValidatableObject
 {
     [FromForm(Name = "file")]
     [JsonPropertyName("file")]
@@ -27,7 +27,7 @@ public sealed class CreateArchiveFileRequest
 
     [FromForm(Name = "title")]
     [JsonPropertyName("title")]
-    [Description("Title for the snapshot that will be created.")]
+    [Description("Title for the snapshot that will be created. Control characters are not permitted.")]
     [BindRequired]
     [Required(AllowEmptyStrings = false, ErrorMessage = "A title is required.")]
     [StringLength(500)]
@@ -41,7 +41,16 @@ public sealed class CreateArchiveFileRequest
 
     [FromForm(Name = "tags")]
     [JsonPropertyName("tags")]
-    [Description("Tags assigned to the snapshot. Submit each tag as a separate form field.")]
+    [Description("Up to 30 tags of 1 to 100 characters each. Submit each tag as a separate tags form field. Leading hash signs and whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.")]
     [MaxLength(30)]
     public string[]? Tags { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        foreach (var result in ArchiveRequestValidation.Validate(OriginalLink, "originalLink", Title, Tags))
+            yield return result;
+
+        if (File is { Length: 0 })
+            yield return new ValidationResult("Provide a non-empty .html, .mhtml or .webarchive file.", ["file"]);
+    }
 }

@@ -1,5 +1,9 @@
 declare global {
-	namespace App {}
+	namespace App {
+		interface Locals {
+			session: import("$api").AuthenticationSession | null;
+		}
+	}
 }
 
 export {};
