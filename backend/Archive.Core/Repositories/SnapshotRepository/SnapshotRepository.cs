@@ -1,5 +1,6 @@
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Entities;
+using Archive.Core.Models.Users;
 using Archive.Core.Storage;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ internal sealed partial class SnapshotRepository(DataContext database, IArchiveO
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
+            .Include(snapshot => snapshot.CreatedBy)
             .Include(snapshot => snapshot.SnapshotTags)
             .ThenInclude(snapshotTag => snapshotTag.Tag)
             .SingleOrDefaultAsync(snapshot => snapshot.Id == snapshotId, cancellationToken);
@@ -49,7 +51,18 @@ internal sealed partial class SnapshotRepository(DataContext database, IArchiveO
     }
 
     private static SnapshotDetails ToDetails(Snapshot snapshot) => new(
-        snapshot.Id, snapshot.SourceType, snapshot.OriginUrl, snapshot.Title, snapshot.Description, snapshot.Quality,
-        snapshot.CreatedAt, snapshot.DurationMilliseconds, snapshot.StorageBytes, snapshot.ResourceCount,
-        snapshot.SnapshotTags.Select(item => item.Tag.Value).Order().ToArray());
+        Id: snapshot.Id,
+        SourceType: snapshot.SourceType,
+        OriginUrl: snapshot.OriginUrl,
+        Title: snapshot.Title,
+        Description: snapshot.Description,
+        Quality: snapshot.Quality,
+        CreatedAt: snapshot.CreatedAt,
+        DurationMilliseconds: snapshot.DurationMilliseconds,
+        StorageBytes: snapshot.StorageBytes,
+        ResourceCount: snapshot.ResourceCount,
+        Tags: snapshot.SnapshotTags.Select(item => item.Tag.Value).Order().ToArray(),
+        CreatedBy: snapshot.CreatedBy is { } creator
+            ? new ArchiveCreator(creator.Handle!, creator.DisplayName!, creator.ProfileImage)
+            : null);
 }
