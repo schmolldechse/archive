@@ -10,9 +10,22 @@ internal sealed class ProfileImageRepository(IUserRepository userRepository) : I
     public async Task<ProfileImageResult> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await userRepository.GetByIdAsync(userId, cancellationToken);
-        if (user is null) return new ProfileImageResult.UserNotFound();
+        return user is { IsRegistrationComplete: true }
+            ? Encode(user.ProfileImage)
+            : new ProfileImageResult.UserNotFound();
+    }
 
-        using var source = new MemoryStream(user.ProfileImage ?? [], writable: false);
+    public async Task<ProfileImageResult> GetByHandleAsync(string handle, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByHandleAsync(handle, cancellationToken);
+        return user is { IsRegistrationComplete: true }
+            ? Encode(user.ProfileImage)
+            : new ProfileImageResult.UserNotFound();
+    }
+
+    private static ProfileImageResult Encode(byte[]? content)
+    {
+        using var source = new MemoryStream(content ?? [], writable: false);
         using var bitmap = SKBitmap.Decode(source);
         if (bitmap is null) return new ProfileImageResult.Unavailable();
 
