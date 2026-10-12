@@ -4,6 +4,24 @@ export type ClientOptions = {
 	baseUrl: "http://localhost:5200/" | (string & {});
 };
 
+/**
+ * Public profile of the registered user who submitted the archive. Reflects the current handle, display name and stored profile image.
+ */
+export type ArchiveCreatorResponse = {
+	/**
+	 * Current unique lowercase handle of the user who submitted the archive.
+	 */
+	handle: string;
+	/**
+	 * Current public display name of the user who submitted the archive.
+	 */
+	displayName: string;
+	/**
+	 * Absolute public URL of the submitter's current stored profile image, or null when no image is stored.
+	 */
+	profileImageUrl: null | string;
+};
+
 export type ArchiveResponse = {
 	/**
 	 * Unique identifier of the archive.
@@ -58,6 +76,7 @@ export type ArchiveResponse = {
 	 * Number of resources in the archived snapshot.
 	 */
 	resourceCount: number | string;
+	createdBy: null | ArchiveCreatorResponse;
 };
 
 /**
@@ -290,6 +309,7 @@ export type SnapshotResponse = {
 	 * Public URL of the archived start page.
 	 */
 	contentUrl: string;
+	createdBy: null | ArchiveCreatorResponse;
 };
 
 /**
@@ -372,6 +392,10 @@ export type CreateArchiveErrors = {
 	 * Bad Request
 	 */
 	400: ValidationProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
 	/**
 	 * Payload Too Large
 	 */
@@ -757,6 +781,36 @@ export type GetCurrentUserProfileImageResponses = {
 };
 
 export type GetCurrentUserProfileImageResponse = GetCurrentUserProfileImageResponses[keyof GetCurrentUserProfileImageResponses];
+
+export type GetUserProfileImageData = {
+	body?: never;
+	path: {
+		/**
+		 * Current unique lowercase handle of a user with a completed registration.
+		 */
+		handle: string;
+	};
+	query?: never;
+	url: "/api/users/{handle}/profile-image";
+};
+
+export type GetUserProfileImageErrors = {
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetUserProfileImageError = GetUserProfileImageErrors[keyof GetUserProfileImageErrors];
+
+export type GetUserProfileImageResponses = {
+	/**
+	 * OK
+	 */
+	200: Stream;
+};
+
+export type GetUserProfileImageResponse = GetUserProfileImageResponses[keyof GetUserProfileImageResponses];
 
 export type GetCurrentUserData = {
 	body?: never;
