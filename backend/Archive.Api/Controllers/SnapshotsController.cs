@@ -1,4 +1,5 @@
 using Archive.Api.Contracts;
+using Archive.Api.Mapping;
 using Archive.Api.Options;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotRepository;
@@ -11,6 +12,7 @@ namespace Archive.Api.Controllers;
 [Tags("Snapshots")]
 public sealed class SnapshotsController(
     ISnapshotRepository snapshotRepository,
+    SnapshotMapper mapper,
     ArchiveApiOptions options) : ControllerBase
 {
     private static string ArchivedContentPolicy(string origin) =>
@@ -50,11 +52,7 @@ public sealed class SnapshotsController(
             return ValidationProblem(ModelState);
         }
 
-        var result = await snapshotRepository.SearchAsync(new(
-            request.Text, request.SourceUrl, request.Title, request.Description, request.Tags,
-            request.SourceType, request.Quality, request.CapturedFrom, request.CapturedUntil,
-            request.Order == SnapshotOrder.Asc ? SnapshotSortOrder.Asc : SnapshotSortOrder.Desc,
-            request.Page, request.PageSize), cancellationToken);
+        var result = await snapshotRepository.SearchAsync(mapper.ToSearch(request), cancellationToken);
         if (result is SnapshotSearchResult.Invalid invalid)
         {
             foreach (var error in invalid.Errors)
@@ -64,7 +62,7 @@ public sealed class SnapshotsController(
 
         var page = ((SnapshotSearchResult.Found)result).Page;
         var publicBaseUrl = (options.PublicBaseUrl ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
-        return Ok(page.ToResponse(publicBaseUrl));
+        return Ok(mapper.ToResponse(page, publicBaseUrl));
     }
 
     [HttpGet("{snapshotId:guid}")]
@@ -80,7 +78,7 @@ public sealed class SnapshotsController(
             return NotFound();
 
         var publicBaseUrl = (options.PublicBaseUrl ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
-        return Ok(snapshot.ToResponse(publicBaseUrl));
+        return Ok(mapper.ToResponse(snapshot, publicBaseUrl));
     }
 
     [HttpGet("{snapshotId:guid}/content/{**path}")]

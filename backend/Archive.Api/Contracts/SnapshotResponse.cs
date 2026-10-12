@@ -18,4 +18,5 @@ public sealed record SnapshotResponse(
     [property: JsonPropertyName("resourceCount"), Description("Number of resources in the archived snapshot."), Range(0, int.MaxValue)] int ResourceCount,
     [property: JsonPropertyName("tags"), Description("Tags assigned to the snapshot."), Required] IReadOnlyList<string> Tags,
     [property: JsonPropertyName("screenshotUrl"), Description("Public URL of the snapshot screenshot."), Required, Url] string ScreenshotUrl,
-    [property: JsonPropertyName("contentUrl"), Description("Public URL of the archived start page."), Required, Url] string ContentUrl);
+    [property: JsonPropertyName("contentUrl"), Description("Public URL of the archived start page."), Required, Url] string ContentUrl,
+    [property: JsonPropertyName("createdBy"), Description("Public profile of the user who submitted the archive while signed in with a completed registration. Null for unattributed snapshots or deleted users.")] ArchiveCreatorResponse? CreatedBy);

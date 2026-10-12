@@ -58,7 +58,7 @@ Anyone can submit a URL or an uploaded document. The API derives the submitting 
 
 When both conditions are met at submission, the job stores the user's ID in `created_by_user_id`. The worker copies that association to the published snapshot. Signing out while the job runs does not change it. Anonymous submissions, incomplete registrations, and existing records remain unattributed; completing registration later does not claim earlier jobs.
 
-Archive status and snapshot metadata expose `createdBy` with the creator's current public `handle` and `displayName`, or `null` when no creator is recorded. Public metadata does not expose provider identities or the internal user ID. Deleting a user clears the association on jobs and snapshots without deleting archived content.
+Archive status and snapshot metadata expose `createdBy` with the creator's current public `handle`, `displayName` and nullable `profileImageUrl`, or `null` when no creator is recorded. Profile images are served as WebP through the public `GET /api/users/{handle}/profile-image` endpoint for users with a completed registration. Image responses support ETag revalidation; missing or unreadable images fall back to initials in the interface. Public metadata does not expose provider identities or the internal user ID. Deleting a user clears the association on jobs and snapshots without deleting archived content.
 
 Core repositories construct archive status and snapshot details directly. Mapperly generates the public API mappings in `Archive.Api/Mapping`. The register groups the capture time and submitter in one column. Snapshot inspection and the archived page's information dialog share the same provenance and metadata display; submission progress does not display the submitter.
 

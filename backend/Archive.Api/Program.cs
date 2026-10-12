@@ -1,4 +1,5 @@
 using Archive.Api.Authentication;
+using Archive.Api.Mapping;
 using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
@@ -45,6 +46,9 @@ builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelS
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
 
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
+builder.Services.AddSingleton<ArchiveCreatorMapper>();
+builder.Services.AddSingleton<ArchiveMapper>();
+builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();

@@ -1,10 +1,12 @@
 using Archive.Api.Contracts;
-using Archive.Api.Contracts.Archive;
+using Archive.Api.Authentication;
+using Archive.Api.Mapping;
 using Archive.Core.Models.Archive;
 using Archive.Core.Repositories.ArchiveRepository;
 using Archive.Api.Contracts.Archive.Creation;
 using Archive.Core.Entities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Cors;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -13,7 +15,7 @@ namespace Archive.Api.Controllers;
 [ApiController]
 [Route("api/archive")]
 [Tags("Archive")]
-public sealed class ArchiveController(IArchiveRepository archiveRepository) : ControllerBase
+public sealed class ArchiveController(IArchiveRepository archiveRepository, ArchiveMapper mapper) : ControllerBase
 {
     private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -22,11 +24,13 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
 
     [HttpPost]
     [Consumes("application/json")]
+    [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CreateArchiveFromUrl")]
     [EndpointSummary("Creates an archive from a URL.")]
     [EndpointDescription("Queues a public HTTP or HTTPS URL. Returns the job status immediately; snapshot creation runs asynchronously.")]
     [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
     public async Task<ActionResult<ArchiveResponse>> CreateFromUrlAsync(
@@ -37,16 +41,18 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
             return ValidationProblem(ModelState);
 
         return CreationResponse(await archiveRepository.CreateFromUrlAsync(
-            new(request.SourceUrl, request.Title, request.Description, request.Tags), cancellationToken), "sourceUrl");
+            mapper.ToRequest(request, CurrentUserId), cancellationToken), "sourceUrl");
     }
 
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CreateArchiveFromFile")]
     [EndpointSummary("Creates an archive from an HTML, MHTML or Webarchive file.")]
     [EndpointDescription("Accepts a .html, .mhtml or .webarchive file and its metadata as multipart form data and queues a new archive.")]
     [ProducesResponseType<ArchiveResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
     public async Task<ActionResult<ArchiveResponse>> CreateFromFileAsync(
@@ -57,7 +63,7 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
             return ValidationProblem(ModelState);
 
         return CreationResponse(await archiveRepository.CreateFromFileAsync(
-            new(request.OriginalLink, request.Title, request.Description, request.Tags),
+            mapper.ToRequest(request, CurrentUserId),
             new(request.File.FileName, request.File.Length, request.File.OpenReadStream), cancellationToken), "originalLink");
     }
 
@@ -70,7 +76,7 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
     public async Task<ActionResult<ArchiveResponse>> GetAsync(Guid archiveId, CancellationToken cancellationToken)
     {
         var archive = await archiveRepository.GetByIdAsync(archiveId, cancellationToken);
-        return archive is null ? NotFound() : Ok(archive.ToResponse());
+        return archive is null ? NotFound() : Ok(mapper.ToResponse(archive));
     }
 
     [HttpGet("{archiveId:guid}/events")]
@@ -95,7 +101,7 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
                 return;
             }
 
-            var response = archive.ToResponse();
+            var response = mapper.ToResponse(archive);
             var payload = JsonSerializer.Serialize(response, EventJsonOptions);
             if (!string.Equals(payload, lastPayload, StringComparison.Ordinal))
             {
@@ -122,7 +128,7 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
     {
         return await archiveRepository.CancelAsync(archiveId, cancellationToken) switch
         {
-            ArchiveCancellationResult.Cancelled result => Ok(result.Archive.ToResponse()),
+            ArchiveCancellationResult.Cancelled result => Ok(mapper.ToResponse(result.Archive)),
             ArchiveCancellationResult.NotFound => Problem(statusCode: StatusCodes.Status404NotFound, title: "Archive not found"),
             ArchiveCancellationResult.NotCancellable => Problem(statusCode: StatusCodes.Status409Conflict, title: "Archive cannot be cancelled",
                 detail: "Only queued or running archives can be cancelled."),
@@ -130,12 +136,14 @@ public sealed class ArchiveController(IArchiveRepository archiveRepository) : Co
         };
     }
 
+    private Guid? CurrentUserId => User.Identity?.IsAuthenticated == true ? User.ReadUserId() : null;
+
     private ActionResult<ArchiveResponse> CreationResponse(ArchiveCreationResult result, string originField)
     {
         switch (result)
         {
             case ArchiveCreationResult.Created created:
-                return Ok(created.Archive.ToResponse());
+                return Ok(mapper.ToResponse(created.Archive));
             case ArchiveCreationResult.UploadTooLarge:
                 return Problem(statusCode: StatusCodes.Status413PayloadTooLarge,
                     title: "File too large", detail: "The uploaded file exceeds the system limit.");
