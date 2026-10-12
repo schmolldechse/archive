@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { beforeNavigate, replaceState } from "$app/navigation";
+	import { replaceState } from "$app/navigation";
 	import { page } from "$app/state";
 	import { apiOrigin } from "$lib/api-url";
 	import { JobStatus, ProgressStep, type ArchiveResponse } from "$api";
