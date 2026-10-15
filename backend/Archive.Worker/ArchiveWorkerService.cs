@@ -1,335 +1,166 @@
-using Archive.Core;
 using Archive.Core.Entities;
-using Archive.Core.Jobs;
+using Archive.Core.Entities.Processing;
+using Archive.Core.Processing;
+using Archive.Core.Models.Processing;
+using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
 using Archive.Worker.Import;
-using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Worker;
 
-public sealed class ArchiveWorkerService(
-    IServiceScopeFactory scopeFactory,
-    BrowserCaptureEngine captureEngine,
-    OfflineImportEngine offlineImportEngine,
-    IArchiveObjectStore objectStore,
-    ILogger<ArchiveWorkerService> logger) : BackgroundService
+public sealed class ArchiveWorkerService(IServiceScopeFactory scopeFactory,
+    BrowserCaptureEngine captureEngine, OfflineImportEngine offlineImportEngine,
+    IArchiveObjectStore objectStore, ILogger<ArchiveWorkerService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await using var workerLease = await ArchiveWorkerLease.AcquireAsync(scopeFactory, stoppingToken);
-        using var workerLifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var workerToken = workerLifetime.Token;
-        var leaseMonitor = workerLease.MonitorAsync(workerLifetime, logger);
-        logger.LogInformation("Exklusive Worker-Lease übernommen");
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var leaseStartedAtUtc = DateTime.UtcNow;
-            await MarkInterruptedJobsAsync(leaseStartedAtUtc, workerToken);
-
-            while (!workerToken.IsCancellationRequested)
+            try
             {
+                await using var lease = await ProcessingLease.AcquireAsync(scopeFactory, stoppingToken);
+                using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                var monitor = lease.MonitorAsync(lifetime, logger);
                 try
                 {
-                    var job = await ClaimNextJobAsync(leaseStartedAtUtc, workerToken);
-                    if (job is not null)
-                        await ProcessJobAsync(job, workerToken);
-                    else
-                        await Task.Delay(500, workerToken);
+                    var interruptedUploads = await lease.RecoverInterruptedAsync(lifetime.Token);
+                    foreach (var upload in interruptedUploads) await DeleteUploadAsync(upload, lifetime.Token);
+                    while (!lifetime.IsCancellationRequested)
+                    {
+                        var claim = await lease.TryClaimNextAsync(Guid.NewGuid(), lifetime.Token);
+                        if (claim is null) { await Task.Delay(500, lifetime.Token); continue; }
+                        await ProcessAsync(claim, lifetime.Token);
+                    }
                 }
-                catch (OperationCanceledException) when (workerToken.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception exception)
-                {
-                    logger.LogError(exception, "Fehler in der Archivierungswarteschlange");
-                    await Task.Delay(1_000, workerToken);
-                }
+                finally { lifetime.Cancel(); await monitor; }
             }
-        }
-        finally
-        {
-            workerLifetime.Cancel();
-            await leaseMonitor;
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+            catch (Exception exception) { logger.LogError(exception, "Worker lease will be reacquired before recovery and new claims"); }
+            try { await Task.Delay(1_000, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
-    private async Task<ArchiveJob?> ClaimNextJobAsync(DateTime leaseStartedAtUtc,
-        CancellationToken cancellationToken)
+    private async Task ProcessAsync(ClaimedSnapshot claim, CancellationToken token)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var job = await database.ArchiveJobs
-            .FromSqlInterpolated($"""
-                SELECT * FROM processing.archive_jobs
-                WHERE status = {JobStatus.Queued}
-                   OR (status = {JobStatus.Running} AND started_at >= {leaseStartedAtUtc})
-                ORDER BY CASE WHEN status = {JobStatus.Running} THEN 0 ELSE 1 END, created_at
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-                """)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (job is null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return null;
-        }
-
-        if (job.Status == JobStatus.Queued)
-        {
-            job.Status = JobStatus.Running;
-            job.StartedAt = DateTimeOffset.UtcNow;
-            job.ProgressStep = ProgressStep.SourceCheck;
-            job.ProgressPercent = 2;
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        else
-        {
-            logger.LogWarning("Running-Job {JobId} wird nach unklarem Claim-Commit wiederaufgenommen", job.Id);
-        }
-        await database.Entry(job).Collection(x => x.Tags).LoadAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return job;
-    }
-
-    private async Task ProcessJobAsync(ArchiveJob claimedJob, CancellationToken stoppingToken)
-    {
-        CaptureResult? storedCapture = null;
-        var published = false;
+        var input = claim.Input;
+        CaptureResult? capture = null;
+        var status = ProcessingStatus.Failed;
+        var completion = ProcessingCompletion.Unpublished;
         try
         {
-            await UpdateProgressAsync(claimedJob.Id, ProgressStep.SourceCheck, 5, stoppingToken);
-            var progress = new Progress<ProgressUpdate>(update => _ = UpdateProgressAsync(claimedJob.Id, update.Step, update.Percent, stoppingToken));
-            var result = await CaptureWithCancellationMonitoringAsync(claimedJob, progress, stoppingToken);
-            storedCapture = result;
-            await UpdateProgressAsync(claimedJob.Id, ProgressStep.SavingSnapshot, 90, stoppingToken);
-
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-            await using var publication = await database.Database.BeginTransactionAsync(stoppingToken);
-            var job = await database.ArchiveJobs
-                .FromSqlInterpolated($"""
-                    SELECT * FROM processing.archive_jobs
-                    WHERE id = {claimedJob.Id}
-                    FOR UPDATE
-                    """)
-                .SingleAsync(stoppingToken);
-            await database.Entry(job).Collection(x => x.Tags).LoadAsync(stoppingToken);
-            if (job.Status != JobStatus.Running)
-            {
-                await publication.CommitAsync(stoppingToken);
-                return;
-            }
-
-            var projectKey = job.OriginUrl is not null
-                ? UrlNormalizer.ProjectKey(job.OriginUrl)
-                : job.SourceType == SourceType.HtmlFile ? $"html:{job.Id:N}" : $"upload:{job.Id:N}";
-            var project = await database.Projects.SingleOrDefaultAsync(x => x.ProjectKey == projectKey, stoppingToken);
-            if (project is null)
-            {
-                project = new Project { ProjectKey = projectKey };
-                database.Projects.Add(project);
-            }
-
-            var snapshot = new Snapshot
-            {
-                Id = job.Id,
-                CreatedByUserId = job.CreatedByUserId,
-                Project = project,
-                SourceType = job.SourceType,
-                OriginUrl = job.OriginUrl,
-                Title = job.Title,
-                Description = job.Description,
-                Quality = result.Quality,
-                CreatedAt = job.CreatedAt,
-                CaptureStartedAt = job.StartedAt,
-                CaptureCompletedAt = DateTimeOffset.UtcNow,
-                DurationMilliseconds = result.DurationMilliseconds,
-                StorageBytes = result.StorageBytes,
-                ResourceCount = result.ResourceCount,
-                ContentPrefix = result.ContentPrefix,
-                SnapshotTags = []
-            };
-
-            foreach (var jobTag in job.Tags)
-            {
-                var tag = await database.Tags.SingleOrDefaultAsync(x => x.Value == jobTag.Value, stoppingToken);
-                if (tag is null)
-                {
-                    tag = new Tag { Value = jobTag.Value };
-                    database.Tags.Add(tag);
-                }
-                snapshot.SnapshotTags.Add(new SnapshotTag { Snapshot = snapshot, Tag = tag });
-            }
-
-            database.Snapshots.Add(snapshot);
-            job.Status = JobStatus.Completed;
-            job.ProgressStep = ProgressStep.Finished;
-            job.ProgressPercent = 100;
-            job.CompletedAt = DateTimeOffset.UtcNow;
-            await database.SaveChangesAsync(stoppingToken);
-            await publication.CommitAsync(stoppingToken);
-            published = true;
-            logger.LogInformation("Snapshot {SnapshotId} veröffentlicht", snapshot.Id);
-            if (claimedJob.UploadedObjectKey is not null)
-            {
-                try { await objectStore.DeleteAsync(claimedJob.UploadedObjectKey, CancellationToken.None); }
-                catch (Exception exception) { logger.LogWarning(exception, "Upload {ObjectKey} konnte nicht bereinigt werden", claimedJob.UploadedObjectKey); }
-            }
+            var progress = new CaptureProgress(scopeFactory, input.Id, claim.OwnerToken, logger, token);
+            try { capture = await CaptureAsync(claim, progress, token); }
+            finally { await progress.FlushAsync(); }
+            var published = await WithRepositoryAsync(processing => processing.PublishAsync(input.Id, claim.OwnerToken,
+                new(capture.Quality, capture.ContentPrefix, capture.DurationMilliseconds, capture.StorageBytes, capture.ResourceCount), token));
+            if (!published) throw new CaptureCancelledException();
+            completion = ProcessingCompletion.Published;
         }
-        catch (CaptureCancelledException)
-        {
-            await SetTerminalStatusAsync(claimedJob.Id, JobStatus.Cancelled, "Die Archivierung wurde abgebrochen.", stoppingToken);
-        }
+        catch (CaptureCancelledException) { status = ProcessingStatus.Cancelled; }
         catch (CaptureDiscardedException exception)
         {
-            await SetTerminalStatusAsync(claimedJob.Id, JobStatus.Discarded, exception.Message, stoppingToken);
+            status = ProcessingStatus.Discarded;
+            logger.LogWarning(exception, "Snapshot {SnapshotId} exceeded a capture limit", input.Id);
         }
         catch (CaptureFailedException exception)
         {
-            await SetTerminalStatusAsync(claimedJob.Id, JobStatus.Failed, exception.Message, stoppingToken);
+            logger.LogWarning(exception, "Snapshot {SnapshotId} capture failed", input.Id);
         }
-        catch (Exception exception)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            logger.LogError(exception, "Job {JobId} konnte nicht verarbeitet werden", claimedJob.Id);
-            await SetTerminalStatusAsync(claimedJob.Id, JobStatus.Failed, "Die Archivierung ist unerwartet fehlgeschlagen.", stoppingToken);
+            // The next lease reconciles the attempt. Do not delete uncertain results.
+            return;
         }
-        finally
-        {
-            if (!published && storedCapture is not null &&
-                await IsSafeToDeleteUnpublishedCaptureAsync(claimedJob.Id))
-                await DeleteStoredCaptureAsync(storedCapture);
-            if (!published && claimedJob.UploadedObjectKey is not null &&
-                await IsTerminalJobAsync(claimedJob.Id))
+        catch (Exception exception) { logger.LogError(exception, "Snapshot {SnapshotId} processing failed", input.Id); }
+
+        if (completion != ProcessingCompletion.Published)
+            completion = await FinishUntilConfirmedAsync(claim, status, token);
+        if (completion == ProcessingCompletion.OwnershipLost) return;
+        await DeleteUploadAsync(input.UploadedObjectKey, token);
+        if (completion == ProcessingCompletion.Unpublished && capture is not null)
+            foreach (var key in capture.StoredObjectKeys.Reverse())
             {
-                try { await objectStore.DeleteAsync(claimedJob.UploadedObjectKey, CancellationToken.None); }
-                catch (Exception exception) { logger.LogWarning(exception, "Upload {ObjectKey} konnte nicht bereinigt werden", claimedJob.UploadedObjectKey); }
+                try { await objectStore.DeleteAsync(key, token); }
+                catch (Exception exception) { logger.LogWarning(exception, "Unpublished capture object could not be removed"); }
+            }
+    }
+
+    private async Task<ProcessingCompletion> FinishUntilConfirmedAsync(ClaimedSnapshot claim, ProcessingStatus status,
+        CancellationToken token)
+    {
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            try { return await WithRepositoryAsync(processing => processing.FinishAsync(claim.Input.Id, claim.OwnerToken, status, token)); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Snapshot {SnapshotId} finalization will be reconciled", claim.Input.Id);
+                await Task.Delay(1_000, token);
             }
         }
     }
 
-    private async Task<bool> IsTerminalJobAsync(Guid jobId)
+    private async Task<CaptureResult> CaptureAsync(ClaimedSnapshot claim, IProgress<ProgressStep> progress, CancellationToken token)
     {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var capture = claim.Input.SourceType == SourceType.Url
+            ? captureEngine.CaptureAsync(claim.Input, progress, cancellation.Token)
+            : offlineImportEngine.CaptureAsync(claim.Input, progress, cancellation.Token);
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-            var status = await database.ArchiveJobs.AsNoTracking()
-                .Where(x => x.Id == jobId)
-                .Select(x => (JobStatus?)x.Status)
-                .SingleOrDefaultAsync(CancellationToken.None);
-            return status is JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled or
-                JobStatus.Discarded or JobStatus.Aborted;
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Status von Job {JobId} konnte vor Upload-Bereinigung nicht geprüft werden", jobId);
-            return false;
-        }
-    }
-
-    private async Task<CaptureResult> CaptureWithCancellationMonitoringAsync(ArchiveJob job,
-        IProgress<ProgressUpdate> progress, CancellationToken stoppingToken)
-    {
-        using var captureCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var captureTask = job.SourceType == SourceType.Url
-            ? captureEngine.CaptureAsync(job, progress, captureCancellation.Token)
-            : offlineImportEngine.CaptureAsync(job, progress, captureCancellation.Token);
-        try
-        {
-            while (!captureTask.IsCompleted)
+            while (!capture.IsCompleted)
             {
-                await Task.WhenAny(captureTask, Task.Delay(250, stoppingToken));
-                if (captureTask.IsCompleted)
-                    break;
-
-                await using var scope = scopeFactory.CreateAsyncScope();
-                var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-                var status = await database.ArchiveJobs.AsNoTracking()
-                    .Where(x => x.Id == job.Id)
-                    .Select(x => (JobStatus?)x.Status)
-                    .SingleOrDefaultAsync(stoppingToken);
-                if (status != JobStatus.Running)
-                {
-                    captureCancellation.Cancel();
-                    break;
-                }
+                await Task.WhenAny(capture, Task.Delay(250, token));
+                if (capture.IsCompleted) break;
+                token.ThrowIfCancellationRequested();
+                if (!await WithRepositoryAsync(processing => processing.CanContinueAsync(claim.Input.Id, claim.OwnerToken, token)))
+                { cancellation.Cancel(); break; }
             }
-
-            return await captureTask;
+            return await capture;
         }
         catch
         {
-            captureCancellation.Cancel();
-            try { await captureTask; }
-            catch { }
+            cancellation.Cancel();
+            try { await capture; } catch { }
             throw;
         }
     }
 
-    private async Task DeleteStoredCaptureAsync(CaptureResult result)
+    private async Task DeleteUploadAsync(string? key, CancellationToken token)
     {
-        foreach (var key in result.StoredObjectKeys.Reverse())
-        {
-            try { await objectStore.DeleteAsync(key, CancellationToken.None); }
-            catch (Exception exception) { logger.LogWarning(exception, "Nicht veröffentlichbares Archivobjekt {ObjectKey} konnte nicht gelöscht werden", key); }
-        }
+        if (key is null) return;
+        try { await objectStore.DeleteAsync(key, token); }
+        catch (Exception exception) { logger.LogWarning(exception, "Temporary upload {ObjectKey} could not be removed", key); }
     }
 
-    private async Task<bool> IsSafeToDeleteUnpublishedCaptureAsync(Guid jobId)
-    {
-        try
-        {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-            return !await database.Snapshots.AsNoTracking().AnyAsync(x => x.Id == jobId, CancellationToken.None);
-        }
-        catch (Exception exception)
-        {
-            // After an ambiguous commit, deleting is more dangerous than leaving an
-            // orphan: a durable snapshot may already reference these exact keys.
-            logger.LogError(exception,
-                "Archivobjekte für Job {JobId} bleiben erhalten, da der Veröffentlichungsstatus nicht geprüft werden konnte",
-                jobId);
-            return false;
-        }
-    }
-
-    private async Task MarkInterruptedJobsAsync(DateTimeOffset startupAt, CancellationToken cancellationToken)
+    private async Task<T> WithRepositoryAsync<T>(Func<ISnapshotProcessingRepository, Task<T>> action)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-        await database.ArchiveJobs.Where(x => x.Status == JobStatus.Running && x.StartedAt < startupAt)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.Status, JobStatus.Aborted)
-                .SetProperty(x => x.ErrorMessage, "Die Archivierung wurde nach einem Neustart verworfen.")
-                .SetProperty(x => x.CompletedAt, DateTimeOffset.UtcNow), cancellationToken);
+        return await action(scope.ServiceProvider.GetRequiredService<ISnapshotProcessingRepository>());
     }
 
-    private async Task UpdateProgressAsync(Guid jobId, ProgressStep step, int percent, CancellationToken cancellationToken)
+    private sealed class CaptureProgress(IServiceScopeFactory scopes, Guid id, Guid owner,
+        ILogger logger, CancellationToken token) : IProgress<ProgressStep>
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-        var job = await database.ArchiveJobs.SingleOrDefaultAsync(x => x.Id == jobId, cancellationToken);
-        if (job is null || job.Status != JobStatus.Running)
-            return;
-        job.ProgressStep = step;
-        job.ProgressPercent = percent;
-        await database.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task SetTerminalStatusAsync(Guid jobId, JobStatus status, string message, CancellationToken cancellationToken)
-    {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<DataContext>();
-        var completedAt = DateTime.UtcNow;
-        await database.ArchiveJobs
-            .Where(x => x.Id == jobId && x.Status == JobStatus.Running)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.Status, status)
-                .SetProperty(x => x.ErrorMessage, message)
-                .SetProperty(x => x.CompletedAt, completedAt), cancellationToken);
+        private readonly object _gate = new();
+        private Task _pending = Task.CompletedTask;
+        public void Report(ProgressStep step)
+        {
+            lock (_gate) _pending = SaveAsync(_pending, step);
+        }
+        private async Task SaveAsync(Task previous, ProgressStep step)
+        {
+            await previous;
+            try
+            {
+                await using var scope = scopes.CreateAsyncScope();
+                await scope.ServiceProvider.GetRequiredService<ISnapshotProcessingRepository>().UpdateStepAsync(id, owner, step, token);
+            }
+            catch (Exception exception) { logger.LogWarning(exception, "Phase update for snapshot {SnapshotId} could not be saved", id); }
+        }
+        public Task FlushAsync() { lock (_gate) return _pending; }
     }
 }

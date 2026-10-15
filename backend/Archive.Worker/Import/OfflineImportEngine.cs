@@ -1,3 +1,4 @@
+using Archive.Core.Processing;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
@@ -9,6 +10,7 @@ using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
 using Microsoft.Playwright;
+using Archive.Core.Entities.Processing;
 
 namespace Archive.Worker.Import;
 
@@ -35,7 +37,7 @@ public sealed class OfflineImportEngine(
         return values.ToDictionary(x => x.SourceType);
     }
 
-    public async Task<CaptureResult> CaptureAsync(ArchiveJob job, IProgress<ProgressUpdate>? progress,
+    public async Task<CaptureResult> CaptureAsync(CaptureInput job, IProgress<ProgressStep>? progress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(job.UploadedObjectKey) ||
@@ -47,7 +49,7 @@ public sealed class OfflineImportEngine(
         var timer = Stopwatch.StartNew();
         try
         {
-            progress?.Report(new ProgressUpdate(ProgressStep.SourceCheck, 10, "Datei wird gelesen"));
+            progress?.Report(ProgressStep.SourceCheck);
             var source = await objectStore.GetAsync(job.UploadedObjectKey, timeout.Token)
                 ?? throw new CaptureFailedException("Die hochgeladene Datei konnte nicht gelesen werden.");
             byte[] original;
@@ -61,15 +63,17 @@ public sealed class OfflineImportEngine(
             }
             catch (InvalidDataException exception)
             {
-                throw new CaptureFailedException("Die hochgeladene Datei ist ungültig oder überschreitet ein Importlimit.", exception);
+                throw new CaptureFailedException("Die hochgeladene Datei ist ungültig oder überschreitet ein Importlimit.",
+                    exception);
             }
-            progress?.Report(new ProgressUpdate(ProgressStep.LoadingPage, 35, "Archivierte Seite wird vorbereitet"));
+            progress?.Report(ProgressStep.LoadingPage);
             var normalized = OfflinePageNormalizer.Normalize(imported, job.Id);
             if (normalized.Assets.Count > _importLimits.MaxResources + _importLimits.MaxObjects)
                 throw new CaptureDiscardedException("Die Datei enthält zu viele eingebettete Inhalte.");
 
+            progress?.Report(ProgressStep.LoadingDynamicContent);
             var screenshot = await ScreenshotAsync(normalized, job.Id, timeout.Token);
-            progress?.Report(new ProgressUpdate(ProgressStep.LoadingDynamicContent, 65, "Vorschau wurde erstellt"));
+            progress?.Report(ProgressStep.SavingSnapshot);
             var result = await StoreAsync(job, imported, normalized, screenshot.Bytes, original,
                 screenshot.MissingUrls, timer.ElapsedMilliseconds, timeout.Token);
             return result;
@@ -149,7 +153,7 @@ public sealed class OfflineImportEngine(
         return (bytes, missing.Keys.Order(StringComparer.Ordinal).ToArray());
     }
 
-    private async Task<CaptureResult> StoreAsync(ArchiveJob job, ImportedPage imported,
+    private async Task<CaptureResult> StoreAsync(CaptureInput job, ImportedPage imported,
         NormalizedPage normalized, byte[] screenshot, byte[] original, IReadOnlyList<string> missingUrls,
         long durationMilliseconds, CancellationToken cancellationToken)
     {

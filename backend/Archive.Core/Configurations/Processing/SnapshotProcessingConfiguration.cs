@@ -9,6 +9,7 @@ public sealed class SnapshotProcessingConfiguration : IEntityTypeConfiguration<S
     public void Configure(EntityTypeBuilder<SnapshotProcessing> builder)
     {
         builder.HasIndex(item => item.QueueSequence).HasFilter("status = 'QUEUED'");
+        builder.HasIndex(item => new { item.ExpiresAt, item.SnapshotId }).HasFilter("expires_at IS NOT NULL");
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("CK_snapshot_processing_step", """

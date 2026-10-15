@@ -22,9 +22,10 @@ if (args is ["--healthcheck"])
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOptions<FormOptions>().Configure<ArchiveOptions>((form, archive) =>
+builder.Services.AddSingleton<SnapshotUploadLimits>();
+builder.Services.AddOptions<FormOptions>().Configure<SnapshotUploadLimits>((form, limits) =>
     // Allow multipart framing before the controller applies the file limit and returns HTTP 413.
-    form.MultipartBodyLengthLimit = checked(archive.MaxUploadBytes + 1_000_000L));
+    form.MultipartBodyLengthLimit = limits.MaxRequestBodyBytes);
 builder.Services.AddOptions<ArchiveApiOptions>().Bind(builder.Configuration)
     .PostConfigure(options => options.PublicBaseUrl = string.IsNullOrWhiteSpace(options.PublicBaseUrl)
         ? null : options.PublicBaseUrl.Trim().TrimEnd('/'))
@@ -33,7 +34,7 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<A
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddOperationTransformer<ArchiveCreationOperationTransformer>();
+    options.AddOperationTransformer<SnapshotCreationOperationTransformer>();
 });
 builder.Services
     .AddControllers()
@@ -47,7 +48,7 @@ builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.C
 
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
 builder.Services.AddSingleton<ArchiveCreatorMapper>();
-builder.Services.AddSingleton<ArchiveMapper>();
+builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
@@ -61,7 +62,7 @@ builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
 var app = builder.Build();
 
 app.Services.GetRequiredService<IStartupValidator>().Validate();
-var maxUploadRequestBytes = checked(app.Services.GetRequiredService<ArchiveOptions>().MaxUploadBytes + 1_000_000L);
+var uploadLimits = app.Services.GetRequiredService<SnapshotUploadLimits>();
 if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 {
     using var scope = app.Services.CreateScope();
@@ -76,12 +77,12 @@ app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method) &&
-        string.Equals(context.Request.Path.Value, "/api/archive", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(context.Request.Path.Value, "/api/snapshots", StringComparison.OrdinalIgnoreCase) &&
         context.Request.ContentType?.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true)
     {
         var bodyLimit = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (bodyLimit is { IsReadOnly: false })
-            bodyLimit.MaxRequestBodySize = maxUploadRequestBytes;
+            bodyLimit.MaxRequestBodySize = uploadLimits.MaxRequestBodyBytes;
     }
 
     await next(context);

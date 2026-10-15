@@ -3,6 +3,7 @@ using Archive.Api.Mapping;
 using Archive.Api.Options;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotRepository;
+using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Archive.Api.Controllers;
@@ -10,10 +11,11 @@ namespace Archive.Api.Controllers;
 [ApiController]
 [Route("api/snapshots")]
 [Tags("Snapshots")]
-public sealed class SnapshotsController(
+public sealed partial class SnapshotsController(
     ISnapshotRepository snapshotRepository,
     SnapshotMapper mapper,
-    ArchiveApiOptions options) : ControllerBase
+    ArchiveApiOptions options,
+    ISnapshotProcessingRepository processing) : ControllerBase
 {
     private static string ArchivedContentPolicy(string origin) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +

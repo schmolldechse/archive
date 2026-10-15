@@ -1,31 +1,32 @@
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Entities;
-using Archive.Core.Models.Users;
+using Archive.Core.Mapping;
 using Archive.Core.Storage;
+using Archive.Core.Uploads;
+using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Core.Repositories.SnapshotRepository;
 
-internal sealed partial class SnapshotRepository(DataContext database, IArchiveObjectStore objectStore) : ISnapshotRepository
+internal sealed partial class SnapshotRepository(DataContext database, IArchiveObjectStore objectStore,
+    UploadFormatSelector uploadFormatSelector, ArchiveOptions options) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
     {
-        var snapshot = await database.Snapshots
+        return await database.Snapshots
             .AsNoTracking()
-            .Include(snapshot => snapshot.CreatedBy)
-            .Include(snapshot => snapshot.SnapshotTags)
-            .ThenInclude(snapshotTag => snapshotTag.Tag)
-            .SingleOrDefaultAsync(snapshot => snapshot.Id == snapshotId, cancellationToken);
-        if (snapshot is null) return null;
-
-        return ToDetails(snapshot);
+            .Where(snapshot => snapshot.Id == snapshotId)
+            .Where(snapshot => snapshot.Quality != null || !database.SnapshotProcessing.Any(processing =>
+                processing.SnapshotId == snapshot.Id && processing.ExpiresAt <= DateTimeOffset.UtcNow))
+            .ProjectToDetails()
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Id == snapshotId)
+            .Where(snapshot => snapshot.Id == snapshotId && snapshot.Quality != null)
             .Select(snapshot => new { snapshot.ContentPrefix, snapshot.SourceType })
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot is null) return new SnapshotContentResult.NotFound();
@@ -44,25 +45,10 @@ internal sealed partial class SnapshotRepository(DataContext database, IArchiveO
     {
         var prefix = await database.Snapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Id == snapshotId)
+            .Where(snapshot => snapshot.Id == snapshotId && snapshot.Quality != null)
             .Select(snapshot => snapshot.ContentPrefix)
             .SingleOrDefaultAsync(cancellationToken);
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", cancellationToken);
     }
 
-    private static SnapshotDetails ToDetails(Snapshot snapshot) => new(
-        Id: snapshot.Id,
-        SourceType: snapshot.SourceType,
-        OriginUrl: snapshot.OriginUrl,
-        Title: snapshot.Title,
-        Description: snapshot.Description,
-        Quality: snapshot.Quality,
-        CreatedAt: snapshot.CreatedAt,
-        DurationMilliseconds: snapshot.DurationMilliseconds,
-        StorageBytes: snapshot.StorageBytes,
-        ResourceCount: snapshot.ResourceCount,
-        Tags: snapshot.SnapshotTags.Select(item => item.Tag.Value).Order().ToArray(),
-        CreatedBy: snapshot.CreatedBy is { } creator
-            ? new ArchiveCreator(creator.Handle!, creator.DisplayName!, creator.ProfileImage)
-            : null);
 }

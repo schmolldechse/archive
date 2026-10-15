@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Archive.Core.Repositories.UserRepository;
 using Archive.Core.Repositories.AuthenticationRepository;
-using Archive.Core.Repositories.ArchiveRepository;
+using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.ProfileImageRepository;
 using Archive.Core.Entities.Processing;
@@ -43,6 +43,9 @@ public static class Injection
             })
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ObjectStorageOptions>>().Value);
+        services.AddOptions<ProcessingOptions>().Bind(configuration.GetSection(ProcessingOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<ProcessingOptions>>().Value);
 
         services.AddDbContext<DataContext>((provider, options) => options.UseNpgsql(
             configuration.GetConnectionString("DefaultConnection"),
@@ -62,6 +65,7 @@ public static class Injection
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
             .AddScoped<IUserRepository, UserRepository>()
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
+            .AddScoped<ISnapshotProcessingRepository, SnapshotProcessingRepository>()
             .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;
     }

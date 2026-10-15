@@ -1,3 +1,4 @@
+using Archive.Core.Processing;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -7,6 +8,7 @@ using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Microsoft.Playwright;
+using Archive.Core.Entities.Processing;
 
 namespace Archive.Worker.Capture;
 
@@ -16,7 +18,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
 {
     private readonly CaptureLimits _limits = options.ToCaptureLimits();
 
-    public async Task<CaptureResult> CaptureAsync(ArchiveJob job, IProgress<ProgressUpdate>? progress, CancellationToken cancellationToken)
+    public async Task<CaptureResult> CaptureAsync(CaptureInput job, IProgress<ProgressStep>? progress, CancellationToken cancellationToken)
     {
         var started = DateTime.UtcNow;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -47,12 +49,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             await using var requestRouter = new BrowserRequestRouter(context, webBotAuthSigner);
             await requestRouter.InitializeAsync();
 
-            if (job.SourceType == SourceType.HtmlFile)
-            {
-                var page = await context.NewPageAsync();
-                return await CaptureHtmlAsync(job, page, requestRouter, started, progress, timeout.Token);
-            }
-
             return await CaptureUrlAsync(job, context, requestRouter, started, progress, timeout.Token);
         }
         catch (Exception) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
@@ -79,14 +75,14 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         }
     }
 
-    private async Task<CaptureResult> CaptureUrlAsync(ArchiveJob job, IBrowserContext context,
+    private async Task<CaptureResult> CaptureUrlAsync(CaptureInput job, IBrowserContext context,
         BrowserRequestRouter requestRouter, DateTime started,
-        IProgress<ProgressUpdate>? progress, CancellationToken cancellationToken)
+        IProgress<ProgressStep>? progress, CancellationToken cancellationToken)
     {
         if (!UrlNormalizer.TryNormalizeSource(job.OriginUrl, out var normalizedUrl, out var urlError))
             throw new CaptureFailedException(urlError);
 
-        progress?.Report(new ProgressUpdate(ProgressStep.SourceCheck, 5, "Quelle wird geprüft"));
+        progress?.Report(ProgressStep.SourceCheck);
         await crawlPolicy.EnsureAllowedAsync(new Uri(normalizedUrl), cancellationToken);
         var networkGuard = new PublicNetworkGuard();
         var accessPage = await context.NewPageAsync();
@@ -120,7 +116,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 await access.InitializeAsync(cancellationToken);
                 await access.NavigateAsync(cancellationToken);
                 await access.VerifyCaptureAsync(cancellationToken);
-                progress?.Report(new ProgressUpdate(ProgressStep.LoadingPage, 20, "Seite wird geladen"));
+                progress?.Report(ProgressStep.LoadingPage);
                 try
                 {
                     await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 10_000 })
@@ -131,7 +127,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     // Analytics and streaming connections need not become idle.
                 }
                 await access.VerifyCaptureAsync(cancellationToken);
-                progress?.Report(new ProgressUpdate(ProgressStep.LoadingDynamicContent, 35, "Dynamische Inhalte werden nachgeladen"));
+                progress?.Report(ProgressStep.LoadingDynamicContent);
 
                 await LoadDynamicContentAsync(page, cancellationToken);
                 await access.VerifyCaptureAsync(cancellationToken);
@@ -149,6 +145,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 // the validated HTML, screenshot or the drained resource collection.
                 await ClosePageAsync(page);
                 var prefix = $"snapshots/{job.Id:N}";
+                progress?.Report(ProgressStep.SavingSnapshot);
                 var manifest = await StoreResourcesAsync(prefix, normalizedUrl, html, screenshot, collector.Resources,
                     cancellationToken, collector.Incomplete);
                 var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
@@ -197,41 +194,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
     {
         try { await browser.CloseAsync(); }
         catch (PlaywrightException exception) { logger.LogDebug(exception, "Browser bereits beendet"); }
-    }
-
-    private async Task<CaptureResult> CaptureHtmlAsync(ArchiveJob job, IPage page,
-        BrowserRequestRouter requestRouter, DateTime started, IProgress<ProgressUpdate>? progress,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(job.UploadedObjectKey))
-            throw new CaptureFailedException("Die hochgeladene HTML-Datei fehlt.");
-
-        progress?.Report(new ProgressUpdate(ProgressStep.SourceCheck, 10, "HTML-Datei wird geprüft"));
-        var source = await objectStore.GetAsync(job.UploadedObjectKey, cancellationToken) ?? throw new CaptureFailedException("Die hochgeladene HTML-Datei konnte nicht gelesen werden.");
-        using var reader = new StreamReader(source.Content);
-        var html = await reader.ReadToEndAsync(cancellationToken);
-        progress?.Report(new ProgressUpdate(ProgressStep.LoadingPage, 35, "HTML-Datei wird geladen"));
-        // Uploaded markup is rendered as an isolated document. It must not turn
-        // the worker into a network client for URLs embedded by the uploader.
-        using var routeRegistration = requestRouter.Register(page, route => route.AbortAsync());
-        await page.SetContentAsync(html, new PageSetContentOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        progress?.Report(new ProgressUpdate(ProgressStep.LoadingDynamicContent, 55, "HTML-Datei wird vorbereitet"));
-        var screenshot = await page.ScreenshotAsync(new PageScreenshotOptions { FullPage = false, Type = ScreenshotType.Png });
-        var prefix = $"snapshots/{job.Id:N}";
-        var manifest = await StoreResourcesAsync(prefix, null, html, screenshot, new Dictionary<string, CapturedResource>(), cancellationToken);
-        var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
-        try
-        {
-            await objectStore.DeleteAsync(job.UploadedObjectKey, cancellationToken);
-        }
-        catch
-        {
-            await DeleteObjectsAsync(manifest.StoredObjectKeys);
-            throw;
-        }
-
-        return new CaptureResult(SnapshotQuality.Complete, prefix, manifest.StorageBytes, 0, duration,
-            manifest.StoredObjectKeys);
     }
 
     private async Task LoadDynamicContentAsync(IPage page, CancellationToken cancellationToken)

@@ -1,4 +1,5 @@
 using Archive.Core.Jobs;
+using Archive.Core.Mapping;
 using Archive.Core.Models;
 using Archive.Core.Models.Snapshots;
 using Microsoft.EntityFrameworkCore;
@@ -46,7 +47,8 @@ internal sealed partial class SnapshotRepository
         if (errors.Count > 0)
             return new SnapshotSearchResult.Invalid(errors);
 
-        var query = database.Snapshots.AsNoTracking().AsQueryable();
+        var published = database.Snapshots.AsNoTracking().Where(snapshot => snapshot.Quality != null);
+        var query = published;
         foreach (var term in textTerms)
         {
             var pattern = ContainsPattern(term);
@@ -93,9 +95,8 @@ internal sealed partial class SnapshotRepository
         var distribution = new SnapshotCaptureDistribution(years.Sum(year => year.Count),
             years.Length == 0 ? null : years[0].Year, years.Length == 0 ? null : years[^1].Year, years);
 
-        var indexTotal = await database.Snapshots.CountAsync(cancellationToken);
-        var recentCaptureTimes = await database.Snapshots
-            .AsNoTracking()
+        var indexTotal = await published.CountAsync(cancellationToken);
+        var recentCaptureTimes = await published
             .OrderByDescending(snapshot => snapshot.CreatedAt)
             .ThenByDescending(snapshot => snapshot.Id)
             .Select(snapshot => snapshot.CreatedAt)
@@ -122,12 +123,9 @@ internal sealed partial class SnapshotRepository
         var page = await ordered
             .Skip((search.Page - 1) * search.PageSize)
             .Take(search.PageSize)
-            .Include(snapshot => snapshot.CreatedBy)
-            .Include(snapshot => snapshot.SnapshotTags)
-            .ThenInclude(snapshotTag => snapshotTag.Tag)
-            .AsSplitQuery()
-            .ToListAsync(cancellationToken);
-        return new SnapshotSearchResult.Found(new(page.Select(ToDetails).ToArray(), total, search.Page, search.PageSize,
+            .ProjectToDetails()
+            .ToArrayAsync(cancellationToken);
+        return new SnapshotSearchResult.Found(new(page, total, search.Page, search.PageSize,
             indexTotal, recentCaptureTimes, distribution));
     }
 

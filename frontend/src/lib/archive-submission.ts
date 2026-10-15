@@ -1,4 +1,4 @@
-import type { ArchiveResponse } from "./api/types.gen";
+import type { SnapshotReceipt, SnapshotResponse, SnapshotProcessingResponse } from "./api/types.gen";
 import { normalizeTags } from "./components/tags/tags";
 
 export type ArchiveSource = "url" | "file";
@@ -16,37 +16,6 @@ export interface ArchiveDraft {
 export type ArchiveFieldErrors = Partial<
 	Record<"sourceUrl" | "file" | "originalLink" | "title" | "description" | "tags" | "form", string>
 >;
-
-export interface ArchiveSourceDetails {
-	title: string;
-	source: string;
-}
-export interface ArchiveSourceStore {
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
-}
-
-export function saveArchiveSource(storage: ArchiveSourceStore, id: string, details: ArchiveSourceDetails): void {
-	storage.setItem(`archive-submission:${id}`, JSON.stringify(details));
-}
-
-export function loadArchiveSource(storage: ArchiveSourceStore, id: string): ArchiveSourceDetails | null {
-	const saved = storage.getItem(`archive-submission:${id}`);
-	if (!saved) return null;
-	try {
-		const value: unknown = JSON.parse(saved);
-		return value &&
-			typeof value === "object" &&
-			"title" in value &&
-			typeof value.title === "string" &&
-			"source" in value &&
-			typeof value.source === "string"
-			? { title: value.title, source: value.source }
-			: null;
-	} catch {
-		return null;
-	}
-}
 
 export class ArchiveHttpError extends Error {
 	constructor(
@@ -90,8 +59,8 @@ export function validateDraft(draft: ArchiveDraft): ArchiveFieldErrors {
 	return errors;
 }
 
-async function archiveResponse(response: Response): Promise<ArchiveResponse> {
-	if (response.ok) return (await response.json()) as ArchiveResponse;
+async function apiResponse<T>(response: Response): Promise<T> {
+	if (response.ok) return (await response.json()) as T;
 	let problem: unknown;
 	try {
 		const body = await response.text();
@@ -139,14 +108,14 @@ async function archiveResponse(response: Response): Promise<ArchiveResponse> {
 	throw new ArchiveHttpError(response.status, message, fieldErrors);
 }
 
-export async function createArchive(
+export async function createSnapshot(
 	baseUrl: string,
 	draft: ArchiveDraft,
 	fetcher: typeof fetch = fetch
-): Promise<ArchiveResponse> {
+): Promise<SnapshotReceipt> {
 	const errors = validateDraft(draft);
 	if (Object.keys(errors).length) throw new ArchiveHttpError(0, "Please correct the highlighted fields.", errors);
-	const endpoint = `${baseUrl.replace(/\/$/, "")}/api/archive`;
+	const endpoint = `${baseUrl.replace(/\/$/, "")}/api/snapshots`;
 	const title = draft.title.trim();
 	const description = draft.description.trim();
 	const tags = normalizeTags(draft.tags);
@@ -163,15 +132,27 @@ export async function createArchive(
 		if (description) body.append("description", description);
 		for (const tag of tags) body.append("tags", tag);
 	}
-	return archiveResponse(await fetcher(endpoint, { method: "POST", headers, body, credentials: "include" }));
+	return apiResponse(await fetcher(endpoint, { method: "POST", headers, body, credentials: "include" }));
 }
 
-export async function getArchive(baseUrl: string, id: string, fetcher: typeof fetch = fetch): Promise<ArchiveResponse> {
-	return archiveResponse(await fetcher(`${baseUrl.replace(/\/$/, "")}/api/archive/${encodeURIComponent(id)}`));
+export async function getSnapshotStatus(
+	baseUrl: string,
+	id: string,
+	fetcher: typeof fetch = fetch
+): Promise<SnapshotProcessingResponse> {
+	return apiResponse(await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/status`));
 }
 
-export async function cancelArchive(baseUrl: string, id: string, fetcher: typeof fetch = fetch): Promise<ArchiveResponse> {
-	return archiveResponse(
-		await fetcher(`${baseUrl.replace(/\/$/, "")}/api/archive/${encodeURIComponent(id)}/cancel`, { method: "POST" })
+export async function cancelSnapshot(
+	baseUrl: string,
+	id: string,
+	fetcher: typeof fetch = fetch
+): Promise<SnapshotProcessingResponse> {
+	return apiResponse(
+		await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/cancel`, { method: "POST" })
 	);
+}
+
+export async function getSnapshot(baseUrl: string, id: string, fetcher: typeof fetch = fetch): Promise<SnapshotResponse> {
+	return apiResponse(await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}`));
 }

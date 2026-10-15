@@ -15,7 +15,7 @@
 
 <div class="preview-content" data-component="snapshot-preview-content" data-layout={layout}>
 	<div class="archive-frame">
-		{#if failedImage === snapshot.screenshotUrl}
+		{#if !snapshot.screenshotUrl || failedImage === snapshot.screenshotUrl}
 			<div class="image-error">
 				<CircleAlert aria-hidden="true" />
 				<h4>Preview image unavailable</h4>
