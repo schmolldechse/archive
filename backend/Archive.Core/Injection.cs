@@ -61,7 +61,6 @@ public static class Injection
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
             .AddScoped<IUserRepository, UserRepository>()
-            .AddScoped<IArchiveRepository, ArchiveRepository>()
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
             .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;
