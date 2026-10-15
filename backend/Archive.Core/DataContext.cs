@@ -1,13 +1,13 @@
 using Archive.Core.Entities;
 using Archive.Core.Entities.Authentication;
+using Archive.Core.Entities.Processing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Core;
 
 public sealed class DataContext(DbContextOptions<DataContext> options) : DbContext(options)
 {
-    public DbSet<ArchiveJob> ArchiveJobs => Set<ArchiveJob>();
-    public DbSet<ArchiveJobTag> ArchiveJobTags => Set<ArchiveJobTag>();
+    public DbSet<SnapshotProcessing> SnapshotProcessing => Set<SnapshotProcessing>();
 
     public DbSet<Project> Projects => Set<Project>();
 

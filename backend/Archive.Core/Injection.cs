@@ -11,6 +11,7 @@ using Archive.Core.Repositories.AuthenticationRepository;
 using Archive.Core.Repositories.ArchiveRepository;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.ProfileImageRepository;
+using Archive.Core.Entities.Processing;
 
 namespace Archive.Core;
 
@@ -52,9 +53,9 @@ public static class Injection
                     HistoryRepository.DefaultTableName,
                     "public");
                 options.MapEnum<SourceType>("source_type", "types");
-                options.MapEnum<JobStatus>("job_status", "types");
-                options.MapEnum<ProgressStep>("progress_step", "types");
                 options.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+                options.MapEnum<ProcessingStatus>("processing_status", "types");
+                options.MapEnum<ProgressStep>("progress_step", "types");
             }));
         services.AddSingleton<IUploadFormatProbe, HtmlUploadFormatProbe>();
         services.AddSingleton<IUploadFormatProbe, MhtmlUploadFormatProbe>();

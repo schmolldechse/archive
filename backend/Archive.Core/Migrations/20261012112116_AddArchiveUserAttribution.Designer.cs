@@ -2,6 +2,7 @@
 using System;
 using Archive.Core;
 using Archive.Core.Entities;
+using Archive.Core.Entities.Processing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -80,8 +81,7 @@ namespace Archive.Core.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("started_at");
 
-                    b.Property<JobStatus>("Status")
-                        .HasColumnType("types.job_status")
+                    b.Property<int>("Status")
                         .HasColumnName("status");
 
                     b.Property<string>("Title")

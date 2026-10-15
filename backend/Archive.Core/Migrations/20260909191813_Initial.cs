@@ -1,5 +1,6 @@
 ﻿using System;
 using Archive.Core.Entities;
+using Archive.Core.Entities.Processing;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -35,7 +36,7 @@ namespace Archive.Core.Migrations
                     uploaded_object_key = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     title = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
                     description = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
-                    status = table.Column<JobStatus>(type: "types.job_status", nullable: false),
+                    status = table.Column<int>(type: "types.job_status", nullable: false),
                     progress_step = table.Column<ProgressStep>(type: "types.progress_step", nullable: false),
                     progress_percent = table.Column<int>(type: "integer", nullable: false),
                     error_message = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),

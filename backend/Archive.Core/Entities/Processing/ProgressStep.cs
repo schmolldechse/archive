@@ -2,10 +2,10 @@ using System.ComponentModel;
 using System.Text.Json.Serialization;
 using NpgsqlTypes;
 
-namespace Archive.Core.Entities;
+namespace Archive.Core.Entities.Processing;
 
 [PgName("progress_step")]
-[Description("Processing step of an archive job.")]
+[Description("Temporary processing step of a snapshot.")]
 public enum ProgressStep
 {
     [PgName("SOURCE_CHECK")]

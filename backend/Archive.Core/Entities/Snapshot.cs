@@ -46,7 +46,7 @@ public sealed class Snapshot
     public string? Description { get; set; }
 
     [Column("quality")]
-    public SnapshotQuality Quality { get; set; }
+    public SnapshotQuality? Quality { get; set; }
 
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -58,18 +58,17 @@ public sealed class Snapshot
     public DateTimeOffset? CaptureCompletedAt { get; set; }
 
     [Column("duration_ms")]
-    public long DurationMilliseconds { get; set; }
+    public long? DurationMilliseconds { get; set; }
 
     [Column("storage_bytes")]
-    public long StorageBytes { get; set; }
+    public long? StorageBytes { get; set; }
 
     [Column("resource_count")]
-    public int ResourceCount { get; set; }
+    public int? ResourceCount { get; set; }
 
-    [Required]
     [MaxLength(512)]
     [Column("content_prefix")]
-    public required string ContentPrefix { get; set; }
+    public string? ContentPrefix { get; set; }
 
     [InverseProperty(nameof(SnapshotTag.Snapshot))]
     public List<SnapshotTag> SnapshotTags { get; set; } = [];
