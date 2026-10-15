@@ -16,7 +16,8 @@ public sealed class SnapshotProcessing
     [DeleteBehavior(DeleteBehavior.Cascade)]
     public Snapshot Snapshot { get; set; } = null!;
 
-    [Column("queue_sequence")] 
+    [Column("queue_sequence")]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public required long QueueSequence { get; set; }
 
     [Column("status")] 
