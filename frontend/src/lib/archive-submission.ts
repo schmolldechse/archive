@@ -1,5 +1,6 @@
 import type { SnapshotReceipt, SnapshotResponse, SnapshotProcessingResponse } from "./api/types.gen";
 import { normalizeTags } from "./components/tags/tags";
+import { snapshotLimits, validSourceUrl } from "./snapshot-validation";
 
 export type ArchiveSource = "url" | "file";
 
@@ -7,15 +8,12 @@ export interface ArchiveDraft {
 	source: ArchiveSource;
 	sourceUrl: string;
 	file: File | null;
-	originalLink: string;
 	title: string;
 	description: string;
 	tags: string[];
 }
 
-export type ArchiveFieldErrors = Partial<
-	Record<"sourceUrl" | "file" | "originalLink" | "title" | "description" | "tags" | "form", string>
->;
+export type ArchiveFieldErrors = Partial<Record<"sourceUrl" | "file" | "title" | "description" | "tags" | "form", string>>;
 
 export class ArchiveHttpError extends Error {
 	constructor(
@@ -28,34 +26,22 @@ export class ArchiveHttpError extends Error {
 	}
 }
 
-function validWebUrl(value: string): boolean {
-	try {
-		return ["http:", "https:"].includes(new URL(value).protocol);
-	} catch {
-		return false;
-	}
-}
-
 export function validateDraft(draft: ArchiveDraft): ArchiveFieldErrors {
 	const errors: ArchiveFieldErrors = {};
-	if (draft.source === "url") {
-		const sourceUrl = draft.sourceUrl.trim();
-		if (!validWebUrl(sourceUrl) || sourceUrl.length > 2_048)
-			errors.sourceUrl = "Enter a valid HTTP or HTTPS URL (up to 2,048 characters).";
-	} else {
+	if (!validSourceUrl(draft.sourceUrl))
+		errors.sourceUrl = "Enter a valid HTTP or HTTPS URL (up to 4,096 characters after normalization).";
+	if (draft.source === "file") {
 		if (!draft.file) errors.file = "Choose an HTML, MHTML or Webarchive file.";
 		else if (!/\.(html|mhtml|webarchive)$/i.test(draft.file.name)) errors.file = "Choose a .html, .mhtml or .webarchive file.";
 		else if (draft.file.size === 0 || draft.file.size > 250_000_000) errors.file = "Choose a non-empty file up to 250 MB.";
-		const originalLink = draft.originalLink.trim();
-		if (!validWebUrl(originalLink) || originalLink.length > 2_048)
-			errors.originalLink = "Enter the original HTTP or HTTPS page URL (up to 2,048 characters).";
 	}
 	if (!draft.title.trim()) errors.title = "Add a title for this snapshot.";
-	else if (draft.title.trim().length > 500) errors.title = "Use no more than 500 characters for the title.";
-	if (draft.description.trim().length > 10_000) errors.description = "Use no more than 10,000 characters for the description.";
+	else if (draft.title.length > snapshotLimits.title) errors.title = "Use no more than 512 characters for the title.";
+	if (draft.description.length > snapshotLimits.description)
+		errors.description = "Use no more than 2,048 characters for the description.";
 	const tags = normalizeTags(draft.tags);
-	if (tags.length > 30 || tags.some((tag) => tag.length > 100))
-		errors.tags = "Use no more than 30 tags, each up to 100 characters.";
+	if (tags.length > snapshotLimits.tags || tags.some((tag) => tag.length > snapshotLimits.tag))
+		errors.tags = "Use no more than 30 tags, each up to 128 characters.";
 	return errors;
 }
 
@@ -77,7 +63,6 @@ async function apiResponse<T>(response: Response): Promise<T> {
 	const fields: Record<string, keyof ArchiveFieldErrors> = {
 		sourceurl: "sourceUrl",
 		file: "file",
-		originallink: "originalLink",
 		title: "title",
 		description: "description",
 		tags: "tags"
@@ -128,7 +113,7 @@ export async function createSnapshot(
 		body = new FormData();
 		body.append("file", draft.file!);
 		body.append("title", title);
-		body.append("originalLink", draft.originalLink.trim());
+		body.append("sourceUrl", draft.sourceUrl.trim());
 		if (description) body.append("description", description);
 		for (const tag of tags) body.append("tags", tag);
 	}

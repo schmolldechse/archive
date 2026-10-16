@@ -17,7 +17,7 @@
 
 	let { snapshot, selected = false, previewExpanded, onInspect }: ArchiveRecordProps = $props();
 
-	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink);
+	const source = $derived(snapshot.sourceUrl);
 	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
 
 	const handleInspect: NonNullable<HTMLButtonAttributes["onclick"]> = (event) => {

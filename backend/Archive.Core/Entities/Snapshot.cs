@@ -6,7 +6,6 @@ using Archive.Core.Entities.Authentication;
 namespace Archive.Core.Entities;
 
 [Table("snapshots", Schema = "archive")]
-[Index(nameof(OriginUrl), nameof(CreatedAt))]
 [Index(nameof(CreatedAt))]
 public sealed class Snapshot
 {

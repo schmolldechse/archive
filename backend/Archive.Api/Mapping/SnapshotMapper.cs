@@ -20,8 +20,7 @@ public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
     {
         var resourceUrl = $"{publicBaseUrl.TrimEnd('/')}/api/snapshots/{snapshot.Id}";
         return MapSnapshot(snapshot,
-            snapshot.SourceType == SourceType.Url ? snapshot.OriginUrl : null,
-            snapshot.SourceType != SourceType.Url ? snapshot.OriginUrl : null,
+            snapshot.OriginUrl,
             snapshot.Quality is null ? null : $"{resourceUrl}/screenshot",
             snapshot.Quality is null ? null : $"{resourceUrl}/content/index.html");
     }
@@ -31,7 +30,7 @@ public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
 
     [MapperIgnoreSource(nameof(SnapshotDetails.OriginUrl))]
     private partial SnapshotResponse MapSnapshot(SnapshotDetails snapshot, string? sourceUrl,
-        string? originalLink, string? screenshotUrl, string? contentUrl);
+        string? screenshotUrl, string? contentUrl);
 
     [MapperIgnoreSource(nameof(SnapshotPage.Items))]
     private partial SnapshotListResponse MapPage(SnapshotPage page, IReadOnlyList<SnapshotResponse> items);

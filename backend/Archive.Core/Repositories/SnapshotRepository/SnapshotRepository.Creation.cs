@@ -20,35 +20,13 @@ internal sealed partial class SnapshotRepository
 
     private async Task<SnapshotCreationResult> CreateAsync(SnapshotCreationRequest request, SnapshotUpload? upload, CancellationToken cancellationToken)
     {
-        var errors = new List<FieldValidationError>();
-
-        if (!UrlNormalizer.TryNormalizeSource(request.OriginUrl, out var originUrl, out var urlError))
-            errors.Add(new("originUrl", urlError));
-
-        var title = request.Title?.Trim() ?? string.Empty;
-        if (title.Length is 0 or > 500)
-            errors.Add(new("title", "A title of at most 500 characters is required."));
-        if (title.Any(char.IsControl))
-            errors.Add(new("title", "The title cannot contain control characters."));
-
-        if (request.Description?.Length > 10_000)
-            errors.Add(new("description", "The description must contain at most 10000 characters."));
-
-        var tags = (request.Tags ?? [])
-            .Select(value => (value ?? string.Empty)
-            .Trim()
-            .TrimStart('#')
-            .ToLowerInvariant())
-            .ToArray();
-        if (tags.Length > 30)
-            errors.Add(new("tags", "At most 30 tags are allowed."));
-        if (tags.Any(tag => tag.Length is 0 or > 100))
-            errors.Add(new("tags", "Each tag must contain between 1 and 100 characters."));
-        if (tags.Any(tag => tag.Any(char.IsControl)))
-            errors.Add(new("tags", "Tags cannot contain control characters."));
-
+        var errors = SnapshotValidation.GetErrors(request);
         if (errors.Count > 0)
             return new SnapshotCreationResult.Invalid(errors);
+
+        UrlNormalizer.TryNormalizeSource(request.OriginUrl, out var originUrl, out _);
+        var title = request.Title.Trim();
+        var tags = (request.Tags ?? []).Select(SnapshotValidation.NormalizeTag).ToArray();
 
         IUploadFormatProbe? format = null;
         if (upload is not null)
@@ -106,10 +84,12 @@ internal sealed partial class SnapshotRepository
             await database.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO archive.projects (id, project_key, created_at)
                 VALUES ({Guid.NewGuid()}, {projectKey}, {DateTimeOffset.UtcNow})
-                ON CONFLICT (project_key) DO NOTHING
+                ON CONFLICT (project_key_hash) DO NOTHING
                 """, cancellationToken);
-            snapshot.ProjectId = await database.Projects.Where(project => project.ProjectKey == projectKey)
-                .Select(project => project.Id).SingleAsync(cancellationToken);
+            snapshot.ProjectId = await database.Database.SqlQuery<Guid>($"""
+                SELECT id AS "Value" FROM archive.projects
+                WHERE project_key_hash = digest({projectKey}, 'sha256') AND project_key = {projectKey}
+                """).SingleAsync(cancellationToken);
             foreach (var value in tags.Distinct(StringComparer.Ordinal))
             {
                 await database.Database.ExecuteSqlInterpolatedAsync($"""

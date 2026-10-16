@@ -302,9 +302,11 @@ namespace Archive.Core.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("OriginUrl");
 
-                    b.HasIndex("OriginUrl", "CreatedAt");
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("OriginUrl"), "hash");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("snapshots", "archive");
                 });

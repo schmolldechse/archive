@@ -1,5 +1,6 @@
 import { SnapshotOrder, SnapshotQuality, SourceType, type CaptureDistributionResponse, type ListSnapshotsData } from "$api";
 import { normalizeTags } from "$lib/components/tags/tags";
+import { snapshotLimits, validSourceUrl } from "$lib/snapshot-validation";
 import { DateTime } from "luxon";
 
 export type CaptureOrder = "asc" | "desc";
@@ -85,17 +86,14 @@ export function validateDraft(draft: SearchDraft): SearchErrors {
 	const errors: SearchErrors = {};
 	const query = draft.query.trim();
 	if (query) {
-		try {
-			const source = new URL(query);
-			if (!["http:", "https:"].includes(source.protocol) || query.length > 2048) throw new Error();
-		} catch {
-			errors.query = "Enter a complete HTTP or HTTPS URL, for example https://example.org/page (at most 2,048 characters).";
-		}
+		if (!validSourceUrl(draft.query))
+			errors.query =
+				"Enter a complete HTTP or HTTPS URL, for example https://example.org/page (at most 4,096 characters after normalization).";
 	}
-	if (draft.title.trim().length > 500) errors.title = "Use at most 500 characters.";
+	if (draft.title.length > snapshotLimits.title) errors.title = "Use at most 512 characters.";
 	const tags = normalizeTags(draft.tags);
-	if (tags.length > 30) errors.tags = "Require at most 30 different tags.";
-	else if (tags.some((tag) => tag.length > 100)) errors.tags = "Each tag must contain at most 100 characters.";
+	if (tags.length > snapshotLimits.tags) errors.tags = "Require at most 30 different tags.";
+	else if (tags.some((tag) => tag.length > snapshotLimits.tag)) errors.tags = "Each tag must contain at most 128 characters.";
 	if (draft.sourceType && !Object.values(SourceType).includes(draft.sourceType))
 		errors.sourceType = "Choose a valid source type.";
 	if (draft.quality && !Object.values(SnapshotQuality).includes(draft.quality))

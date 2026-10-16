@@ -35,6 +35,7 @@
 		type ArchiveSource
 	} from "$lib/archive-submission";
 	import { onMount, tick } from "svelte";
+	import { snapshotLimits } from "$lib/snapshot-validation";
 
 	const apiBaseUrl = apiOrigin();
 	const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,7 +58,7 @@
 		source: "url",
 		sourceUrl: "",
 		file: null,
-		originalLink: "",
+
 		title: "",
 		description: "",
 		tags: []
@@ -186,7 +187,7 @@
 			const snapshot = await getSnapshot(apiBaseUrl, id);
 			if (!alive || archive?.id !== id) return;
 			submittedTitle = snapshot.title;
-			submittedSource = snapshot.sourceUrl ?? snapshot.originalLink ?? "";
+			submittedSource = snapshot.sourceUrl ?? "";
 			submittedAt = snapshot.createdAt;
 		} catch {
 			// Failed submissions can outlive their metadata during the terminal handoff.
@@ -306,7 +307,7 @@
 	function restart(): void {
 		stopMonitoring();
 		archive = null;
-		draft = { source: "url", sourceUrl: "", file: null, originalLink: "", title: "", description: "", tags: [] };
+		draft = { source: "url", sourceUrl: "", file: null, title: "", description: "", tags: [] };
 		errors = {};
 		submittedTitle = "";
 		submittedSource = "";
@@ -330,6 +331,28 @@
 	<title>Archive a page — ARCHIV</title>
 	<meta name="description" content="Preserve a public web page or a saved page file, and follow its capture progress." />
 </svelte:head>
+
+{#snippet sourceUrlField()}
+	<InputRoot id="source-url" required invalid={Boolean(errors.sourceUrl)} hasDescription class="field">
+		<InputLabel>Source URL <span class="field-qualifier">Required</span></InputLabel>
+		<InputControl
+			type="url"
+			data-value-kind="record"
+			name="sourceUrl"
+			bind:value={draft.sourceUrl}
+			oninput={() => clearError("sourceUrl")}
+			placeholder="https://example.org/article"
+			maxlength={snapshotLimits.sourceUrl}
+			autocomplete="url"
+		/>
+		<InputDescription>
+			{draft.source === "file"
+				? "Enter the public URL where this saved page originally appeared."
+				: "Use a public HTTP or HTTPS address. The complete URL remains part of the record."}
+		</InputDescription>
+		{#if errors.sourceUrl}<InputError>{errors.sourceUrl}</InputError>{/if}
+	</InputRoot>
+{/snippet}
 
 <ToastProvider controller={toast}>
 	<main id="main-content" class="page-shell">
@@ -443,26 +466,9 @@
 							>
 						</TabsList>
 						<form id="archive-form" novalidate onsubmit={submit}>
-							<TabsPanel value="url" forceMount>
-								<InputRoot id="source-url" required invalid={Boolean(errors.sourceUrl)} hasDescription class="field">
-									<InputLabel>Page URL <span class="field-qualifier">Required</span></InputLabel>
-									<InputControl
-										type="url"
-										data-value-kind="record"
-										name="sourceUrl"
-										bind:value={draft.sourceUrl}
-										oninput={() => clearError("sourceUrl")}
-										placeholder="https://example.org/article"
-										maxlength={2048}
-										autocomplete="url"
-									/>
-									<InputDescription>
-										Use a public HTTP or HTTPS address. The complete URL remains part of the record.
-									</InputDescription>
-									{#if errors.sourceUrl}<InputError>{errors.sourceUrl}</InputError>{/if}
-								</InputRoot>
-							</TabsPanel>
+							<TabsPanel value="url">{@render sourceUrlField()}</TabsPanel>
 							<TabsPanel value="file" forceMount>
+								{#if draft.source === "file"}{@render sourceUrlField()}{/if}
 								<InputRoot id="source-file" required invalid={Boolean(errors.file)} hasDescription class="field">
 									<InputLabel>Saved page <span class="field-qualifier">Required</span></InputLabel>
 									<InputControl
@@ -476,20 +482,6 @@
 									/>
 									<InputDescription>HTML, MHTML or Webarchive · up to 250 MB</InputDescription>
 									{#if errors.file}<InputError>{errors.file}</InputError>{/if}
-								</InputRoot>
-								<InputRoot id="original-link" required invalid={Boolean(errors.originalLink)} hasDescription class="field">
-									<InputLabel>Original page URL <span class="field-qualifier">Required</span></InputLabel>
-									<InputControl
-										type="url"
-										data-value-kind="record"
-										name="originalLink"
-										bind:value={draft.originalLink}
-										oninput={() => clearError("originalLink")}
-										placeholder="https://example.org/original-page"
-										maxlength={2048}
-									/>
-									<InputDescription>Enter the public URL where this saved page originally appeared.</InputDescription>
-									{#if errors.originalLink}<InputError>{errors.originalLink}</InputError>{/if}
 								</InputRoot>
 							</TabsPanel>
 							<hr class="form-rule" />
@@ -507,7 +499,7 @@
 									type="text"
 									bind:value={draft.title}
 									oninput={() => clearError("title")}
-									maxlength={500}
+									maxlength={snapshotLimits.title}
 									placeholder="A clear title for this page"
 								/>
 								<InputDescription>This title appears in search results and the snapshot record.</InputDescription>
@@ -520,7 +512,7 @@
 										name="description"
 										bind:value={draft.description}
 										oninput={() => clearError("description")}
-										maxlength={10000}
+										maxlength={snapshotLimits.description}
 										placeholder="What should future readers know about this page?"
 									/>
 									<InputDescription>A short note adds context to the source.</InputDescription>
@@ -531,7 +523,7 @@
 									label="Tags"
 									requirement="optional"
 									listLabel="Added archive tags"
-									description="Press Enter or use commas to add tags. Up to 30 tags, 100 characters each."
+									description="Press Enter or use commas to add tags. Up to 30 tags, 128 characters each."
 									tags={draft.tags}
 									error={errors.tags}
 									onChange={(tags) => {

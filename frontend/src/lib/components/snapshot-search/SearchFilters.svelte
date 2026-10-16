@@ -14,6 +14,7 @@
 	import CaptureDateField from "./CaptureDateField.svelte";
 	import SearchSelect from "./SearchSelect.svelte";
 	import TagEditor from "$lib/components/tags/TagEditor.svelte";
+	import { snapshotLimits } from "$lib/snapshot-validation";
 	import type { SearchDraft, SearchErrors } from "./search-state";
 
 	let {
@@ -77,6 +78,7 @@
 						<InputLabel>Title contains <span class="field-qualifier">Optional</span></InputLabel>
 						<InputControl
 							name="title"
+							maxlength={snapshotLimits.title}
 							value={draft.title}
 							placeholder="e.g. observatory"
 							oninput={(event) => change({ title: event.currentTarget.value })}

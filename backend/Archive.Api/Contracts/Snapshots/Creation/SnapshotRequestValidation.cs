@@ -1,37 +1,14 @@
 using System.ComponentModel.DataAnnotations;
-using Archive.Core.Jobs;
+using Archive.Core.Models.Snapshots;
 
 namespace Archive.Api.Contracts.Snapshots.Creation;
 
 internal static class SnapshotRequestValidation
 {
-    public static IEnumerable<ValidationResult> Validate(string? sourceUrl, string urlField, string? title, IEnumerable<string>? tags)
+    public static IEnumerable<ValidationResult> Validate(string sourceUrl, string title, string? description, string[]? tags)
     {
-        if (!UrlNormalizer.TryNormalizeSource(sourceUrl, out _, out var error))
-            yield return new ValidationResult(error, [urlField]);
-
-        if (title is not null && title.Trim().Any(char.IsControl))
-            yield return new ValidationResult("The title cannot contain control characters.", ["title"]);
-
-        if (tags is null)
-            yield break;
-
-        foreach (var value in tags)
-        {
-            var tag = NormalizeTag(value);
-            if (tag.Length is 0 or > 100)
-            {
-                yield return new ValidationResult("Each tag must contain between 1 and 100 characters.", ["tags"]);
-                yield break;
-            }
-
-            if (tag.Any(char.IsControl))
-            {
-                yield return new ValidationResult("Tags cannot contain control characters.", ["tags"]);
-                yield break;
-            }
-        }
+        var request = new SnapshotCreationRequest(sourceUrl, title, description, tags);
+        foreach (var error in SnapshotValidation.GetErrors(request))
+            yield return new(error.Message, [error.Field == "originUrl" ? "sourceUrl" : error.Field]);
     }
-
-    public static string NormalizeTag(string tag) => (tag ?? string.Empty).Trim().TrimStart('#').ToLowerInvariant();
 }

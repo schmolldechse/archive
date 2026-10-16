@@ -35,6 +35,7 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<A
 builder.Services.AddOpenApi(options =>
 {
     options.AddOperationTransformer<SnapshotCreationOperationTransformer>();
+    options.AddSchemaTransformer<SnapshotSchemaTransformer>();
 });
 builder.Services
     .AddControllers()
@@ -118,3 +119,5 @@ static async Task<int> CheckHealthAsync()
         return 1;
     }
 }
+
+public partial class Program;

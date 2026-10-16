@@ -1,7 +1,24 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Archive.Core.Models.Snapshots;
 
-public sealed record SnapshotCreationRequest(string OriginUrl, string Title, string? Description,
-    IReadOnlyList<string>? Tags, Guid? CreatedByUserId = null);
+public sealed record SnapshotCreationRequest(
+    [property: Required, StringLength(SnapshotValidation.MaxSourceUrlLength)] string OriginUrl,
+    [property: Required, StringLength(SnapshotValidation.MaxTitleLength)] string Title,
+    [property: StringLength(SnapshotValidation.MaxDescriptionLength)] string? Description,
+    [property: MaxLength(SnapshotValidation.MaxTags)] IReadOnlyList<string>? Tags,
+    Guid? CreatedByUserId = null) : IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        foreach (var error in SnapshotValidation.ValidateSourceUrl(OriginUrl, "originUrl"))
+            yield return error;
+        if ((Title?.Trim() ?? string.Empty).Any(char.IsControl))
+            yield return new("The title cannot contain control characters.", ["title"]);
+        foreach (var error in SnapshotValidation.ValidateTags(Tags, allowEmpty: false))
+            yield return error;
+    }
+}
 public sealed record SnapshotUpload(string FileName, long Length, Func<Stream> OpenReadStream);
 
 public abstract record SnapshotCreationResult

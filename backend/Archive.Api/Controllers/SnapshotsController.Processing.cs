@@ -27,7 +27,7 @@ public sealed partial class SnapshotsController
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         return CreationResponse(await snapshotRepository.CreateFromUrlAsync(
-            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId), cancellationToken), "sourceUrl");
+            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId), cancellationToken));
     }
 
     [HttpPost, Consumes("multipart/form-data")]
@@ -43,8 +43,8 @@ public sealed partial class SnapshotsController
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         return CreationResponse(await snapshotRepository.CreateFromFileAsync(
-            new(request.OriginalLink, request.Title, request.Description, request.Tags, CurrentUserId),
-            new(request.File.FileName, request.File.Length, request.File.OpenReadStream), cancellationToken), "originalLink");
+            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId),
+            new(request.File.FileName, request.File.Length, request.File.OpenReadStream), cancellationToken));
     }
 
     [HttpGet("{snapshotId:guid}/status")]
@@ -121,7 +121,7 @@ public sealed partial class SnapshotsController
 
     private Guid? CurrentUserId => User.Identity?.IsAuthenticated == true ? User.ReadUserId() : null;
 
-    private ActionResult<SnapshotReceipt> CreationResponse(SnapshotCreationResult result, string originField)
+    private ActionResult<SnapshotReceipt> CreationResponse(SnapshotCreationResult result)
     {
         switch (result)
         {
@@ -133,7 +133,7 @@ public sealed partial class SnapshotsController
                 return Problem(statusCode: 413, title: "File too large", detail: "The uploaded file exceeds the system limit.");
             case SnapshotCreationResult.Invalid invalid:
                 foreach (var error in invalid.Errors)
-                    ModelState.AddModelError(error.Field == "originUrl" ? originField : error.Field, error.Message);
+                    ModelState.AddModelError(error.Field == "originUrl" ? "sourceUrl" : error.Field, error.Message);
                 return ValidationProblem(ModelState);
             default: throw new InvalidOperationException("Unknown snapshot creation result.");
         }
