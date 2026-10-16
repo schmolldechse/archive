@@ -12,7 +12,7 @@ services:
       PublicBaseUrl: ${ARCHIVE_PUBLIC_BASE_URL:?ARCHIVE_PUBLIC_BASE_URL is required}
       Authentication__PublicApiOrigin: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
       Authentication__FrontendOrigin: ${ORIGIN:?ORIGIN is required}
-      Authentication__SessionCookieDomain: ${AUTHENTICATION_SESSION_COOKIE_DOMAIN:?AUTHENTICATION_SESSION_COOKIE_DOMAIN is required}
+      Authentication__SessionCookieDomain: ${AUTHENTICATION_SESSION_COOKIE_DOMAIN:-}
       Authentication__Google__ClientId: ${AUTHENTICATION_GOOGLE_CLIENT_ID:?AUTHENTICATION_GOOGLE_CLIENT_ID is required}
       Authentication__Google__ClientSecret: ${AUTHENTICATION_GOOGLE_CLIENT_SECRET:?AUTHENTICATION_GOOGLE_CLIENT_SECRET is required}
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
