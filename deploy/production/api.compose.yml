@@ -12,16 +12,22 @@ services:
       PublicBaseUrl: ${ARCHIVE_PUBLIC_BASE_URL:?ARCHIVE_PUBLIC_BASE_URL is required}
       Authentication__PublicApiOrigin: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
       Authentication__FrontendOrigin: ${ORIGIN:?ORIGIN is required}
-      Authentication__SessionCookieDomain: ${AUTHENTICATION_SESSION_COOKIE_DOMAIN:?AUTHENTICATION_SESSION_COOKIE_DOMAIN is required}
+      Authentication__SessionCookieDomain: ${AUTHENTICATION_SESSION_COOKIE_DOMAIN:-}
       Authentication__Google__ClientId: ${AUTHENTICATION_GOOGLE_CLIENT_ID:?AUTHENTICATION_GOOGLE_CLIENT_ID is required}
       Authentication__Google__ClientSecret: ${AUTHENTICATION_GOOGLE_CLIENT_SECRET:?AUTHENTICATION_GOOGLE_CLIENT_SECRET is required}
-      ConnectionStrings__ArchiveDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       ObjectStorage__ServiceUrl: http://minio:9000
       ObjectStorage__AccessKey: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY is required}
       ObjectStorage__SecretKey: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY is required}
       ObjectStorage__Bucket: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
+      Processing__TerminalRetentionSeconds: ${PROCESSING_TERMINAL_RETENTION_SECONDS:-60}
+      Processing__CleanupIntervalSeconds: ${PROCESSING_CLEANUP_INTERVAL_SECONDS:-30}
+      Processing__CleanupBatchSize: ${PROCESSING_CLEANUP_BATCH_SIZE:-100}
     expose:
       - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - api-key-ring:/app/key-ring
     networks:
@@ -43,11 +49,12 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       Database__Initialize: "false"
-      ConnectionStrings__ArchiveDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:?POSTGRES_DB is required};Username=${POSTGRES_USER:?POSTGRES_USER is required};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       ObjectStorage__ServiceUrl: http://minio:9000
       ObjectStorage__AccessKey: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY is required}
       ObjectStorage__SecretKey: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY is required}
       ObjectStorage__Bucket: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
+      Processing__TerminalRetentionSeconds: ${PROCESSING_TERMINAL_RETENTION_SECONDS:-60}
       Archive__Browser__Headless: ${ARCHIVE_BROWSER_HEADLESS:-true}
       Archive__Browser__UserAgent: ${ARCHIVE_BROWSER_USER_AGENT:-VoldechseArchiveBot/1.0 (+https://bot.archive.voldechse.wtf/)}
       Archive__CrawlPolicy__Enabled: ${ARCHIVE_CRAWL_POLICY_ENABLED:-true}
@@ -60,6 +67,8 @@ services:
       - ${ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY:-../../.secrets}:/run/secrets:ro
     depends_on:
       api:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - archive

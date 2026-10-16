@@ -2,7 +2,7 @@
 	import { replaceState } from "$app/navigation";
 	import { page } from "$app/state";
 	import { apiOrigin } from "$lib/api-url";
-	import { JobStatus, ProgressStep, type ArchiveResponse } from "$api";
+	import { ProcessingStatus, ProgressStep, type SnapshotProcessingResponse } from "$api";
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import Check from "@lucide/svelte/icons/check";
 	import FileText from "@lucide/svelte/icons/file-text";
@@ -10,7 +10,6 @@
 	import X from "@lucide/svelte/icons/x";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
-	import Progress from "$lib/components/ui/Progress.svelte";
 	import {
 		Breadcrumb,
 		BreadcrumbItem,
@@ -26,21 +25,21 @@
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import {
 		ArchiveHttpError,
-		cancelArchive,
-		createArchive,
-		getArchive,
-		loadArchiveSource,
-		saveArchiveSource,
+		cancelSnapshot,
+		createSnapshot,
+		getSnapshotStatus,
+		getSnapshot,
 		validateDraft,
 		type ArchiveDraft,
 		type ArchiveFieldErrors,
 		type ArchiveSource
 	} from "$lib/archive-submission";
 	import { onMount, tick } from "svelte";
+	import { snapshotLimits } from "$lib/snapshot-validation";
 
 	const apiBaseUrl = apiOrigin();
-	const jobIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-	const initialJobId = page.url.searchParams.get("job");
+	const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+	const initialSnapshotId = page.url.searchParams.get("snapshot");
 	const steps = [
 		{ key: ProgressStep.SOURCE_CHECK, label: "Checking source" },
 		{ key: ProgressStep.LOADING_PAGE, label: "Loading page" },
@@ -48,28 +47,29 @@
 		{ key: ProgressStep.SAVING_SNAPSHOT, label: "Saving snapshot" }
 	];
 	const terminalStatuses = new Set([
-		JobStatus.COMPLETED,
-		JobStatus.CANCELLED,
-		JobStatus.FAILED,
-		JobStatus.DISCARDED,
-		JobStatus.ABORTED
+		ProcessingStatus.COMPLETED,
+		ProcessingStatus.CANCELLED,
+		ProcessingStatus.FAILED,
+		ProcessingStatus.DISCARDED,
+		ProcessingStatus.ABORTED
 	]);
 
 	let draft = $state<ArchiveDraft>({
 		source: "url",
 		sourceUrl: "",
 		file: null,
-		originalLink: "",
+
 		title: "",
 		description: "",
 		tags: []
 	});
 	let errors = $state<ArchiveFieldErrors>({});
-	let archive = $state<ArchiveResponse | null>(null);
+	let archive = $state<SnapshotProcessingResponse | null>(null);
 	let submittedTitle = $state("");
 	let submittedSource = $state("");
+	let submittedAt = $state<string | null>(null);
 	let submitting = $state(false);
-	let restoring = $state(Boolean(initialJobId && jobIdPattern.test(initialJobId)));
+	let restoring = $state(Boolean(initialSnapshotId && snapshotIdPattern.test(initialSnapshotId)));
 	let cancelling = $state(false);
 	let formError = $state<string | null>(null);
 	let monitorError = $state<string | null>(null);
@@ -80,31 +80,37 @@
 	let monitorVersion = 0;
 	let alive = false;
 
-	const percent = $derived(Math.max(0, Math.min(100, Number(archive?.progressPercent ?? 0) || 0)));
 	const terminal = $derived(archive !== null && terminalStatuses.has(archive.status));
-	const canCancel = $derived(archive !== null && (archive.status === JobStatus.QUEUED || archive.status === JobStatus.RUNNING));
-	const currentStep = $derived(
-		archive?.status === JobStatus.QUEUED ? -1 : steps.findIndex((step) => step.key === archive?.progressStep)
-	);
+	const canCancel = $derived(archive?.canCancel === true);
+	const currentStep = $derived(!archive?.startedAt ? -1 : steps.findIndex((step) => step.key === archive?.progressStep));
 	const heading = $derived(
-		archive?.status === JobStatus.COMPLETED
+		archive?.status === ProcessingStatus.COMPLETED
 			? "Capture complete"
-			: archive?.status === JobStatus.CANCELLED
+			: archive?.status === ProcessingStatus.CANCELLED
 				? "Capture cancelled"
 				: archive && terminal
 					? "Capture could not be completed"
 					: "Capture in progress"
 	);
 	const progressDescription = $derived(
-		archive?.status === JobStatus.QUEUED
+		archive?.status === ProcessingStatus.QUEUED
 			? `Your request is waiting${archive.queuePosition ? ` at position ${archive.queuePosition}` : ""}.`
-			: archive?.status === JobStatus.COMPLETED
+			: archive?.status === ProcessingStatus.COMPLETED
 				? "The preserved page is ready to read in the archive."
-				: archive?.status === JobStatus.CANCELLED
+				: archive?.status === ProcessingStatus.CANCELLED
 					? "The archive was cancelled. No new snapshot was published."
 					: archive && terminal
-						? archive.errorMessage || "The archive could not be completed."
+						? "The archive could not be completed."
 						: "The archive is preserving the page and its resources."
+	);
+	const statusMessage = $derived(
+		archive?.cancelRequested
+			? "Cancelling capture"
+			: archive?.status === ProcessingStatus.QUEUED
+				? "Waiting for capture"
+				: terminal
+					? heading
+					: (steps.find((step) => step.key === archive?.progressStep)?.label ?? "Capture in progress")
 	);
 
 	function stopMonitoring(): void {
@@ -115,7 +121,7 @@
 		pollTimer = null;
 	}
 
-	function applyArchive(next: ArchiveResponse): void {
+	function applyArchive(next: SnapshotProcessingResponse): void {
 		archive = next;
 		monitorError = null;
 		if (terminalStatuses.has(next.status)) stopMonitoring();
@@ -123,11 +129,18 @@
 
 	async function pollArchive(id: string, version: number): Promise<void> {
 		try {
-			const next = await getArchive(apiBaseUrl, id);
+			const next = await getSnapshotStatus(apiBaseUrl, id);
 			if (version !== monitorVersion) return;
 			applyArchive(next);
-		} catch {
+		} catch (error) {
 			if (version !== monitorVersion) return;
+			if (error instanceof ArchiveHttpError && error.status === 404) {
+				stopMonitoring();
+				archive = null;
+				formError = "The processing record is no longer available. You can start another capture.";
+				updateSnapshotInUrl(null);
+				return;
+			}
 			monitorError = "The connection was interrupted. Checking again shortly.";
 		}
 		if (version === monitorVersion && archive && !terminalStatuses.has(archive.status)) {
@@ -141,11 +154,11 @@
 		stopMonitoring();
 		const version = monitorVersion;
 		try {
-			eventSource = new EventSource(`${apiBaseUrl}/api/archive/${encodeURIComponent(id)}/events`);
+			eventSource = new EventSource(`${apiBaseUrl}/api/snapshots/${encodeURIComponent(id)}/events`);
 			eventSource.onmessage = (event) => {
 				if (version !== monitorVersion) return;
 				try {
-					const next = JSON.parse(event.data) as ArchiveResponse;
+					const next = JSON.parse(event.data) as SnapshotProcessingResponse;
 					if (next.id === id) applyArchive(next);
 				} catch {
 					// A malformed event does not replace the last valid status.
@@ -162,42 +175,34 @@
 		}
 	}
 
-	function updateJobInUrl(id: string | null): void {
+	function updateSnapshotInUrl(id: string | null): void {
 		const url = new URL(page.url);
-		if (id) url.searchParams.set("job", id);
-		else url.searchParams.delete("job");
+		if (id) url.searchParams.set("snapshot", id);
+		else url.searchParams.delete("snapshot");
 		replaceState(url, page.state);
 	}
 
-	function rememberSource(id: string): void {
+	async function loadMetadata(id: string): Promise<void> {
 		try {
-			saveArchiveSource(window.sessionStorage, id, { title: submittedTitle, source: submittedSource });
+			const snapshot = await getSnapshot(apiBaseUrl, id);
+			if (!alive || archive?.id !== id) return;
+			submittedTitle = snapshot.title;
+			submittedSource = snapshot.sourceUrl ?? "";
+			submittedAt = snapshot.createdAt;
 		} catch {
-			// The job link and progress remain available when browser storage is blocked.
-		}
-	}
-
-	function restoreSource(id: string): void {
-		try {
-			const details = loadArchiveSource(window.sessionStorage, id);
-			if (details) {
-				submittedTitle = details.title;
-				submittedSource = details.source;
-			}
-		} catch {
-			// Display the server status without optional source metadata.
+			// Failed submissions can outlive their metadata during the terminal handoff.
 		}
 	}
 
 	onMount(() => {
 		alive = true;
-		const id = initialJobId;
-		if (id && jobIdPattern.test(id)) {
-			restoreSource(id);
-			void getArchive(apiBaseUrl, id)
+		const id = initialSnapshotId;
+		if (id && snapshotIdPattern.test(id)) {
+			void getSnapshotStatus(apiBaseUrl, id)
 				.then((result) => {
 					if (!alive) return;
 					applyArchive(result);
+					void loadMetadata(id);
 					if (!terminalStatuses.has(result.status)) startMonitoring(id);
 				})
 				.catch(() => {
@@ -242,14 +247,23 @@
 		}
 		submitting = true;
 		try {
-			const result = await createArchive(apiBaseUrl, draft);
+			const result = await createSnapshot(apiBaseUrl, draft);
 			if (!alive) return;
 			submittedTitle = draft.title.trim();
 			submittedSource = draft.source === "url" ? draft.sourceUrl.trim() : (draft.file?.name ?? "");
-			rememberSource(result.id);
-			applyArchive(result);
-			updateJobInUrl(result.id);
-			if (!terminalStatuses.has(result.status)) startMonitoring(result.id);
+			submittedAt = new Date().toISOString();
+			applyArchive({
+				id: result.id,
+				status: ProcessingStatus.QUEUED,
+				progressStep: ProgressStep.SOURCE_CHECK,
+				queuePosition: null,
+				canCancel: true,
+				cancelRequested: false,
+				startedAt: null
+			});
+			void loadMetadata(result.id);
+			updateSnapshotInUrl(result.id);
+			startMonitoring(result.id);
 			await tick();
 			document.getElementById("progress-title")?.focus();
 		} catch (error) {
@@ -268,7 +282,7 @@
 		cancelling = true;
 		cancelError = null;
 		try {
-			const result = await cancelArchive(apiBaseUrl, archive.id);
+			const result = await cancelSnapshot(apiBaseUrl, archive.id);
 			if (!alive) return;
 			applyArchive(result);
 		} catch (error) {
@@ -276,7 +290,7 @@
 			cancelError = error instanceof ArchiveHttpError ? error.message : "The cancellation could not be sent. Please try again.";
 			if (error instanceof ArchiveHttpError && error.status === 409) {
 				try {
-					const latest = await getArchive(apiBaseUrl, archive.id);
+					const latest = await getSnapshotStatus(apiBaseUrl, archive.id);
 					if (alive) {
 						applyArchive(latest);
 						cancelError = null;
@@ -293,21 +307,22 @@
 	function restart(): void {
 		stopMonitoring();
 		archive = null;
-		draft = { source: "url", sourceUrl: "", file: null, originalLink: "", title: "", description: "", tags: [] };
+		draft = { source: "url", sourceUrl: "", file: null, title: "", description: "", tags: [] };
 		errors = {};
 		submittedTitle = "";
 		submittedSource = "";
+		submittedAt = null;
 		formError = null;
 		monitorError = null;
 		cancelError = null;
-		updateJobInUrl(null);
+		updateSnapshotInUrl(null);
 		void tick().then(() => document.getElementById("source-url-control")?.focus());
 	}
 
 	function milestoneState(index: number): "done" | "active" | "waiting" | "stopped" {
-		if (archive?.status === JobStatus.COMPLETED || index < currentStep) return "done";
+		if (archive?.status === ProcessingStatus.COMPLETED || index < currentStep) return "done";
 		if (terminal && index === currentStep) return "stopped";
-		if (archive?.status === JobStatus.RUNNING && index === currentStep) return "active";
+		if (archive?.status === ProcessingStatus.RUNNING && index === currentStep) return "active";
 		return "waiting";
 	}
 </script>
@@ -316,6 +331,28 @@
 	<title>Archive a page — ARCHIV</title>
 	<meta name="description" content="Preserve a public web page or a saved page file, and follow its capture progress." />
 </svelte:head>
+
+{#snippet sourceUrlField()}
+	<InputRoot id="source-url" required invalid={Boolean(errors.sourceUrl)} hasDescription class="field">
+		<InputLabel>Source URL <span class="field-qualifier">Required</span></InputLabel>
+		<InputControl
+			type="url"
+			data-value-kind="record"
+			name="sourceUrl"
+			bind:value={draft.sourceUrl}
+			oninput={() => clearError("sourceUrl")}
+			placeholder="https://example.org/article"
+			maxlength={snapshotLimits.sourceUrl}
+			autocomplete="url"
+		/>
+		<InputDescription>
+			{draft.source === "file"
+				? "Enter the public URL where this saved page originally appeared."
+				: "Use a public HTTP or HTTPS address. The complete URL remains part of the record."}
+		</InputDescription>
+		{#if errors.sourceUrl}<InputError>{errors.sourceUrl}</InputError>{/if}
+	</InputRoot>
+{/snippet}
 
 <ToastProvider controller={toast}>
 	<main id="main-content" class="page-shell">
@@ -346,11 +383,11 @@
 					</div>
 					<div class="status-line" data-status={archive.status} role="status" aria-live="polite">
 						<span class="status-symbol" aria-hidden="true"
-							>{#if archive.status === JobStatus.COMPLETED}<Check size={17} />{:else if terminal}<X
+							>{#if archive.status === ProcessingStatus.COMPLETED}<Check size={17} />{:else if terminal}<X
 									size={17}
 								/>{:else}→{/if}</span
 						>
-						<span>{archive.message}</span>
+						<span>{statusMessage}</span>
 					</div>
 					<p class="progress-description">{progressDescription}</p>
 					{#if monitorError}<p class="status-note" role="status">{monitorError}</p>{/if}
@@ -372,13 +409,16 @@
 						</div>
 						<div>
 							<dt>Started</dt>
-							<dd><LocalTimestamp value={archive.createdAt} /></dd>
+							<dd>
+								{#if archive.startedAt ?? submittedAt}<LocalTimestamp
+										value={(archive.startedAt ?? submittedAt)!}
+									/>{:else}Waiting{/if}
+							</dd>
 						</div>
 					</dl>
-					<Progress label="Capture progress" value={percent} animationDuration={160} />
 					<ol class="milestones" aria-label="Capture stages">
 						{#each steps as step, index}
-							<li data-state={milestoneState(index)}>
+							<li data-state={milestoneState(index)} aria-current={milestoneState(index) === "active" ? "step" : undefined}>
 								<span class="milestone-dot" aria-hidden="true"></span><span>{step.label}</span><span class="milestone-state"
 									>{milestoneState(index) === "done"
 										? "Done"
@@ -400,9 +440,8 @@
 									void cancel();
 								}}>{cancelling ? "Cancelling…" : "Cancel archiving"}</Button
 							>{/if}
-						{#if archive.status === JobStatus.COMPLETED && archive.snapshotId}<Button
-								variant="primary"
-								href={`/snapshots/${archive.snapshotId}`}>Open snapshot <ArrowRight size={18} aria-hidden="true" /></Button
+						{#if archive.status === ProcessingStatus.COMPLETED}<Button variant="primary" href={`/snapshots/${archive.id}`}
+								>Open snapshot <ArrowRight size={18} aria-hidden="true" /></Button
 							>{/if}
 						{#if terminal}<Button variant="secondary" onclick={restart}>Start another capture</Button>{/if}
 						{#if canCancel}<span class="actions-note">You can cancel while the request is queued or running.</span>{/if}
@@ -427,26 +466,9 @@
 							>
 						</TabsList>
 						<form id="archive-form" novalidate onsubmit={submit}>
-							<TabsPanel value="url" forceMount>
-								<InputRoot id="source-url" required invalid={Boolean(errors.sourceUrl)} hasDescription class="field">
-									<InputLabel>Page URL <span class="field-qualifier">Required</span></InputLabel>
-									<InputControl
-										type="url"
-										data-value-kind="record"
-										name="sourceUrl"
-										bind:value={draft.sourceUrl}
-										oninput={() => clearError("sourceUrl")}
-										placeholder="https://example.org/article"
-										maxlength={2048}
-										autocomplete="url"
-									/>
-									<InputDescription>
-										Use a public HTTP or HTTPS address. The complete URL remains part of the record.
-									</InputDescription>
-									{#if errors.sourceUrl}<InputError>{errors.sourceUrl}</InputError>{/if}
-								</InputRoot>
-							</TabsPanel>
+							<TabsPanel value="url">{@render sourceUrlField()}</TabsPanel>
 							<TabsPanel value="file" forceMount>
+								{#if draft.source === "file"}{@render sourceUrlField()}{/if}
 								<InputRoot id="source-file" required invalid={Boolean(errors.file)} hasDescription class="field">
 									<InputLabel>Saved page <span class="field-qualifier">Required</span></InputLabel>
 									<InputControl
@@ -460,20 +482,6 @@
 									/>
 									<InputDescription>HTML, MHTML or Webarchive · up to 250 MB</InputDescription>
 									{#if errors.file}<InputError>{errors.file}</InputError>{/if}
-								</InputRoot>
-								<InputRoot id="original-link" required invalid={Boolean(errors.originalLink)} hasDescription class="field">
-									<InputLabel>Original page URL <span class="field-qualifier">Required</span></InputLabel>
-									<InputControl
-										type="url"
-										data-value-kind="record"
-										name="originalLink"
-										bind:value={draft.originalLink}
-										oninput={() => clearError("originalLink")}
-										placeholder="https://example.org/original-page"
-										maxlength={2048}
-									/>
-									<InputDescription>Enter the public URL where this saved page originally appeared.</InputDescription>
-									{#if errors.originalLink}<InputError>{errors.originalLink}</InputError>{/if}
 								</InputRoot>
 							</TabsPanel>
 							<hr class="form-rule" />
@@ -491,7 +499,7 @@
 									type="text"
 									bind:value={draft.title}
 									oninput={() => clearError("title")}
-									maxlength={500}
+									maxlength={snapshotLimits.title}
 									placeholder="A clear title for this page"
 								/>
 								<InputDescription>This title appears in search results and the snapshot record.</InputDescription>
@@ -504,7 +512,7 @@
 										name="description"
 										bind:value={draft.description}
 										oninput={() => clearError("description")}
-										maxlength={10000}
+										maxlength={snapshotLimits.description}
 										placeholder="What should future readers know about this page?"
 									/>
 									<InputDescription>A short note adds context to the source.</InputDescription>
@@ -515,7 +523,7 @@
 									label="Tags"
 									requirement="optional"
 									listLabel="Added archive tags"
-									description="Press Enter or use commas to add tags. Up to 30 tags, 100 characters each."
+									description="Press Enter or use commas to add tags. Up to 30 tags, 128 characters each."
 									tags={draft.tags}
 									error={errors.tags}
 									onChange={(tags) => {

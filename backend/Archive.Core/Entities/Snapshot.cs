@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Archive.Core.Models.Snapshots;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Entities.Authentication;
@@ -6,7 +7,6 @@ using Archive.Core.Entities.Authentication;
 namespace Archive.Core.Entities;
 
 [Table("snapshots", Schema = "archive")]
-[Index(nameof(OriginUrl), nameof(CreatedAt))]
 [Index(nameof(CreatedAt))]
 public sealed class Snapshot
 {
@@ -22,31 +22,24 @@ public sealed class Snapshot
     [DeleteBehavior(DeleteBehavior.SetNull)]
     public ArchiveUser? CreatedBy { get; set; }
 
-    [Column("project_id")]
-    public Guid ProjectId { get; set; }
-
-    [ForeignKey(nameof(ProjectId))]
-    [InverseProperty(nameof(Entities.Project.Snapshots))]
-    public Project Project { get; set; } = null!;
-
     [Column("source_type")]
     public SourceType SourceType { get; set; }
 
-    [MaxLength(4_096)]
+    [MaxLength(SnapshotValidation.MaxSourceUrlLength)]
     [Column("origin_url")]
     public string? OriginUrl { get; set; }
 
     [Required]
-    [MaxLength(512)]
+    [MaxLength(SnapshotValidation.MaxTitleLength)]
     [Column("title")]
     public required string Title { get; set; }
 
-    [MaxLength(2048)]
+    [MaxLength(SnapshotValidation.MaxDescriptionLength)]
     [Column("description")]
     public string? Description { get; set; }
 
     [Column("quality")]
-    public SnapshotQuality Quality { get; set; }
+    public SnapshotQuality? Quality { get; set; }
 
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -58,18 +51,17 @@ public sealed class Snapshot
     public DateTimeOffset? CaptureCompletedAt { get; set; }
 
     [Column("duration_ms")]
-    public long DurationMilliseconds { get; set; }
+    public long? DurationMilliseconds { get; set; }
 
     [Column("storage_bytes")]
-    public long StorageBytes { get; set; }
+    public long? StorageBytes { get; set; }
 
     [Column("resource_count")]
-    public int ResourceCount { get; set; }
+    public int? ResourceCount { get; set; }
 
-    [Required]
     [MaxLength(512)]
     [Column("content_prefix")]
-    public required string ContentPrefix { get; set; }
+    public string? ContentPrefix { get; set; }
 
     [InverseProperty(nameof(SnapshotTag.Snapshot))]
     public List<SnapshotTag> SnapshotTags { get; set; } = [];

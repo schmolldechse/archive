@@ -2,7 +2,7 @@ import { error } from "@sveltejs/kit";
 import { backendOrigin } from "$lib/server/api";
 import type { RequestHandler } from "./$types";
 
-const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const snapshotIdPattern = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const archivedContentPolicy = (origin: string) =>
 	`default-src 'none'; img-src ${origin} data:; style-src ${origin} 'unsafe-inline' data:; ` +
 	`font-src ${origin} data:; media-src ${origin} data:; frame-src ${origin}; ` +

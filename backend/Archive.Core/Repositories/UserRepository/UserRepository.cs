@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Models.Users;
 using Archive.Core.Models;
-using System.ComponentModel.DataAnnotations;
+using Npgsql;
 
 namespace Archive.Core.Repositories.UserRepository;
 
@@ -21,15 +21,9 @@ internal sealed class UserRepository(DataContext dataContext) : IUserRepository
 
     public async Task<UserProfileUpdateResult> UpdateProfileAsync(Guid userId, UserProfileUpdate profile, CancellationToken cancellationToken = default)
     {
-        var validationErrors = new List<ValidationResult>();
-        if (!Validator.TryValidateObject(profile, new ValidationContext(profile), validationErrors, validateAllProperties: true))
-        {
-            var errors = validationErrors
-                .SelectMany(error => error.MemberNames.Select(field => new FieldValidationError(field, error.ErrorMessage!)))
-                .ToList();
-
+        var errors = ModelValidation.GetErrors(profile);
+        if (errors.Count > 0)
             return new UserProfileUpdateResult.Invalid(errors);
-        }
 
         var user = await dataContext.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
         if (user is null)
@@ -45,8 +39,27 @@ internal sealed class UserRepository(DataContext dataContext) : IUserRepository
         user.UpdatedAt = DateTimeOffset.UtcNow;
         user.RegistrationCompletedAt ??= user.UpdatedAt;
 
-        await dataContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dataContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsHandleConflict(exception))
+        {
+            dataContext.Entry(user).State = EntityState.Detached;
+            return new UserProfileUpdateResult.HandleUnavailable();
+        }
 
         return new UserProfileUpdateResult.Updated(user);
+    }
+
+    private bool IsHandleConflict(DbUpdateException exception)
+    {
+        if (exception.InnerException is not PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } conflict)
+            return false;
+        var entity = dataContext.Model.FindEntityType(typeof(ArchiveUser))!;
+        var index = entity.GetIndexes().Single(index =>
+            index.Properties.Count == 1 && index.Properties[0].Name == nameof(ArchiveUser.Handle));
+        return conflict.SchemaName == entity.GetSchema() && conflict.TableName == entity.GetTableName() &&
+            conflict.ConstraintName == index.GetDatabaseName();
     }
 }

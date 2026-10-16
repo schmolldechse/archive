@@ -2,7 +2,7 @@
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import LogOut from "@lucide/svelte/icons/log-out";
 	import X from "@lucide/svelte/icons/x";
-	import type { AuthenticatedArchiveUser } from "$api";
+	import type { UserProfileResponse } from "$api";
 	import { page } from "$app/state";
 	import { apiUrl } from "$lib/api-url";
 	import { completeHref } from "$lib/auth/return-url";
@@ -17,7 +17,7 @@
 		DialogClose
 	} from "$lib/components/ui/dialog";
 
-	let { user, onopen }: { user: AuthenticatedArchiveUser; onopen?: () => void } = $props();
+	let { user, onopen }: { user: UserProfileResponse; onopen?: () => void } = $props();
 	let open = $state(false);
 	let closeButton = $state<HTMLButtonElement | null>(null);
 </script>

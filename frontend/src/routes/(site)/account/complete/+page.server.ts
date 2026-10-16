@@ -50,8 +50,8 @@ export const actions = {
 		if (response.ok) redirect(303, returnUrl);
 		if (response.status === 400 || response.status === 409) {
 			const problem: ValidationProblemDetails | null = await response.json().catch(() => null);
-			errors.displayName = (problem?.errors?.displayName ?? problem?.errors?.DisplayName)?.join(" ") ?? null;
-			errors.handle = (problem?.errors?.handle ?? problem?.errors?.Handle)?.join(" ") ?? null;
+			errors.displayName = problem?.errors?.displayName?.join(" ") ?? null;
+			errors.handle = problem?.errors?.handle?.join(" ") ?? null;
 			return fail(response.status, {
 				values,
 				errors,

@@ -1,8 +1,11 @@
-using Archive.Api.Contracts;
+using Archive.Api.Contracts.Snapshots;
+using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Mapping;
 using Archive.Api.Options;
+using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotRepository;
+using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Archive.Api.Controllers;
@@ -10,10 +13,11 @@ namespace Archive.Api.Controllers;
 [ApiController]
 [Route("api/snapshots")]
 [Tags("Snapshots")]
-public sealed class SnapshotsController(
+public sealed partial class SnapshotsController(
     ISnapshotRepository snapshotRepository,
     SnapshotMapper mapper,
-    ArchiveApiOptions options) : ControllerBase
+    ArchiveApiOptions options,
+    ISnapshotProcessingRepository processing) : ControllerBase
 {
     private static string ArchivedContentPolicy(string origin) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
@@ -42,21 +46,10 @@ public sealed class SnapshotsController(
         [FromQuery] SnapshotSearchRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid)
-            return ValidationProblem(ModelState);
-
-        if (Request.Query.TryGetValue("order", out var orderValues) &&
-            (orderValues.Count != 1 || orderValues[0] is not ("asc" or "desc")))
-        {
-            ModelState.AddModelError(nameof(request.Order), "Capture order must be asc or desc.");
-            return ValidationProblem(ModelState);
-        }
-
         var result = await snapshotRepository.SearchAsync(mapper.ToSearch(request), cancellationToken);
         if (result is SnapshotSearchResult.Invalid invalid)
         {
-            foreach (var error in invalid.Errors)
-                ModelState.AddModelError(error.Field, error.Message);
+            ModelState.AddErrors(invalid.Errors);
             return ValidationProblem(ModelState);
         }
 

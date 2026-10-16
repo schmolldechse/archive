@@ -1,18 +1,17 @@
 using Archive.Api.Authentication;
+using Archive.Api.Contracts.Health;
 using Archive.Api.Mapping;
 using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
-using Archive.Api.Storage;
+using Archive.Api.Serialization;
 using Archive.Core;
 using Archive.Core.Options;
-using Archive.Core.Storage;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
-using System.Text.Json.Serialization;
 
 if (args is ["--healthcheck"])
 {
@@ -22,9 +21,10 @@ if (args is ["--healthcheck"])
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOptions<FormOptions>().Configure<ArchiveOptions>((form, archive) =>
+builder.Services.AddSingleton<SnapshotUploadLimits>();
+builder.Services.AddOptions<FormOptions>().Configure<SnapshotUploadLimits>((form, limits) =>
     // Allow multipart framing before the controller applies the file limit and returns HTTP 413.
-    form.MultipartBodyLengthLimit = checked(archive.MaxUploadBytes + 1_000_000L));
+    form.MultipartBodyLengthLimit = limits.MaxRequestBodyBytes);
 builder.Services.AddOptions<ArchiveApiOptions>().Bind(builder.Configuration)
     .PostConfigure(options => options.PublicBaseUrl = string.IsNullOrWhiteSpace(options.PublicBaseUrl)
         ? null : options.PublicBaseUrl.Trim().TrimEnd('/'))
@@ -33,25 +33,24 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<A
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddOperationTransformer<ArchiveCreationOperationTransformer>();
+    options.AddOperationTransformer<SnapshotCreationOperationTransformer>();
+    options.AddOperationTransformer<SnapshotEventsOperationTransformer>();
+    options.AddSchemaTransformer<SnapshotSchemaTransformer>();
 });
 builder.Services
-    .AddControllers()
-    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+    .AddControllers(options => options.ModelMetadataDetailsProviders.Add(new SystemTextJsonValidationMetadataProvider()))
+    .AddJsonOptions(options => ArchiveJson.Configure(options.JsonSerializerOptions));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
 
-builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
-builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+builder.Services.ConfigureHttpJsonOptions(options => ArchiveJson.Configure(options.SerializerOptions));
 
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
 builder.Services.AddSingleton<ArchiveCreatorMapper>();
-builder.Services.AddSingleton<ArchiveMapper>();
+builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
-
-builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 
 builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
     .AllowAnyOrigin()
@@ -61,7 +60,7 @@ builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
 var app = builder.Build();
 
 app.Services.GetRequiredService<IStartupValidator>().Validate();
-var maxUploadRequestBytes = checked(app.Services.GetRequiredService<ArchiveOptions>().MaxUploadBytes + 1_000_000L);
+var uploadLimits = app.Services.GetRequiredService<SnapshotUploadLimits>();
 if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 {
     using var scope = app.Services.CreateScope();
@@ -76,17 +75,19 @@ app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method) &&
-        string.Equals(context.Request.Path.Value, "/api/archive", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(context.Request.Path.Value, "/api/snapshots", StringComparison.OrdinalIgnoreCase) &&
         context.Request.ContentType?.StartsWith("multipart/form-data", StringComparison.OrdinalIgnoreCase) == true)
     {
         var bodyLimit = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (bodyLimit is { IsReadOnly: false })
-            bodyLimit.MaxRequestBodySize = maxUploadRequestBytes;
+            bodyLimit.MaxRequestBodySize = uploadLimits.MaxRequestBodyBytes;
     }
 
     await next(context);
 });
-app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/healthz", () => Results.Ok(new HealthResponse { Status = "ok" }))
+    .Produces<HealthResponse>(StatusCodes.Status200OK, "application/json")
+    .WithSummary("Returns service health status.");
 app.MapControllers();
 
 if (app.Environment.IsDevelopment())
@@ -117,3 +118,5 @@ static async Task<int> CheckHealthAsync()
         return 1;
     }
 }
+
+public partial class Program;

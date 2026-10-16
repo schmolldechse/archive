@@ -1,7 +1,7 @@
 declare global {
 	namespace App {
 		interface Locals {
-			session: import("$api").AuthenticationSession | null;
+			session: import("$api").AuthenticationSessionResponse | null;
 		}
 	}
 }

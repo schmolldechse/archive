@@ -5,108 +5,29 @@ export type ClientOptions = {
 };
 
 /**
- * Public profile of the registered user who submitted the archive. Reflects the current handle, display name and stored profile image.
+ * Public profile of the user who submitted the snapshot.
  */
 export type ArchiveCreatorResponse = {
 	/**
-	 * Current unique lowercase handle of the user who submitted the archive.
+	 * Current lowercase handle of the submitting user.
 	 */
 	handle: string;
 	/**
-	 * Current public display name of the user who submitted the archive.
+	 * Current display name of the submitting user.
 	 */
 	displayName: string;
 	/**
-	 * Absolute public URL of the submitter's current stored profile image, or null when no image is stored.
+	 * Public profile image URL. Null when no image is stored.
 	 */
 	profileImageUrl: null | string;
 };
 
-export type ArchiveResponse = {
-	/**
-	 * Unique identifier of the archive.
-	 */
-	id: string;
-	/**
-	 * Current archive status.
-	 */
-	status: JobStatus;
-	/**
-	 * Current archive progress step.
-	 */
-	progressStep: ProgressStep;
-	/**
-	 * Progress percentage from 0 to 100.
-	 */
-	progressPercent: number | string;
-	/**
-	 * Human-readable archive status message.
-	 */
-	message: string;
-	/**
-	 * One-based queue position while waiting.
-	 */
-	queuePosition: null | number | string;
-	/**
-	 * Identifier of the created snapshot, when available.
-	 */
-	snapshotId: null | string;
-	snapshotQuality: null | SnapshotQuality;
-	/**
-	 * Failure details, when the archive failed.
-	 */
-	errorMessage: null | string;
-	/**
-	 * Timestamp at which the archive was created, including its UTC offset.
-	 */
-	createdAt: string;
-	/**
-	 * Timestamp at which the archive completed, including its UTC offset.
-	 */
-	completedAt: null | string;
-	/**
-	 * Processing duration in milliseconds.
-	 */
-	durationMilliseconds: number | string;
-	/**
-	 * Storage used by the archived snapshot in bytes.
-	 */
-	storageBytes: number | string;
-	/**
-	 * Number of resources in the archived snapshot.
-	 */
-	resourceCount: number | string;
-	createdBy: null | ArchiveCreatorResponse;
-};
-
 /**
- * Profile information for the authenticated user.
+ * An available authentication provider.
  */
-export type AuthenticatedArchiveUser = {
+export type AuthenticationProviderResponse = {
 	/**
-	 * Unique lowercase user handle of 4 to 32 characters, or null until the user chooses one.
-	 */
-	handle: null | string;
-	/**
-	 * User display name of 6 to 64 characters, or null until the user chooses one.
-	 */
-	displayName: null | string;
-	/**
-	 * Absolute URL of the stored provider profile image, or null when no image is available.
-	 */
-	profileImageUrl: null | string;
-	/**
-	 * True only after valid display name and handle have been explicitly saved and registration completion has been recorded.
-	 */
-	isRegistrationComplete: boolean;
-};
-
-/**
- * An external authentication provider.
- */
-export type AuthenticationProvider = {
-	/**
-	 * Provider identifier used to start authentication.
+	 * Provider key used to start authentication.
 	 */
 	key: string;
 	/**
@@ -116,79 +37,85 @@ export type AuthenticationProvider = {
 };
 
 /**
- * The current authentication state and associated user profile.
+ * Authentication state and current user profile.
  */
-export type AuthenticationSession = {
+export type AuthenticationSessionResponse = {
 	/**
-	 * Indicates whether the request has a valid user session.
+	 * Whether the request has an authenticated user session.
 	 */
 	isAuthenticated: boolean;
-	user?: null | AuthenticatedArchiveUser;
+	user: null | UserProfileResponse;
 };
 
+/**
+ * Annual capture counts under text and metadata filters.
+ */
 export type CaptureDistributionResponse = {
 	/**
-	 * Matches under text and metadata filters, ignoring capture-time filters.
+	 * Number of matches before capture-time filters and pagination.
 	 */
 	total: number | string;
 	/**
-	 * Earliest populated year; null when empty.
+	 * Earliest populated year. Null when there are no matches.
 	 */
 	firstYear: null | number | string;
 	/**
-	 * Latest populated year; null when empty.
+	 * Latest populated year. Null when there are no matches.
 	 */
 	lastYear: null | number | string;
 	/**
-	 * Annual capture counts before capture-time filters and pagination.
+	 * Annual counts before capture-time filters and pagination.
 	 */
 	years: Array<CaptureYearResponse>;
 };
 
+/**
+ * Capture count for one calendar year.
+ */
 export type CaptureYearResponse = {
 	/**
-	 * Calendar year of persisted capture timestamps.
+	 * Calendar year of the stored snapshot creation times.
 	 */
 	year: number | string;
 	/**
-	 * Number of matching captures in this year.
+	 * Number of matching captures in the year.
 	 */
 	count: number | string;
 };
 
-export type CreateArchiveUrlRequest = {
+/**
+ * Source URL and metadata for a new snapshot.
+ */
+export type CreateSnapshotUrlRequest = {
 	/**
-	 * Public HTTP or HTTPS URL to archive.
+	 * Public HTTP or HTTPS URL to archive. The normalized URL must also meet the length limit.
 	 */
 	sourceUrl: string;
 	/**
-	 * Title for the snapshot that will be created. Control characters are not permitted.
+	 * Snapshot title. Control characters are not permitted.
 	 */
 	title: string;
 	/**
-	 * Optional description for the snapshot.
+	 * Optional snapshot description.
 	 */
 	description?: null | string;
 	/**
-	 * Up to 30 tags of 1 to 100 characters each. Leading hash signs and surrounding whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.
+	 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
 	 */
 	tags?: null | Array<string>;
 };
 
-export type IFormFile = Blob | File;
-
 /**
- * Lifecycle status of an archive job.
+ * Service health status.
  */
-export enum JobStatus {
-	QUEUED = "QUEUED",
-	RUNNING = "RUNNING",
-	COMPLETED = "COMPLETED",
-	FAILED = "FAILED",
-	CANCELLED = "CANCELLED",
-	DISCARDED = "DISCARDED",
-	ABORTED = "ABORTED"
-}
+export type HealthResponse = {
+	/**
+	 * Service status. A successful response contains ok.
+	 */
+	status: string;
+};
+
+export type IFormFile = Blob | File;
 
 export type ProblemDetails = {
 	type?: null | string;
@@ -199,7 +126,20 @@ export type ProblemDetails = {
 };
 
 /**
- * Processing step of an archive job.
+ * Temporary processing state of a snapshot.
+ */
+export enum ProcessingStatus {
+	QUEUED = "QUEUED",
+	RUNNING = "RUNNING",
+	COMPLETED = "COMPLETED",
+	FAILED = "FAILED",
+	CANCELLED = "CANCELLED",
+	DISCARDED = "DISCARDED",
+	ABORTED = "ABORTED"
+}
+
+/**
+ * Temporary processing step of a snapshot.
  */
 export enum ProgressStep {
 	SOURCE_CHECK = "SOURCE_CHECK",
@@ -209,21 +149,42 @@ export enum ProgressStep {
 	FINISHED = "FINISHED"
 }
 
+/**
+ * An accepted snapshot submission.
+ */
+export type SnapshotCreationResponse = {
+	/**
+	 * Identifier of the submitted snapshot.
+	 */
+	id: string;
+	/**
+	 * Relative URL of the processing status endpoint.
+	 */
+	statusUrl: string;
+	/**
+	 * Relative URL of the snapshot metadata endpoint.
+	 */
+	snapshotUrl: string;
+};
+
+/**
+ * A page of snapshots and capture counts.
+ */
 export type SnapshotListResponse = {
 	/**
 	 * Snapshots in the requested page.
 	 */
 	items: Array<SnapshotResponse>;
 	/**
-	 * Total number of matching snapshots.
+	 * Number of snapshots matching all search filters.
 	 */
 	total: number | string;
 	/**
-	 * One-based result page number.
+	 * One-based result page.
 	 */
 	page: number | string;
 	/**
-	 * Number of snapshots per result page.
+	 * Number of snapshots per page.
 	 */
 	pageSize: number | string;
 	/**
@@ -231,22 +192,48 @@ export type SnapshotListResponse = {
 	 */
 	indexTotal: number | string;
 	/**
-	 * Up to four newest capture timestamps in the published register, independent of search and pagination.
+	 * Up to four newest published snapshot creation times, independent of search filters.
 	 */
 	recentCaptureTimes: Array<string>;
 	/**
-	 * Capture distribution under text and metadata filters, ignoring capture-time filters and pagination.
+	 * Annual capture counts before capture-time filters and pagination.
 	 */
 	captureDistribution: CaptureDistributionResponse;
 };
 
 /**
- * Capture-time ordering, with the snapshot ID as a stable tie-breaker.
+ * Processing status of a snapshot.
  */
-export enum SnapshotOrder {
-	DESC = "desc",
-	ASC = "asc"
-}
+export type SnapshotProcessingResponse = {
+	/**
+	 * Snapshot identifier.
+	 */
+	id: string;
+	/**
+	 * Current processing status.
+	 */
+	status: ProcessingStatus;
+	/**
+	 * Current processing step.
+	 */
+	progressStep: ProgressStep;
+	/**
+	 * One-based queue position. Null when the snapshot is not queued.
+	 */
+	queuePosition: null | number | string;
+	/**
+	 * Whether cancellation can currently be requested.
+	 */
+	canCancel: boolean;
+	/**
+	 * Whether cancellation has been requested.
+	 */
+	cancelRequested: boolean;
+	/**
+	 * Processing start time, including the UTC offset. Null before processing starts.
+	 */
+	startedAt: null | string;
+};
 
 /**
  * Completeness of an archived snapshot.
@@ -256,64 +243,80 @@ export enum SnapshotQuality {
 	INCOMPLETE = "INCOMPLETE"
 }
 
+/**
+ * Snapshot metadata and resource URLs.
+ */
 export type SnapshotResponse = {
 	/**
-	 * Unique identifier of the snapshot.
+	 * Snapshot identifier.
 	 */
 	id: string;
 	/**
-	 * Archived public source URL.
+	 * Original HTTP or HTTPS URL of the archived page.
 	 */
 	sourceUrl: null | string;
-	/**
-	 * Original public URL for uploaded content.
-	 */
-	originalLink: null | string;
 	/**
 	 * Snapshot title.
 	 */
 	title: string;
 	/**
-	 * Optional snapshot description.
+	 * Snapshot description. Null when no description was supplied.
 	 */
 	description: null | string;
 	/**
-	 * Completeness of the snapshot.
+	 * Source used to create the snapshot.
 	 */
-	quality: SnapshotQuality;
+	sourceType: SourceType;
+	quality: null | SnapshotQuality;
 	/**
-	 * Timestamp at which the snapshot was created, including its UTC offset.
+	 * Snapshot creation time, including the UTC offset.
 	 */
 	createdAt: string;
 	/**
-	 * Archive duration in milliseconds.
+	 * Processing duration in milliseconds. Null until publication.
 	 */
-	durationMilliseconds: number | string;
+	durationMilliseconds: null | number | string;
 	/**
-	 * Storage used by the snapshot in bytes.
+	 * Snapshot storage size in bytes. Null until publication.
 	 */
-	storageBytes: number | string;
+	storageBytes: null | number | string;
 	/**
-	 * Number of resources in the archived snapshot.
+	 * Number of archived resources. Null until publication.
 	 */
-	resourceCount: number | string;
+	resourceCount: null | number | string;
 	/**
 	 * Tags assigned to the snapshot.
 	 */
 	tags: Array<string>;
 	/**
-	 * Public URL of the snapshot screenshot.
+	 * Screenshot URL. Null until the snapshot is published.
 	 */
-	screenshotUrl: string;
+	screenshotUrl: null | string;
 	/**
-	 * Public URL of the archived start page.
+	 * Archived start page URL. Null until the snapshot is published.
 	 */
-	contentUrl: string;
+	contentUrl: null | string;
 	createdBy: null | ArchiveCreatorResponse;
+	/**
+	 * Processing start time, including the UTC offset. Null before processing starts.
+	 */
+	captureStartedAt: null | string;
+	/**
+	 * Processing end time, including the UTC offset. Null before processing ends.
+	 */
+	captureCompletedAt: null | string;
 };
 
 /**
- * Source used to create an archive job.
+ * Capture-time ordering, with the snapshot ID as a stable tie-breaker.
+ */
+export enum SnapshotSortOrder {
+	DESC = "desc",
+	ASC = "asc"
+}
+
+/**
+ * Source used to create a snapshot.
  */
 export enum SourceType {
 	URL = "URL",
@@ -325,17 +328,39 @@ export enum SourceType {
 export type Stream = Blob | File;
 
 /**
- * Replaces the authenticated user's display name and handle.
+ * Display name and handle to save for the authenticated user.
  */
-export type UpdateUserProfile = {
+export type UpdateUserProfileRequest = {
 	/**
-	 * Unique handle of 4 to 32 characters after trimming. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.
+	 * Unique handle after trimming. Letters and digits with internal underscores or hyphens; stored in lowercase.
 	 */
 	handle: string;
 	/**
-	 * Display name of 6 to 64 characters after trimming and Unicode NFC normalization. Control characters are not permitted.
+	 * Display name after trimming and Unicode NFC normalization. Control characters are not permitted.
 	 */
 	displayName: string;
+};
+
+/**
+ * Profile of the authenticated user.
+ */
+export type UserProfileResponse = {
+	/**
+	 * Lowercase user handle. Null until a handle is saved.
+	 */
+	handle: null | string;
+	/**
+	 * User display name. Null until a display name is saved.
+	 */
+	displayName: null | string;
+	/**
+	 * URL of the stored profile image. Null when no image is stored.
+	 */
+	profileImageUrl: null | string;
+	/**
+	 * Whether a valid handle and display name have been saved.
+	 */
+	isRegistrationComplete: boolean;
 };
 
 export type ValidationProblemDetails = {
@@ -360,138 +385,10 @@ export type GetHealthzResponses = {
 	/**
 	 * OK
 	 */
-	200: unknown;
+	200: HealthResponse;
 };
 
-export type CreateArchiveData = {
-	body: {
-		/**
-		 * Public HTTP or HTTPS URL to archive.
-		 */
-		sourceUrl: string;
-		/**
-		 * Title for the snapshot that will be created. Control characters are not permitted.
-		 */
-		title: string;
-		/**
-		 * Optional description for the snapshot.
-		 */
-		description?: null | string;
-		/**
-		 * Up to 30 tags of 1 to 100 characters each. Leading hash signs and surrounding whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.
-		 */
-		tags?: null | Array<string>;
-	};
-	path?: never;
-	query?: never;
-	url: "/api/archive";
-};
-
-export type CreateArchiveErrors = {
-	/**
-	 * Bad Request
-	 */
-	400: ValidationProblemDetails;
-	/**
-	 * Forbidden
-	 */
-	403: ProblemDetails;
-	/**
-	 * Payload Too Large
-	 */
-	413: ProblemDetails;
-	/**
-	 * Unsupported Media Type
-	 */
-	415: ProblemDetails;
-};
-
-export type CreateArchiveError = CreateArchiveErrors[keyof CreateArchiveErrors];
-
-export type CreateArchiveResponses = {
-	/**
-	 * OK
-	 */
-	200: ArchiveResponse;
-};
-
-export type CreateArchiveResponse = CreateArchiveResponses[keyof CreateArchiveResponses];
-
-export type GetArchiveData = {
-	body?: never;
-	path: {
-		archiveId: string;
-	};
-	query?: never;
-	url: "/api/archive/{archiveId}";
-};
-
-export type GetArchiveErrors = {
-	/**
-	 * Not Found
-	 */
-	404: ProblemDetails;
-};
-
-export type GetArchiveError = GetArchiveErrors[keyof GetArchiveErrors];
-
-export type GetArchiveResponses = {
-	/**
-	 * OK
-	 */
-	200: ArchiveResponse;
-};
-
-export type GetArchiveResponse = GetArchiveResponses[keyof GetArchiveResponses];
-
-export type StreamArchiveEventsData = {
-	body?: never;
-	path: {
-		archiveId: string;
-	};
-	query?: never;
-	url: "/api/archive/{archiveId}/events";
-};
-
-export type StreamArchiveEventsResponses = {
-	/**
-	 * OK
-	 */
-	200: string;
-};
-
-export type StreamArchiveEventsResponse = StreamArchiveEventsResponses[keyof StreamArchiveEventsResponses];
-
-export type CancelArchiveData = {
-	body?: never;
-	path: {
-		archiveId: string;
-	};
-	query?: never;
-	url: "/api/archive/{archiveId}/cancel";
-};
-
-export type CancelArchiveErrors = {
-	/**
-	 * Not Found
-	 */
-	404: ProblemDetails;
-	/**
-	 * Conflict
-	 */
-	409: ProblemDetails;
-};
-
-export type CancelArchiveError = CancelArchiveErrors[keyof CancelArchiveErrors];
-
-export type CancelArchiveResponses = {
-	/**
-	 * OK
-	 */
-	200: ArchiveResponse;
-};
-
-export type CancelArchiveResponse = CancelArchiveResponses[keyof CancelArchiveResponses];
+export type GetHealthzResponse = GetHealthzResponses[keyof GetHealthzResponses];
 
 export type ListAuthenticationProvidersData = {
 	body?: never;
@@ -504,7 +401,7 @@ export type ListAuthenticationProvidersResponses = {
 	/**
 	 * OK
 	 */
-	200: Array<AuthenticationProvider>;
+	200: Array<AuthenticationProviderResponse>;
 };
 
 export type ListAuthenticationProvidersResponse =
@@ -530,7 +427,7 @@ export type GetAuthenticationSessionResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticationSession;
+	200: AuthenticationSessionResponse;
 };
 
 export type GetAuthenticationSessionResponse = GetAuthenticationSessionResponses[keyof GetAuthenticationSessionResponses];
@@ -606,7 +503,7 @@ export type ListSnapshotsData = {
 		 */
 		description?: string;
 		/**
-		 * Tags that must all be assigned to a matching snapshot. Repeat the query parameter for multiple tags.
+		 * Up to 30 different tags, each at most 128 characters. All tags must match. Repeat the query parameter for multiple tags; empty values and duplicates are ignored.
 		 */
 		tags?: Array<string>;
 		/**
@@ -628,7 +525,7 @@ export type ListSnapshotsData = {
 		/**
 		 * Capture-time ordering: desc (newest first, default) or asc (oldest first). Snapshot IDs use the same direction as a stable tie-breaker.
 		 */
-		order?: SnapshotOrder;
+		order?: SnapshotSortOrder;
 		/**
 		 * One-based result page number.
 		 */
@@ -658,6 +555,63 @@ export type ListSnapshotsResponses = {
 };
 
 export type ListSnapshotsResponse = ListSnapshotsResponses[keyof ListSnapshotsResponses];
+
+export type CreateSnapshotData = {
+	/**
+	 * Source URL and metadata for a new snapshot.
+	 */
+	body: {
+		/**
+		 * Public HTTP or HTTPS URL to archive. The normalized URL must also meet the length limit.
+		 */
+		sourceUrl: string;
+		/**
+		 * Snapshot title. Control characters are not permitted.
+		 */
+		title: string;
+		/**
+		 * Optional snapshot description.
+		 */
+		description?: null | string;
+		/**
+		 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
+		 */
+		tags?: null | Array<string>;
+	};
+	path?: never;
+	query?: never;
+	url: "/api/snapshots";
+};
+
+export type CreateSnapshotErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Payload Too Large
+	 */
+	413: ProblemDetails;
+	/**
+	 * Unsupported Media Type
+	 */
+	415: ProblemDetails;
+};
+
+export type CreateSnapshotError = CreateSnapshotErrors[keyof CreateSnapshotErrors];
+
+export type CreateSnapshotResponses = {
+	/**
+	 * Accepted
+	 */
+	202: SnapshotCreationResponse;
+};
+
+export type CreateSnapshotResponse = CreateSnapshotResponses[keyof CreateSnapshotResponses];
 
 export type GetSnapshotData = {
 	body?: never;
@@ -753,6 +707,103 @@ export type GetSnapshotScreenshotResponses = {
 
 export type GetSnapshotScreenshotResponse = GetSnapshotScreenshotResponses[keyof GetSnapshotScreenshotResponses];
 
+export type GetSnapshotStatusData = {
+	body?: never;
+	path: {
+		snapshotId: string;
+	};
+	query?: never;
+	url: "/api/snapshots/{snapshotId}/status";
+};
+
+export type GetSnapshotStatusErrors = {
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type GetSnapshotStatusError = GetSnapshotStatusErrors[keyof GetSnapshotStatusErrors];
+
+export type GetSnapshotStatusResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotProcessingResponse;
+};
+
+export type GetSnapshotStatusResponse = GetSnapshotStatusResponses[keyof GetSnapshotStatusResponses];
+
+export type StreamSnapshotEventsData = {
+	body?: never;
+	path: {
+		snapshotId: string;
+	};
+	query?: never;
+	url: "/api/snapshots/{snapshotId}/events";
+};
+
+export type StreamSnapshotEventsErrors = {
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type StreamSnapshotEventsError = StreamSnapshotEventsErrors[keyof StreamSnapshotEventsErrors];
+
+export type StreamSnapshotEventsResponses = {
+	/**
+	 * OK
+	 */
+	200: string;
+};
+
+export type StreamSnapshotEventsResponse = StreamSnapshotEventsResponses[keyof StreamSnapshotEventsResponses];
+
+export type CancelSnapshotData = {
+	body?: never;
+	path: {
+		snapshotId: string;
+	};
+	query?: never;
+	url: "/api/snapshots/{snapshotId}/cancel";
+};
+
+export type CancelSnapshotErrors = {
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type CancelSnapshotError = CancelSnapshotErrors[keyof CancelSnapshotErrors];
+
+export type CancelSnapshotResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotProcessingResponse;
+};
+
+export type CancelSnapshotResponse = CancelSnapshotResponses[keyof CancelSnapshotResponses];
+
 export type GetCurrentUserProfileImageData = {
 	body?: never;
 	path?: never;
@@ -769,6 +820,10 @@ export type GetCurrentUserProfileImageErrors = {
 	 * Not Found
 	 */
 	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: unknown;
 };
 
 export type GetCurrentUserProfileImageError = GetCurrentUserProfileImageErrors[keyof GetCurrentUserProfileImageErrors];
@@ -799,6 +854,10 @@ export type GetUserProfileImageErrors = {
 	 * Not Found
 	 */
 	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: unknown;
 };
 
 export type GetUserProfileImageError = GetUserProfileImageErrors[keyof GetUserProfileImageErrors];
@@ -832,13 +891,13 @@ export type GetCurrentUserResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticatedArchiveUser;
+	200: UserProfileResponse;
 };
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
 
 export type UpdateCurrentUserData = {
-	body: UpdateUserProfile;
+	body: UpdateUserProfileRequest;
 	path?: never;
 	query?: never;
 	url: "/api/users/profile";
@@ -869,7 +928,7 @@ export type UpdateCurrentUserResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticatedArchiveUser;
+	200: UserProfileResponse;
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];

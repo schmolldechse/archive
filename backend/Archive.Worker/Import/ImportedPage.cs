@@ -1,8 +1,4 @@
-using Archive.Core.Entities;
-
 namespace Archive.Worker.Import;
-
-public sealed record ImportLimits(long MaxBytes, int MaxResources, int MaxDepth, int MaxObjects);
 
 public sealed record ImportedResource(
     string Url,
@@ -17,9 +13,3 @@ public sealed record ImportedPage(
     IReadOnlyList<ImportedResource> Resources,
     IReadOnlyList<ImportedPage> Frames,
     string? FrameName = null);
-
-public interface IUploadedDocumentDecoder
-{
-    SourceType SourceType { get; }
-    Task<ImportedPage> DecodeAsync(Stream source, ImportLimits limits, CancellationToken cancellationToken);
-}

@@ -7,7 +7,7 @@
 	import Button from "$lib/components/ui/Button.svelte";
 	let { snapshot, layout = "sheet" }: { snapshot: SnapshotResponse; layout?: "sheet" | "desktop" } = $props();
 	let failedImage = $state<string | null>(null);
-	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink);
+	const source = $derived(snapshot.sourceUrl);
 	const archivedHref = $derived(
 		`/snapshots/${snapshot.id}?from=${encodeURIComponent(page.url.pathname + page.url.search + "#snapshot-register")}`
 	);
@@ -15,7 +15,7 @@
 
 <div class="preview-content" data-component="snapshot-preview-content" data-layout={layout}>
 	<div class="archive-frame">
-		{#if failedImage === snapshot.screenshotUrl}
+		{#if !snapshot.screenshotUrl || failedImage === snapshot.screenshotUrl}
 			<div class="image-error">
 				<CircleAlert aria-hidden="true" />
 				<h4>Preview image unavailable</h4>

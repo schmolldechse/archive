@@ -1,11 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.EntityFrameworkCore;
+using Archive.Core.Models.Users;
 
 namespace Archive.Core.Entities.Authentication;
 
 [Table("users", Schema = "authentication")]
-[Index(nameof(Handle), IsUnique = true)]
 public sealed class ArchiveUser
 {
     [Key]
@@ -13,11 +12,11 @@ public sealed class ArchiveUser
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    [MaxLength(64)]
+    [MaxLength(UserProfileValidation.MaxDisplayNameLength)]
     [Column("display_name")]
     public string? DisplayName { get; set; }
 
-    [MaxLength(32)]
+    [MaxLength(UserProfileValidation.MaxHandleLength)]
     [Column("handle")]
     public string? Handle { get; set; }
 

@@ -1,14 +1,17 @@
+using Archive.Core.Processing;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
+using Archive.Worker.Capture.Browser;
+using Archive.Worker.Storage;
 using Microsoft.Playwright;
+using Archive.Core.Entities.Processing;
 
 namespace Archive.Worker.Import;
 
@@ -35,7 +38,7 @@ public sealed class OfflineImportEngine(
         return values.ToDictionary(x => x.SourceType);
     }
 
-    public async Task<CaptureResult> CaptureAsync(ArchiveJob job, IProgress<ProgressUpdate>? progress,
+    public async Task<CaptureResult> CaptureAsync(CaptureInput job, IProgress<ProgressStep>? progress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(job.UploadedObjectKey) ||
@@ -47,7 +50,7 @@ public sealed class OfflineImportEngine(
         var timer = Stopwatch.StartNew();
         try
         {
-            progress?.Report(new ProgressUpdate(ProgressStep.SourceCheck, 10, "Datei wird gelesen"));
+            progress?.Report(ProgressStep.SourceCheck);
             var source = await objectStore.GetAsync(job.UploadedObjectKey, timeout.Token)
                 ?? throw new CaptureFailedException("Die hochgeladene Datei konnte nicht gelesen werden.");
             byte[] original;
@@ -61,15 +64,17 @@ public sealed class OfflineImportEngine(
             }
             catch (InvalidDataException exception)
             {
-                throw new CaptureFailedException("Die hochgeladene Datei ist ungültig oder überschreitet ein Importlimit.", exception);
+                throw new CaptureFailedException("Die hochgeladene Datei ist ungültig oder überschreitet ein Importlimit.",
+                    exception);
             }
-            progress?.Report(new ProgressUpdate(ProgressStep.LoadingPage, 35, "Archivierte Seite wird vorbereitet"));
+            progress?.Report(ProgressStep.LoadingPage);
             var normalized = OfflinePageNormalizer.Normalize(imported, job.Id);
             if (normalized.Assets.Count > _importLimits.MaxResources + _importLimits.MaxObjects)
                 throw new CaptureDiscardedException("Die Datei enthält zu viele eingebettete Inhalte.");
 
+            progress?.Report(ProgressStep.LoadingDynamicContent);
             var screenshot = await ScreenshotAsync(normalized, job.Id, timeout.Token);
-            progress?.Report(new ProgressUpdate(ProgressStep.LoadingDynamicContent, 65, "Vorschau wurde erstellt"));
+            progress?.Report(ProgressStep.SavingSnapshot);
             var result = await StoreAsync(job, imported, normalized, screenshot.Bytes, original,
                 screenshot.MissingUrls, timer.ElapsedMilliseconds, timeout.Token);
             return result;
@@ -149,30 +154,18 @@ public sealed class OfflineImportEngine(
         return (bytes, missing.Keys.Order(StringComparer.Ordinal).ToArray());
     }
 
-    private async Task<CaptureResult> StoreAsync(ArchiveJob job, ImportedPage imported,
+    private async Task<CaptureResult> StoreAsync(CaptureInput job, ImportedPage imported,
         NormalizedPage normalized, byte[] screenshot, byte[] original, IReadOnlyList<string> missingUrls,
         long durationMilliseconds, CancellationToken cancellationToken)
     {
-        var prefix = $"snapshots/{job.Id:N}";
-        var storedKeys = new List<string>();
-        long totalBytes = 0;
-        async Task PutAsync(string path, byte[] body, string type)
-        {
-            if (body.LongLength > _captureLimits.MaxStorageBytes - totalBytes)
-                throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
-            var key = $"{prefix}/{path}";
-            storedKeys.Add(key);
-            await using var stream = new MemoryStream(body, writable: false);
-            await objectStore.PutAsync(key, stream, type, cancellationToken);
-            totalBytes += body.LongLength;
-        }
+        var writer = new SnapshotObjectWriter(objectStore, job.Id, _captureLimits.MaxStorageBytes, logger);
 
         try
         {
-            await PutAsync("index.html", Encoding.UTF8.GetBytes(normalized.Html), "text/html; charset=utf-8");
-            await PutAsync("screenshot.png", screenshot, "image/png");
+            await writer.WriteAsync("index.html", Encoding.UTF8.GetBytes(normalized.Html), "text/html; charset=utf-8", cancellationToken);
+            await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
             foreach (var asset in normalized.Assets)
-                await PutAsync(asset.Path, asset.Body, asset.ContentType);
+                await writer.WriteAsync(asset.Path, asset.Body, asset.ContentType, cancellationToken);
             var extension = job.SourceType switch
             {
                 SourceType.HtmlFile => ".html",
@@ -180,7 +173,7 @@ public sealed class OfflineImportEngine(
                 SourceType.WebArchiveFile => ".webarchive",
                 _ => throw new InvalidOperationException("Unsupported upload type.")
             };
-            await PutAsync("source" + extension, original, "application/octet-stream");
+            await writer.WriteAsync("source" + extension, original, "application/octet-stream", cancellationToken);
             var manifest = new
             {
                 version = 2,
@@ -188,30 +181,26 @@ public sealed class OfflineImportEngine(
                 originalUrl = imported.BaseUrl ?? job.OriginUrl,
                 sourceSizeBytes = original.LongLength,
                 sourceSha256 = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(),
-                htmlObjectKey = $"{prefix}/index.html",
-                screenshotObjectKey = $"{prefix}/screenshot.png",
-                sourceObjectKey = $"{prefix}/source{extension}",
+                htmlObjectKey = writer.GetObjectKey("index.html"),
+                screenshotObjectKey = writer.GetObjectKey("screenshot.png"),
+                sourceObjectKey = writer.GetObjectKey("source" + extension),
                 resources = normalized.Assets.Select(x => new
                 {
                     url = x.SourceUrl,
                     contentType = x.ContentType,
-                    objectKey = $"{prefix}/{x.Path}"
+                    objectKey = writer.GetObjectKey(x.Path)
                 }),
                 missingUrls = missingUrls.Take(100).ToArray(),
                 missingUrlCount = missingUrls.Count,
                 incomplete = missingUrls.Count != 0
             };
-            await PutAsync("manifest.json", JsonSerializer.SerializeToUtf8Bytes(manifest), "application/json");
+            await writer.WriteManifestAsync(manifest, null, cancellationToken);
             return new CaptureResult(missingUrls.Count != 0 ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
-                prefix, totalBytes, normalized.Assets.Count, durationMilliseconds, storedKeys.ToArray());
+                writer.ContentPrefix, writer.StorageBytes, normalized.Assets.Count, durationMilliseconds, writer.StoredObjectKeys);
         }
         catch
         {
-            foreach (var key in storedKeys.AsEnumerable().Reverse())
-            {
-                try { await objectStore.DeleteAsync(key, CancellationToken.None); }
-                catch (Exception exception) { logger.LogWarning(exception, "Archivobjekt {ObjectKey} konnte nicht bereinigt werden", key); }
-            }
+            await writer.RollbackAsync();
             throw;
         }
     }

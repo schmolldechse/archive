@@ -5,7 +5,7 @@ using NpgsqlTypes;
 namespace Archive.Core.Entities;
 
 [PgName("source_type")]
-[Description("Source used to create an archive job.")]
+[Description("Source used to create a snapshot.")]
 public enum SourceType
 {
     [PgName("URL")]

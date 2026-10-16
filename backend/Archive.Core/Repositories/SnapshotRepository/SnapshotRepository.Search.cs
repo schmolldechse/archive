@@ -1,4 +1,5 @@
 using Archive.Core.Jobs;
+using Archive.Core.Mapping;
 using Archive.Core.Models;
 using Archive.Core.Models.Snapshots;
 using Microsoft.EntityFrameworkCore;
@@ -9,44 +10,24 @@ internal sealed partial class SnapshotRepository
 {
     public async Task<SnapshotSearchResult> SearchAsync(SnapshotSearch search, CancellationToken cancellationToken = default)
     {
-        var errors = new List<FieldValidationError>();
-
-        if (search.CapturedFrom is not null && search.CapturedUntil is not null && search.CapturedFrom >= search.CapturedUntil)
-            errors.Add(new(nameof(search.CapturedUntil), "The end of the capture range must be later than its start."));
-
-        string? normalizedSourceUrl = null;
-        if (!string.IsNullOrWhiteSpace(search.SourceUrl) && !UrlNormalizer.TryNormalizeSource(search.SourceUrl, out normalizedSourceUrl, out var sourceError))
-            errors.Add(new(nameof(search.SourceUrl), sourceError));
-
-        var textTerms = (search.Text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (textTerms.Length > 20)
-            errors.Add(new(nameof(search.Text), "The text search accepts at most 20 terms."));
-
-        var tags = (search.Tags ?? [])
-            .Select(value => (value ?? string.Empty)
-            .Trim()
-            .TrimStart('#')
-            .ToLowerInvariant())
-            .Where(value => value.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (tags.Length > 30)
-            errors.Add(new(nameof(search.Tags), "At most 30 tags can be required."));
-        if (tags.Any(tag => tag.Length > 100))
-            errors.Add(new(nameof(search.Tags), "Each tag must contain at most 100 characters."));
-
-        if (search.Page is < 1 or > 1_000_000)
-            errors.Add(new(nameof(search.Page), "Page must be between 1 and 1000000."));
-        if (search.PageSize is < 1 or > 100)
-            errors.Add(new(nameof(search.PageSize), "PageSize must be between 1 and 100."));
-
-        if (!Enum.IsDefined(search.Order))
-            errors.Add(new(nameof(search.Order), "Capture order must be asc or desc."));
-
+        var errors = ModelValidation.GetErrors(search);
         if (errors.Count > 0)
             return new SnapshotSearchResult.Invalid(errors);
 
-        var query = database.Snapshots.AsNoTracking().AsQueryable();
+        string? normalizedSourceUrl = null;
+        if (!string.IsNullOrWhiteSpace(search.SourceUrl))
+            UrlNormalizer.TryNormalizeSource(search.SourceUrl, out normalizedSourceUrl, out _);
+
+        var textTerms = (search.Text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var tags = (search.Tags ?? [])
+            .Select(SnapshotValidation.NormalizeTag)
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var published = database.Snapshots.AsNoTracking().Where(snapshot => snapshot.Quality != null);
+        var query = published;
         foreach (var term in textTerms)
         {
             var pattern = ContainsPattern(term);
@@ -93,9 +74,8 @@ internal sealed partial class SnapshotRepository
         var distribution = new SnapshotCaptureDistribution(years.Sum(year => year.Count),
             years.Length == 0 ? null : years[0].Year, years.Length == 0 ? null : years[^1].Year, years);
 
-        var indexTotal = await database.Snapshots.CountAsync(cancellationToken);
-        var recentCaptureTimes = await database.Snapshots
-            .AsNoTracking()
+        var indexTotal = await published.CountAsync(cancellationToken);
+        var recentCaptureTimes = await published
             .OrderByDescending(snapshot => snapshot.CreatedAt)
             .ThenByDescending(snapshot => snapshot.Id)
             .Select(snapshot => snapshot.CreatedAt)
@@ -122,12 +102,9 @@ internal sealed partial class SnapshotRepository
         var page = await ordered
             .Skip((search.Page - 1) * search.PageSize)
             .Take(search.PageSize)
-            .Include(snapshot => snapshot.CreatedBy)
-            .Include(snapshot => snapshot.SnapshotTags)
-            .ThenInclude(snapshotTag => snapshotTag.Tag)
-            .AsSplitQuery()
-            .ToListAsync(cancellationToken);
-        return new SnapshotSearchResult.Found(new(page.Select(ToDetails).ToArray(), total, search.Page, search.PageSize,
+            .ProjectToDetails()
+            .ToArrayAsync(cancellationToken);
+        return new SnapshotSearchResult.Found(new(page, total, search.Page, search.PageSize,
             indexTotal, recentCaptureTimes, distribution));
     }
 

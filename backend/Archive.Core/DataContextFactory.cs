@@ -1,10 +1,7 @@
 using Archive.Core.Entities;
-using Archive.Core.Options;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.EntityFrameworkCore.Migrations;
-using System.Text.Json;
+using Archive.Core.Entities.Processing;
 
 namespace Archive.Core;
 
@@ -12,61 +9,16 @@ public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext
 {
     public DataContext CreateDbContext(string[] args)
     {
-        var connectionString = FindConnectionString();
-        var connectionOptions = new ConnectionStringOptions { ArchiveDatabase = connectionString };
-        Validator.ValidateObject(connectionOptions, new ValidationContext(connectionOptions), validateAllProperties: true);
         var optionsBuilder = new DbContextOptionsBuilder<DataContext>();
         optionsBuilder.UseNpgsql(
-            connectionString,
+            "Host=localhost;Port=5432;Database=archive;Username=archive;Password=password",
             npgsql =>
             {
-                npgsql.MigrationsHistoryTable(
-                    HistoryRepository.DefaultTableName,
-                    "public");
                 npgsql.MapEnum<SourceType>("source_type", "types");
-                npgsql.MapEnum<JobStatus>("job_status", "types");
-                npgsql.MapEnum<ProgressStep>("progress_step", "types");
                 npgsql.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+                npgsql.MapEnum<ProcessingStatus>("processing_status", "types");
+                npgsql.MapEnum<ProgressStep>("progress_step", "types");
             });
         return new DataContext(optionsBuilder.Options);
-    }
-
-    private static string FindConnectionString()
-    {
-        var configured = Environment.GetEnvironmentVariable("ConnectionStrings__ArchiveDatabase") ??
-            Environment.GetEnvironmentVariable("POSTGRES_CONNECTION");
-        if (!string.IsNullOrWhiteSpace(configured))
-            return configured;
-
-        var workingDirectory = Directory.GetCurrentDirectory();
-        var candidates = new[]
-        {
-            Path.Combine(workingDirectory, "Archive.Api", "appsettings.Development.json"),
-            Path.Combine(workingDirectory, "backend", "Archive.Api", "appsettings.Development.json"),
-            Path.Combine(workingDirectory, "..", "Archive.Api", "appsettings.Development.json")
-        };
-
-        foreach (var candidate in candidates.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!File.Exists(candidate))
-                continue;
-
-            try
-            {
-                using var document = JsonDocument.Parse(File.ReadAllText(candidate));
-                if (document.RootElement.TryGetProperty("ConnectionStrings", out var connectionStrings) &&
-                    connectionStrings.TryGetProperty("ArchiveDatabase", out var value) &&
-                    !string.IsNullOrWhiteSpace(value.GetString()))
-                    return value.GetString()!;
-            }
-            catch (JsonException exception)
-            {
-                throw new InvalidOperationException(
-                    $"The local development configuration '{candidate}' is not valid JSON.", exception);
-            }
-        }
-
-        throw new InvalidOperationException(
-            "Configure ConnectionStrings__ArchiveDatabase, POSTGRES_CONNECTION, or a local Archive.Api/appsettings.Development.json file before using Entity Framework tools.");
     }
 }

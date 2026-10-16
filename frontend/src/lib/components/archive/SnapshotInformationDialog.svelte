@@ -6,7 +6,7 @@
 	import CopySourceButton from "./CopySourceButton.svelte";
 	import SnapshotMetadata from "./SnapshotMetadata.svelte";
 	let { snapshot }: { snapshot: SnapshotResponse } = $props();
-	const source = $derived(snapshot.sourceUrl ?? snapshot.originalLink);
+	const source = $derived(snapshot.sourceUrl);
 </script>
 
 <DialogRoot>

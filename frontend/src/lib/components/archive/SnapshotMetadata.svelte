@@ -23,31 +23,35 @@
 			{/if}
 		</section>
 	{/if}
-	<section class="snapshot-metadata__preservation" aria-label="Preservation">
-		<h4>Preservation</h4>
-		<dl>
-			<div>
-				<dt>Condition</dt>
-				<dd>
-					<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact"
-						>{snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</Badge
-					>
-				</dd>
-			</div>
-			<div>
-				<dt>Resources</dt>
-				<dd>{snapshot.resourceCount}</dd>
-			</div>
-			<div>
-				<dt>Storage</dt>
-				<dd>{formatBytes(Number(snapshot.storageBytes))}</dd>
-			</div>
-			<div>
-				<dt>Capture duration</dt>
-				<dd>{(Number(snapshot.durationMilliseconds) / 1000).toLocaleString("en", { maximumFractionDigits: 1 })} s</dd>
-			</div>
-		</dl>
-	</section>
+	{#if snapshot.quality !== null}
+		<section class="snapshot-metadata__preservation" aria-label="Preservation">
+			<h4>Preservation</h4>
+			<dl>
+				<div>
+					<dt>Condition</dt>
+					<dd>
+						<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact"
+							>{snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</Badge
+						>
+					</dd>
+				</div>
+				<div>
+					<dt>Resources</dt>
+					<dd>{snapshot.resourceCount}</dd>
+				</div>
+				<div>
+					<dt>Storage</dt>
+					<dd>{formatBytes(Number(snapshot.storageBytes))}</dd>
+				</div>
+				<div>
+					<dt>Capture duration</dt>
+					<dd>{(Number(snapshot.durationMilliseconds) / 1000).toLocaleString("en", { maximumFractionDigits: 1 })} s</dd>
+				</div>
+			</dl>
+		</section>
+	{:else}
+		<p>Capture in progress.</p>
+	{/if}
 	{#if includeIdentifier}
 		<dl class="snapshot-metadata__identifier">
 			<div>

@@ -2,6 +2,7 @@
 using System;
 using Archive.Core;
 using Archive.Core.Entities;
+using Archive.Core.Entities.Processing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -21,110 +22,11 @@ namespace Archive.Core.Migrations
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "job_status", new[] { "ABORTED", "CANCELLED", "COMPLETED", "DISCARDED", "FAILED", "QUEUED", "RUNNING" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "processing_status", new[] { "ABORTED", "CANCELLED", "COMPLETED", "DISCARDED", "FAILED", "QUEUED", "RUNNING" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "progress_step", new[] { "FINISHED", "LOADING_DYNAMIC_CONTENT", "LOADING_PAGE", "SAVING_SNAPSHOT", "SOURCE_CHECK" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "snapshot_quality", new[] { "COMPLETE", "INCOMPLETE" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "source_type", new[] { "HTML", "MHTML", "URL", "WEBARCHIVE" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Archive.Core.Entities.ArchiveJob", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)")
-                        .HasColumnName("error_message");
-
-                    b.Property<string>("OriginUrl")
-                        .HasMaxLength(4096)
-                        .HasColumnType("character varying(4096)")
-                        .HasColumnName("origin_url");
-
-                    b.Property<int>("ProgressPercent")
-                        .HasColumnType("integer")
-                        .HasColumnName("progress_percent");
-
-                    b.Property<ProgressStep>("ProgressStep")
-                        .HasColumnType("types.progress_step")
-                        .HasColumnName("progress_step");
-
-                    b.Property<SourceType>("SourceType")
-                        .HasColumnType("types.source_type")
-                        .HasColumnName("source_type");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("started_at");
-
-                    b.Property<JobStatus>("Status")
-                        .HasColumnType("types.job_status")
-                        .HasColumnName("status");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("title");
-
-                    b.Property<string>("UploadedObjectKey")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("uploaded_object_key");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("Status", "CreatedAt");
-
-                    b.ToTable("archive_jobs", "processing");
-                });
-
-            modelBuilder.Entity("Archive.Core.Entities.ArchiveJobTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("JobId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("job_id");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("value");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("JobId", "Value")
-                        .IsUnique();
-
-                    b.ToTable("archive_job_tags", "processing");
-                });
 
             modelBuilder.Entity("Archive.Core.Entities.Authentication.ArchiveUser", b =>
                 {
@@ -235,29 +137,70 @@ namespace Archive.Core.Migrations
                     b.ToTable("user_auth_identities", "authentication");
                 });
 
-            modelBuilder.Entity("Archive.Core.Entities.Project", b =>
+            modelBuilder.Entity("Archive.Core.Entities.Processing.SnapshotProcessing", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("SnapshotId")
                         .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnName("snapshot_id");
 
-                    b.Property<DateTimeOffset>("CreatedAt")
+                    b.Property<bool>("CancelRequested")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cancel_requested");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("completed_at");
 
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasMaxLength(4500)
-                        .HasColumnType("character varying(4500)")
-                        .HasColumnName("project_key");
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
 
-                    b.HasKey("Id");
+                    b.Property<Guid?>("OwnerToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_token");
 
-                    b.HasIndex("ProjectKey")
-                        .IsUnique();
+                    b.Property<ProgressStep>("ProgressStep")
+                        .HasColumnType("types.progress_step")
+                        .HasColumnName("progress_step");
 
-                    b.ToTable("projects", "archive");
+                    b.Property<long>("QueueSequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("queue_sequence");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("QueueSequence"));
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<ProcessingStatus>("Status")
+                        .HasColumnType("types.processing_status")
+                        .HasColumnName("status");
+
+                    b.Property<string>("UploadedObjectKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("uploaded_object_key");
+
+                    b.HasKey("SnapshotId");
+
+                    b.HasIndex("QueueSequence")
+                        .HasFilter("status = 'QUEUED'");
+
+                    b.HasIndex("ExpiresAt", "SnapshotId")
+                        .HasFilter("expires_at IS NOT NULL");
+
+                    b.ToTable("snapshot_processing", "processing", t =>
+                        {
+                            t.HasCheckConstraint("CK_snapshot_processing_cancel", "NOT cancel_requested OR status = 'RUNNING'");
+
+                            t.HasCheckConstraint("CK_snapshot_processing_owner", "(status = 'RUNNING' AND owner_token IS NOT NULL AND started_at IS NOT NULL)\nOR (status <> 'RUNNING' AND owner_token IS NULL)");
+
+                            t.HasCheckConstraint("CK_snapshot_processing_step", "(status <> 'QUEUED' OR progress_step = 'SOURCE_CHECK')\nAND ((status = 'COMPLETED' AND progress_step = 'FINISHED')\n    OR (status <> 'COMPLETED' AND progress_step <> 'FINISHED'))");
+
+                            t.HasCheckConstraint("CK_snapshot_processing_terminal", "(status IN ('QUEUED', 'RUNNING') AND completed_at IS NULL AND expires_at IS NULL)\nOR (status NOT IN ('QUEUED', 'RUNNING') AND completed_at IS NOT NULL\n    AND expires_at IS NOT NULL AND expires_at >= completed_at)");
+                        });
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>
@@ -276,7 +219,6 @@ namespace Archive.Core.Migrations
                         .HasColumnName("capture_started_at");
 
                     b.Property<string>("ContentPrefix")
-                        .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("content_prefix");
@@ -294,7 +236,7 @@ namespace Archive.Core.Migrations
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("description");
 
-                    b.Property<long>("DurationMilliseconds")
+                    b.Property<long?>("DurationMilliseconds")
                         .HasColumnType("bigint")
                         .HasColumnName("duration_ms");
 
@@ -303,15 +245,11 @@ namespace Archive.Core.Migrations
                         .HasColumnType("character varying(4096)")
                         .HasColumnName("origin_url");
 
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.Property<SnapshotQuality>("Quality")
+                    b.Property<SnapshotQuality?>("Quality")
                         .HasColumnType("types.snapshot_quality")
                         .HasColumnName("quality");
 
-                    b.Property<int>("ResourceCount")
+                    b.Property<int?>("ResourceCount")
                         .HasColumnType("integer")
                         .HasColumnName("resource_count");
 
@@ -319,7 +257,7 @@ namespace Archive.Core.Migrations
                         .HasColumnType("types.source_type")
                         .HasColumnName("source_type");
 
-                    b.Property<long>("StorageBytes")
+                    b.Property<long?>("StorageBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("storage_bytes");
 
@@ -335,9 +273,9 @@ namespace Archive.Core.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("OriginUrl");
 
-                    b.HasIndex("OriginUrl", "CreatedAt");
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("OriginUrl"), "hash");
 
                     b.ToTable("snapshots", "archive");
                 });
@@ -380,27 +318,6 @@ namespace Archive.Core.Migrations
                     b.ToTable("tags", "archive");
                 });
 
-            modelBuilder.Entity("Archive.Core.Entities.ArchiveJob", b =>
-                {
-                    b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "CreatedBy")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CreatedBy");
-                });
-
-            modelBuilder.Entity("Archive.Core.Entities.ArchiveJobTag", b =>
-                {
-                    b.HasOne("Archive.Core.Entities.ArchiveJob", "Job")
-                        .WithMany("Tags")
-                        .HasForeignKey("JobId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Job");
-                });
-
             modelBuilder.Entity("Archive.Core.Entities.Authentication.UserAuthIdentity", b =>
                 {
                     b.HasOne("Archive.Core.Entities.Authentication.AuthProvider", "AuthProvider")
@@ -420,6 +337,17 @@ namespace Archive.Core.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.Processing.SnapshotProcessing", b =>
+                {
+                    b.HasOne("Archive.Core.Entities.Snapshot", "Snapshot")
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Snapshot");
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>
                 {
                     b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "CreatedBy")
@@ -427,15 +355,7 @@ namespace Archive.Core.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Archive.Core.Entities.Project", "Project")
-                        .WithMany("Snapshots")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("CreatedBy");
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.SnapshotTag", b =>
@@ -457,11 +377,6 @@ namespace Archive.Core.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("Archive.Core.Entities.ArchiveJob", b =>
-                {
-                    b.Navigation("Tags");
-                });
-
             modelBuilder.Entity("Archive.Core.Entities.Authentication.ArchiveUser", b =>
                 {
                     b.Navigation("Identities");
@@ -470,11 +385,6 @@ namespace Archive.Core.Migrations
             modelBuilder.Entity("Archive.Core.Entities.Authentication.AuthProvider", b =>
                 {
                     b.Navigation("Identities");
-                });
-
-            modelBuilder.Entity("Archive.Core.Entities.Project", b =>
-                {
-                    b.Navigation("Snapshots");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>

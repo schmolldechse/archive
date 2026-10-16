@@ -1,30 +1,32 @@
+using Amazon.S3;
 using Archive.Core.Entities;
 using Archive.Core.Uploads;
 using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Archive.Core.Repositories.UserRepository;
 using Archive.Core.Repositories.AuthenticationRepository;
-using Archive.Core.Repositories.ArchiveRepository;
+using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.ProfileImageRepository;
+using Archive.Core.Entities.Processing;
+using Archive.Core.Storage;
 
 namespace Archive.Core;
 
 public static class Injection
 {
-    public static IServiceCollection AddArchiveCore(this IServiceCollection services, IConfiguration configuration,
-        bool initializeDatabase = false)
+    public static IServiceCollection AddArchiveCore(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool initializeDatabase = false
+    )
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddOptions<ConnectionStringOptions>()
-            .Bind(configuration.GetSection(ConnectionStringOptions.SectionName))
-            .ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<DatabaseOptions>()
             .Configure(options => options.Initialize = initializeDatabase)
             .Bind(configuration.GetSection(DatabaseOptions.SectionName))
@@ -43,19 +45,35 @@ public static class Injection
             })
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ObjectStorageOptions>>().Value);
+        services.AddOptions<ProcessingOptions>().Bind(configuration.GetSection(ProcessingOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<ProcessingOptions>>().Value);
+
+        services.AddSingleton<IAmazonS3>(provider =>
+        {
+            var options = provider.GetRequiredService<ObjectStorageOptions>();
+            var config = new AmazonS3Config
+            {
+                ServiceURL = options.ServiceUrl,
+                ForcePathStyle = true
+            };
+
+            return string.IsNullOrWhiteSpace(options.AccessKey)
+                ? new AmazonS3Client(config)
+                : new AmazonS3Client(options.AccessKey, options.SecretKey, config);
+        });
+        services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 
         services.AddDbContext<DataContext>((provider, options) => options.UseNpgsql(
-            provider.GetRequiredService<IOptions<ConnectionStringOptions>>().Value.ArchiveDatabase,
+            configuration.GetConnectionString("DefaultConnection"),
             options =>
             {
-                options.MigrationsHistoryTable(
-                    HistoryRepository.DefaultTableName,
-                    "public");
                 options.MapEnum<SourceType>("source_type", "types");
-                options.MapEnum<JobStatus>("job_status", "types");
-                options.MapEnum<ProgressStep>("progress_step", "types");
                 options.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+                options.MapEnum<ProcessingStatus>("processing_status", "types");
+                options.MapEnum<ProgressStep>("progress_step", "types");
             }));
+
         services.AddSingleton<IUploadFormatProbe, HtmlUploadFormatProbe>();
         services.AddSingleton<IUploadFormatProbe, MhtmlUploadFormatProbe>();
         services.AddSingleton<IUploadFormatProbe, WebArchiveUploadFormatProbe>();
@@ -63,8 +81,8 @@ public static class Injection
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
             .AddScoped<IUserRepository, UserRepository>()
-            .AddScoped<IArchiveRepository, ArchiveRepository>()
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
+            .AddScoped<ISnapshotProcessingRepository, SnapshotProcessingRepository>()
             .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;
     }

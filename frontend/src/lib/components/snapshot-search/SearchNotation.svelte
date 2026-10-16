@@ -4,6 +4,7 @@
 	import X from "@lucide/svelte/icons/x";
 	import Button from "$lib/components/ui/Button.svelte";
 	import Separator from "$lib/components/ui/Separator.svelte";
+	import { snapshotLimits } from "$lib/snapshot-validation";
 	import { InputControl, InputDescription, InputError, InputLabel, InputRoot } from "$lib/components/ui/input";
 	import SearchFilters from "./SearchFilters.svelte";
 	import { searchHref, type SearchDraft, type SearchErrors, type SearchState } from "./search-state";
@@ -48,6 +49,7 @@
 					<div class="query-input">
 						<InputControl
 							type="url"
+							maxlength={snapshotLimits.sourceUrl}
 							value={draft.query}
 							autocomplete="off"
 							autocapitalize="none"
