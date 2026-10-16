@@ -13,7 +13,7 @@ public sealed class GoogleProvider : IAuthenticationProvider
     private const string PictureClaimType = "urn:google:picture";
     private const int MaxProfileImageBytes = 2 * 1024 * 1024;
 
-    public string Id => "google";
+    public string Key => "google";
     public string DisplayName => "Google";
     public string Scheme => GoogleDefaults.AuthenticationScheme;
 
@@ -78,7 +78,7 @@ public sealed class GoogleProvider : IAuthenticationProvider
 
         var repository = context.HttpContext.RequestServices.GetRequiredService<IAuthenticationRepository>();
         var user = await repository.GetOrCreateUserAsync(
-            new ExternalIdentityDescriptor(Id, DisplayName, subject, image),
+            new ExternalIdentityDescriptor(Key, DisplayName, subject, image),
             context.HttpContext.RequestAborted);
 
         context.Principal = new ClaimsPrincipal(new ClaimsIdentity(

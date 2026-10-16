@@ -1,5 +1,7 @@
-using Archive.Api.Contracts;
-using Archive.Core.Entities;
+using Archive.Api.Contracts.Snapshots;
+using Archive.Api.Contracts.Snapshots.Processing;
+using Archive.Api.Contracts.Snapshots.Search;
+using Archive.Core.Models.Processing;
 using Archive.Core.Models.Snapshots;
 using Riok.Mapperly.Abstractions;
 
@@ -13,14 +15,13 @@ public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
 
     public partial SnapshotSearch ToSearch(SnapshotSearchRequest request);
 
-    [MapEnum(EnumMappingStrategy.ByName)]
-    private partial SnapshotSortOrder ToSortOrder(SnapshotOrder order);
+    [MapperIgnoreSource(nameof(SnapshotProcessingState.IsTerminal))]
+    public partial SnapshotProcessingResponse ToResponse(SnapshotProcessingState state);
 
     public SnapshotResponse ToResponse(SnapshotDetails snapshot, string publicBaseUrl)
     {
         var resourceUrl = $"{publicBaseUrl.TrimEnd('/')}/api/snapshots/{snapshot.Id}";
         return MapSnapshot(snapshot,
-            snapshot.OriginUrl,
             snapshot.Quality is null ? null : $"{resourceUrl}/screenshot",
             snapshot.Quality is null ? null : $"{resourceUrl}/content/index.html");
     }
@@ -28,8 +29,7 @@ public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
     public SnapshotListResponse ToResponse(SnapshotPage page, string publicBaseUrl) =>
         MapPage(page, page.Items.Select(item => ToResponse(item, publicBaseUrl)).ToArray());
 
-    [MapperIgnoreSource(nameof(SnapshotDetails.OriginUrl))]
-    private partial SnapshotResponse MapSnapshot(SnapshotDetails snapshot, string? sourceUrl,
+    private partial SnapshotResponse MapSnapshot(SnapshotDetails snapshot,
         string? screenshotUrl, string? contentUrl);
 
     [MapperIgnoreSource(nameof(SnapshotPage.Items))]

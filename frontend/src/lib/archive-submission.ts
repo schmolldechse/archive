@@ -1,4 +1,4 @@
-import type { SnapshotReceipt, SnapshotResponse, SnapshotProcessingResponse } from "./api/types.gen";
+import type { SnapshotCreationResponse, SnapshotResponse, SnapshotProcessingResponse } from "./api/types.gen";
 import { normalizeTags } from "./components/tags/tags";
 import { snapshotLimits, validSourceUrl } from "./snapshot-validation";
 
@@ -97,7 +97,7 @@ export async function createSnapshot(
 	baseUrl: string,
 	draft: ArchiveDraft,
 	fetcher: typeof fetch = fetch
-): Promise<SnapshotReceipt> {
+): Promise<SnapshotCreationResponse> {
 	const errors = validateDraft(draft);
 	if (Object.keys(errors).length) throw new ArchiveHttpError(0, "Please correct the highlighted fields.", errors);
 	const endpoint = `${baseUrl.replace(/\/$/, "")}/api/snapshots`;

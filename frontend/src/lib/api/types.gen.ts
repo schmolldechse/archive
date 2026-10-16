@@ -5,51 +5,29 @@ export type ClientOptions = {
 };
 
 /**
- * Public profile of the registered user who submitted the archive. Reflects the current handle, display name and stored profile image.
+ * Public profile of the user who submitted the snapshot.
  */
 export type ArchiveCreatorResponse = {
 	/**
-	 * Current unique lowercase handle of the user who submitted the archive.
+	 * Current lowercase handle of the submitting user.
 	 */
 	handle: string;
 	/**
-	 * Current public display name of the user who submitted the archive.
+	 * Current display name of the submitting user.
 	 */
 	displayName: string;
 	/**
-	 * Absolute public URL of the submitter's current stored profile image, or null when no image is stored.
+	 * Public profile image URL. Null when no image is stored.
 	 */
 	profileImageUrl: null | string;
 };
 
 /**
- * Profile information for the authenticated user.
+ * An available authentication provider.
  */
-export type AuthenticatedArchiveUser = {
+export type AuthenticationProviderResponse = {
 	/**
-	 * Unique lowercase user handle of 4 to 32 characters, or null until the user chooses one.
-	 */
-	handle: null | string;
-	/**
-	 * User display name of 6 to 64 characters, or null until the user chooses one.
-	 */
-	displayName: null | string;
-	/**
-	 * Absolute URL of the stored provider profile image, or null when no image is available.
-	 */
-	profileImageUrl: null | string;
-	/**
-	 * True only after valid display name and handle have been explicitly saved and registration completion has been recorded.
-	 */
-	isRegistrationComplete: boolean;
-};
-
-/**
- * An external authentication provider.
- */
-export type AuthenticationProvider = {
-	/**
-	 * Provider identifier used to start authentication.
+	 * Provider key used to start authentication.
 	 */
 	key: string;
 	/**
@@ -59,63 +37,82 @@ export type AuthenticationProvider = {
 };
 
 /**
- * The current authentication state and associated user profile.
+ * Authentication state and current user profile.
  */
-export type AuthenticationSession = {
+export type AuthenticationSessionResponse = {
 	/**
-	 * Indicates whether the request has a valid user session.
+	 * Whether the request has an authenticated user session.
 	 */
 	isAuthenticated: boolean;
-	user?: null | AuthenticatedArchiveUser;
+	user: null | UserProfileResponse;
 };
 
+/**
+ * Annual capture counts under text and metadata filters.
+ */
 export type CaptureDistributionResponse = {
 	/**
-	 * Matches under text and metadata filters, ignoring capture-time filters.
+	 * Number of matches before capture-time filters and pagination.
 	 */
 	total: number | string;
 	/**
-	 * Earliest populated year; null when empty.
+	 * Earliest populated year. Null when there are no matches.
 	 */
 	firstYear: null | number | string;
 	/**
-	 * Latest populated year; null when empty.
+	 * Latest populated year. Null when there are no matches.
 	 */
 	lastYear: null | number | string;
 	/**
-	 * Annual capture counts before capture-time filters and pagination.
+	 * Annual counts before capture-time filters and pagination.
 	 */
 	years: Array<CaptureYearResponse>;
 };
 
+/**
+ * Capture count for one calendar year.
+ */
 export type CaptureYearResponse = {
 	/**
-	 * Calendar year of persisted capture timestamps.
+	 * Calendar year of the stored snapshot creation times.
 	 */
 	year: number | string;
 	/**
-	 * Number of matching captures in this year.
+	 * Number of matching captures in the year.
 	 */
 	count: number | string;
 };
 
+/**
+ * Source URL and metadata for a new snapshot.
+ */
 export type CreateSnapshotUrlRequest = {
 	/**
-	 * Public HTTP or HTTPS URL to archive.
+	 * Public HTTP or HTTPS URL to archive. The normalized URL must also meet the length limit.
 	 */
 	sourceUrl: string;
 	/**
-	 * Title for the snapshot that will be created. Control characters are not permitted.
+	 * Snapshot title. Control characters are not permitted.
 	 */
 	title: string;
 	/**
-	 * Optional snapshot description, up to 2,048 characters.
+	 * Optional snapshot description.
 	 */
 	description?: null | string;
 	/**
-	 * Up to 30 tags of 1 to 128 characters each. Leading hash signs and surrounding whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.
+	 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
 	 */
 	tags?: null | Array<string>;
+};
+
+/**
+ * Service health status.
+ */
+export type HealthResponse = {
+	/**
+	 * Service status. A successful response contains ok.
+	 */
+	status: string;
 };
 
 export type IFormFile = Blob | File;
@@ -152,21 +149,42 @@ export enum ProgressStep {
 	FINISHED = "FINISHED"
 }
 
+/**
+ * An accepted snapshot submission.
+ */
+export type SnapshotCreationResponse = {
+	/**
+	 * Identifier of the submitted snapshot.
+	 */
+	id: string;
+	/**
+	 * Relative URL of the processing status endpoint.
+	 */
+	statusUrl: string;
+	/**
+	 * Relative URL of the snapshot metadata endpoint.
+	 */
+	snapshotUrl: string;
+};
+
+/**
+ * A page of snapshots and capture counts.
+ */
 export type SnapshotListResponse = {
 	/**
 	 * Snapshots in the requested page.
 	 */
 	items: Array<SnapshotResponse>;
 	/**
-	 * Total number of matching snapshots.
+	 * Number of snapshots matching all search filters.
 	 */
 	total: number | string;
 	/**
-	 * One-based result page number.
+	 * One-based result page.
 	 */
 	page: number | string;
 	/**
-	 * Number of snapshots per result page.
+	 * Number of snapshots per page.
 	 */
 	pageSize: number | string;
 	/**
@@ -174,30 +192,46 @@ export type SnapshotListResponse = {
 	 */
 	indexTotal: number | string;
 	/**
-	 * Up to four newest capture timestamps in the published register, independent of search and pagination.
+	 * Up to four newest published snapshot creation times, independent of search filters.
 	 */
 	recentCaptureTimes: Array<string>;
 	/**
-	 * Capture distribution under text and metadata filters, ignoring capture-time filters and pagination.
+	 * Annual capture counts before capture-time filters and pagination.
 	 */
 	captureDistribution: CaptureDistributionResponse;
 };
 
 /**
- * Capture-time ordering, with the snapshot ID as a stable tie-breaker.
+ * Processing status of a snapshot.
  */
-export enum SnapshotOrder {
-	DESC = "desc",
-	ASC = "asc"
-}
-
 export type SnapshotProcessingResponse = {
+	/**
+	 * Snapshot identifier.
+	 */
 	id: string;
+	/**
+	 * Current processing status.
+	 */
 	status: ProcessingStatus;
+	/**
+	 * Current processing step.
+	 */
 	progressStep: ProgressStep;
+	/**
+	 * One-based queue position. Null when the snapshot is not queued.
+	 */
 	queuePosition: null | number | string;
+	/**
+	 * Whether cancellation can currently be requested.
+	 */
 	canCancel: boolean;
+	/**
+	 * Whether cancellation has been requested.
+	 */
 	cancelRequested: boolean;
+	/**
+	 * Processing start time, including the UTC offset. Null before processing starts.
+	 */
 	startedAt: null | string;
 };
 
@@ -209,19 +243,16 @@ export enum SnapshotQuality {
 	INCOMPLETE = "INCOMPLETE"
 }
 
-export type SnapshotReceipt = {
-	id: string;
-	statusUrl: string;
-	snapshotUrl: string;
-};
-
+/**
+ * Snapshot metadata and resource URLs.
+ */
 export type SnapshotResponse = {
 	/**
-	 * Unique identifier of the snapshot.
+	 * Snapshot identifier.
 	 */
 	id: string;
 	/**
-	 * Public source URL for a captured or uploaded page, up to 4,096 characters.
+	 * Original HTTP or HTTPS URL of the archived page.
 	 */
 	sourceUrl: null | string;
 	/**
@@ -229,43 +260,60 @@ export type SnapshotResponse = {
 	 */
 	title: string;
 	/**
-	 * Optional snapshot description, up to 2,048 characters.
+	 * Snapshot description. Null when no description was supplied.
 	 */
 	description: null | string;
+	/**
+	 * Source used to create the snapshot.
+	 */
 	sourceType: SourceType;
 	quality: null | SnapshotQuality;
 	/**
-	 * Timestamp at which the snapshot was created, including its UTC offset.
+	 * Snapshot creation time, including the UTC offset.
 	 */
 	createdAt: string;
 	/**
-	 * Archive duration in milliseconds.
+	 * Processing duration in milliseconds. Null until publication.
 	 */
 	durationMilliseconds: null | number | string;
 	/**
-	 * Storage used by the snapshot in bytes.
+	 * Snapshot storage size in bytes. Null until publication.
 	 */
 	storageBytes: null | number | string;
 	/**
-	 * Number of resources in the archived snapshot.
+	 * Number of archived resources. Null until publication.
 	 */
 	resourceCount: null | number | string;
 	/**
-	 * Tags assigned to the snapshot, up to 128 characters each.
+	 * Tags assigned to the snapshot.
 	 */
 	tags: Array<string>;
 	/**
-	 * Public screenshot URL after publication.
+	 * Screenshot URL. Null until the snapshot is published.
 	 */
 	screenshotUrl: null | string;
 	/**
-	 * Public start page URL after publication.
+	 * Archived start page URL. Null until the snapshot is published.
 	 */
 	contentUrl: null | string;
 	createdBy: null | ArchiveCreatorResponse;
+	/**
+	 * Processing start time, including the UTC offset. Null before processing starts.
+	 */
 	captureStartedAt: null | string;
+	/**
+	 * Processing end time, including the UTC offset. Null before processing ends.
+	 */
 	captureCompletedAt: null | string;
 };
+
+/**
+ * Capture-time ordering, with the snapshot ID as a stable tie-breaker.
+ */
+export enum SnapshotSortOrder {
+	DESC = "desc",
+	ASC = "asc"
+}
 
 /**
  * Source used to create a snapshot.
@@ -280,17 +328,39 @@ export enum SourceType {
 export type Stream = Blob | File;
 
 /**
- * Replaces the authenticated user's display name and handle.
+ * Display name and handle to save for the authenticated user.
  */
-export type UpdateUserProfile = {
+export type UpdateUserProfileRequest = {
 	/**
-	 * Unique handle of 4 to 32 characters after trimming. Letters, digits, internal underscores and hyphens; starts and ends with a letter or digit. Stored in lowercase.
+	 * Unique handle after trimming. Letters and digits with internal underscores or hyphens; stored in lowercase.
 	 */
 	handle: string;
 	/**
-	 * Display name of 6 to 64 characters after trimming and Unicode NFC normalization. Control characters are not permitted.
+	 * Display name after trimming and Unicode NFC normalization. Control characters are not permitted.
 	 */
 	displayName: string;
+};
+
+/**
+ * Profile of the authenticated user.
+ */
+export type UserProfileResponse = {
+	/**
+	 * Lowercase user handle. Null until a handle is saved.
+	 */
+	handle: null | string;
+	/**
+	 * User display name. Null until a display name is saved.
+	 */
+	displayName: null | string;
+	/**
+	 * URL of the stored profile image. Null when no image is stored.
+	 */
+	profileImageUrl: null | string;
+	/**
+	 * Whether a valid handle and display name have been saved.
+	 */
+	isRegistrationComplete: boolean;
 };
 
 export type ValidationProblemDetails = {
@@ -315,8 +385,10 @@ export type GetHealthzResponses = {
 	/**
 	 * OK
 	 */
-	200: unknown;
+	200: HealthResponse;
 };
+
+export type GetHealthzResponse = GetHealthzResponses[keyof GetHealthzResponses];
 
 export type ListAuthenticationProvidersData = {
 	body?: never;
@@ -329,7 +401,7 @@ export type ListAuthenticationProvidersResponses = {
 	/**
 	 * OK
 	 */
-	200: Array<AuthenticationProvider>;
+	200: Array<AuthenticationProviderResponse>;
 };
 
 export type ListAuthenticationProvidersResponse =
@@ -355,7 +427,7 @@ export type GetAuthenticationSessionResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticationSession;
+	200: AuthenticationSessionResponse;
 };
 
 export type GetAuthenticationSessionResponse = GetAuthenticationSessionResponses[keyof GetAuthenticationSessionResponses];
@@ -453,7 +525,7 @@ export type ListSnapshotsData = {
 		/**
 		 * Capture-time ordering: desc (newest first, default) or asc (oldest first). Snapshot IDs use the same direction as a stable tie-breaker.
 		 */
-		order?: SnapshotOrder;
+		order?: SnapshotSortOrder;
 		/**
 		 * One-based result page number.
 		 */
@@ -485,21 +557,24 @@ export type ListSnapshotsResponses = {
 export type ListSnapshotsResponse = ListSnapshotsResponses[keyof ListSnapshotsResponses];
 
 export type CreateSnapshotData = {
+	/**
+	 * Source URL and metadata for a new snapshot.
+	 */
 	body: {
 		/**
-		 * Public HTTP or HTTPS URL to archive.
+		 * Public HTTP or HTTPS URL to archive. The normalized URL must also meet the length limit.
 		 */
 		sourceUrl: string;
 		/**
-		 * Title for the snapshot that will be created. Control characters are not permitted.
+		 * Snapshot title. Control characters are not permitted.
 		 */
 		title: string;
 		/**
-		 * Optional snapshot description, up to 2,048 characters.
+		 * Optional snapshot description.
 		 */
 		description?: null | string;
 		/**
-		 * Up to 30 tags of 1 to 128 characters each. Leading hash signs and surrounding whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.
+		 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
 		 */
 		tags?: null | Array<string>;
 	};
@@ -533,7 +608,7 @@ export type CreateSnapshotResponses = {
 	/**
 	 * Accepted
 	 */
-	202: SnapshotReceipt;
+	202: SnapshotCreationResponse;
 };
 
 export type CreateSnapshotResponse = CreateSnapshotResponses[keyof CreateSnapshotResponses];
@@ -808,13 +883,13 @@ export type GetCurrentUserResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticatedArchiveUser;
+	200: UserProfileResponse;
 };
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
 
 export type UpdateCurrentUserData = {
-	body: UpdateUserProfile;
+	body: UpdateUserProfileRequest;
 	path?: never;
 	query?: never;
 	url: "/api/users/profile";
@@ -845,7 +920,7 @@ export type UpdateCurrentUserResponses = {
 	/**
 	 * OK
 	 */
-	200: AuthenticatedArchiveUser;
+	200: UserProfileResponse;
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];

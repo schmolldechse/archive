@@ -3,9 +3,11 @@ using System.ComponentModel.DataAnnotations;
 using Archive.Core.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Archive.Core.Models.Snapshots;
+using Archive.Api.Validation;
 
-namespace Archive.Api.Contracts;
+namespace Archive.Api.Contracts.Snapshots.Search;
 
+[Description("Snapshot search filters and pagination.")]
 public sealed class SnapshotSearchRequest
 {
     [Description("Whitespace-separated terms. Every term must match the title, description, source URL, or a tag. At most 20 terms are allowed.")]
@@ -35,10 +37,12 @@ public sealed class SnapshotSearchRequest
 
     [Description("Source used to create the snapshot.")]
     [FromQuery(Name = "sourceType")]
+    [ModelBinder(BinderType = typeof(SnapshotEnumQueryBinder))]
     public SourceType? SourceType { get; init; }
 
     [Description("Completeness of the snapshot.")]
     [FromQuery(Name = "quality")]
+    [ModelBinder(BinderType = typeof(SnapshotEnumQueryBinder))]
     public SnapshotQuality? Quality { get; init; }
 
     [Description("Inclusive start of the capture range as an offset timestamp.")]
@@ -51,16 +55,16 @@ public sealed class SnapshotSearchRequest
 
     [Description("Capture-time ordering: desc (newest first, default) or asc (oldest first). Snapshot IDs use the same direction as a stable tie-breaker.")]
     [FromQuery(Name = "order")]
-    [EnumDataType(typeof(SnapshotOrder))]
-    public SnapshotOrder Order { get; init; } = SnapshotOrder.Desc;
+    [ModelBinder(BinderType = typeof(SnapshotEnumQueryBinder))]
+    public SnapshotSortOrder Order { get; init; } = SnapshotSortOrder.Desc;
 
     [Description("One-based result page number.")]
     [FromQuery(Name = "page")]
-    [Range(1, 1_000_000)]
+    [Range(1, SnapshotValidation.MaxPage)]
     public int Page { get; init; } = 1;
 
     [Description("Number of snapshots per result page.")]
     [FromQuery(Name = "pageSize")]
-    [Range(1, 100)]
-    public int PageSize { get; init; } = 24;
+    [Range(1, SnapshotValidation.MaxPageSize)]
+    public int PageSize { get; init; } = SnapshotValidation.DefaultPageSize;
 }

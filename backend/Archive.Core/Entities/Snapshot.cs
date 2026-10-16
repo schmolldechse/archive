@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Archive.Core.Models.Snapshots;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Entities.Authentication;
@@ -31,16 +32,16 @@ public sealed class Snapshot
     [Column("source_type")]
     public SourceType SourceType { get; set; }
 
-    [MaxLength(4_096)]
+    [MaxLength(SnapshotValidation.MaxSourceUrlLength)]
     [Column("origin_url")]
     public string? OriginUrl { get; set; }
 
     [Required]
-    [MaxLength(512)]
+    [MaxLength(SnapshotValidation.MaxTitleLength)]
     [Column("title")]
     public required string Title { get; set; }
 
-    [MaxLength(2048)]
+    [MaxLength(SnapshotValidation.MaxDescriptionLength)]
     [Column("description")]
     public string? Description { get; set; }
 

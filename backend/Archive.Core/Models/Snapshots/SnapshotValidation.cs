@@ -12,6 +12,9 @@ public static class SnapshotValidation
     public const int MaxTags = 30;
     public const int MaxSearchTextLength = 500;
     public const int MaxSearchTerms = 20;
+    public const int MaxPage = 1_000_000;
+    public const int MaxPageSize = 100;
+    public const int DefaultPageSize = 24;
 
     public static string NormalizeTag(string? value) =>
         (value ?? string.Empty).Trim().TrimStart('#').ToLowerInvariant();
@@ -32,24 +35,14 @@ public static class SnapshotValidation
             if (allowEmpty && tag.Length == 0) continue;
             if (value?.Length > MaxTagLength || tag.Length > MaxTagLength || tag.Length == 0)
             {
-                yield return new($"Each tag must contain between 1 and {MaxTagLength} characters.", ["tags"]);
+                yield return new($"Each tag must contain between 1 and {MaxTagLength} characters.", [nameof(SnapshotCreationRequest.Tags)]);
                 yield break;
             }
             if (tag.Any(char.IsControl))
             {
-                yield return new("Tags cannot contain control characters.", ["tags"]);
+                yield return new("Tags cannot contain control characters.", [nameof(SnapshotCreationRequest.Tags)]);
                 yield break;
             }
         }
-    }
-
-    public static IReadOnlyList<FieldValidationError> GetErrors(IValidatableObject model)
-    {
-        var results = new List<ValidationResult>();
-        Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true);
-        return results.SelectMany(result => result.MemberNames.DefaultIfEmpty(string.Empty)
-            .Select(field => new FieldValidationError(
-                field.Length == 0 ? field : char.ToLowerInvariant(field[0]) + field[1..],
-                result.ErrorMessage ?? "The value is invalid."))).ToArray();
     }
 }

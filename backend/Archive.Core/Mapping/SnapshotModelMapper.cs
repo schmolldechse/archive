@@ -14,6 +14,7 @@ internal static partial class SnapshotModelMapper
 
     [MapProperty(nameof(Snapshot.SnapshotTags), nameof(SnapshotDetails.Tags), Use = nameof(MapTags))]
     [MapProperty(nameof(Snapshot.CreatedBy), nameof(SnapshotDetails.CreatedBy), Use = nameof(MapCreator))]
+    [MapProperty(nameof(Snapshot.OriginUrl), nameof(SnapshotDetails.SourceUrl))]
     private static partial SnapshotDetails MapDetails(Snapshot snapshot);
 
     internal static partial CaptureInput ToCaptureInput(Snapshot snapshot, string? uploadedObjectKey);
@@ -21,7 +22,7 @@ internal static partial class SnapshotModelMapper
     private static IReadOnlyList<string> MapTags(List<SnapshotTag> tags) =>
         tags.OrderBy(item => item.Tag.Value).Select(item => item.Tag.Value).ToArray();
 
-    // Keep this expression inlineable for EF projections; incomplete profiles are not public creators.
+    // EF inlines this expression into the projection; only completed profiles are public.
     private static ArchiveCreator? MapCreator(ArchiveUser? creator) =>
         creator == null || creator.RegistrationCompletedAt == null || creator.Handle == null || creator.DisplayName == null
             ? null

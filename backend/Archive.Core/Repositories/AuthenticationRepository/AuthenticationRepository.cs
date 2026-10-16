@@ -35,7 +35,7 @@ public sealed class AuthenticationRepository(DataContext dataContext) : IAuthent
 
         var user = new ArchiveUser
         {
-            ProfileImage = descriptor.ProfilePicture is { Length: > 0 } ? descriptor.ProfilePicture : null
+            ProfileImage = descriptor.ProfileImage is { Length: > 0 } ? descriptor.ProfileImage : null
         };
         authIdentity = new UserAuthIdentity
         {

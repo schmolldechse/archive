@@ -14,9 +14,9 @@ public partial class AuthenticationMapper
     [MapperIgnoreSource(nameof(ArchiveUser.UpdatedAt))]
     [MapperIgnoreSource(nameof(ArchiveUser.Identities))]
     [MapperIgnoreSource(nameof(ArchiveUser.RegistrationCompletedAt))]
-    public partial AuthenticatedArchiveUser ToResponse(ArchiveUser account, string? profileImageUrl);
+    public partial UserProfileResponse ToResponse(ArchiveUser account, string? profileImageUrl);
 
-    [MapperIgnoreSource(nameof(AuthProviderDescriptor.Scheme))]
-    public partial AuthenticationProvider ToResponse(AuthProviderDescriptor provider);
+    [MapperIgnoreSource(nameof(AuthenticationProviderDescriptor.Scheme))]
+    public partial AuthenticationProviderResponse ToResponse(AuthenticationProviderDescriptor provider);
 
 }

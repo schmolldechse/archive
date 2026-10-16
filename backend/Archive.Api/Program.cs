@@ -1,18 +1,19 @@
 using Archive.Api.Authentication;
+using Archive.Api.Contracts.Health;
 using Archive.Api.Mapping;
 using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
 using Archive.Api.Storage;
+using Archive.Api.Serialization;
 using Archive.Core;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
-using System.Text.Json.Serialization;
 
 if (args is ["--healthcheck"])
 {
@@ -35,17 +36,17 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<A
 builder.Services.AddOpenApi(options =>
 {
     options.AddOperationTransformer<SnapshotCreationOperationTransformer>();
+    options.AddOperationTransformer<SnapshotEventsOperationTransformer>();
     options.AddSchemaTransformer<SnapshotSchemaTransformer>();
 });
 builder.Services
-    .AddControllers()
-    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+    .AddControllers(options => options.ModelMetadataDetailsProviders.Add(new SystemTextJsonValidationMetadataProvider()))
+    .AddJsonOptions(options => ArchiveJson.Configure(options.JsonSerializerOptions));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
 
-builder.Services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
-builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(null, allowIntegerValues: false)));
+builder.Services.ConfigureHttpJsonOptions(options => ArchiveJson.Configure(options.SerializerOptions));
 
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
 builder.Services.AddSingleton<ArchiveCreatorMapper>();
@@ -88,7 +89,9 @@ app.Use(async (context, next) =>
 
     await next(context);
 });
-app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/healthz", () => Results.Ok(new HealthResponse { Status = "ok" }))
+    .Produces<HealthResponse>(StatusCodes.Status200OK, "application/json")
+    .WithSummary("Returns service health status.");
 app.MapControllers();
 
 if (app.Environment.IsDevelopment())

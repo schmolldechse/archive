@@ -1,6 +1,8 @@
-using Archive.Api.Contracts;
+using Archive.Api.Contracts.Snapshots;
+using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Mapping;
 using Archive.Api.Options;
+using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.SnapshotProcessingRepository;
@@ -44,21 +46,10 @@ public sealed partial class SnapshotsController(
         [FromQuery] SnapshotSearchRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid)
-            return ValidationProblem(ModelState);
-
-        if (Request.Query.TryGetValue("order", out var orderValues) &&
-            (orderValues.Count != 1 || orderValues[0] is not ("asc" or "desc")))
-        {
-            ModelState.AddModelError(nameof(request.Order), "Capture order must be asc or desc.");
-            return ValidationProblem(ModelState);
-        }
-
         var result = await snapshotRepository.SearchAsync(mapper.ToSearch(request), cancellationToken);
         if (result is SnapshotSearchResult.Invalid invalid)
         {
-            foreach (var error in invalid.Errors)
-                ModelState.AddModelError(error.Field, error.Message);
+            ModelState.AddErrors(invalid.Errors);
             return ValidationProblem(ModelState);
         }
 

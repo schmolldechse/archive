@@ -1,6 +1,5 @@
 using Archive.Api.Authentication;
 using Archive.Api.Authentication.Catalog;
-using Archive.Api.Contracts;
 using Archive.Api.Contracts.Authentication;
 using Archive.Api.Exceptions;
 using Archive.Api.Mapping;
@@ -29,8 +28,8 @@ public sealed class AuthenticationController(
     [EndpointName("ListAuthenticationProviders")]
     [EndpointSummary("Lists authentication providers.")]
     [EndpointDescription("Returns the key and display name of each registered external authentication provider.")]
-    [ProducesResponseType<IReadOnlyCollection<AuthenticationProvider>>(StatusCodes.Status200OK, "application/json")]
-    public ActionResult<IReadOnlyCollection<AuthenticationProvider>> ListAuthenticationProviders()
+    [ProducesResponseType<IReadOnlyCollection<AuthenticationProviderResponse>>(StatusCodes.Status200OK, "application/json")]
+    public ActionResult<IReadOnlyCollection<AuthenticationProviderResponse>> ListAuthenticationProviders()
     {
         var providers = providerCatalog
             .GetAll()
@@ -44,17 +43,17 @@ public sealed class AuthenticationController(
     [EndpointName("GetAuthenticationSession")]
     [EndpointSummary("Returns the current session.")]
     [EndpointDescription("Returns the authentication state and current user profile. Anonymous requests return an unauthenticated session with no user. An authenticated session with an invalid user identifier or a missing user returns HTTP 401.")]
-    [ProducesResponseType<AuthenticationSession>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<AuthenticationSessionResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
-    public async Task<ActionResult<AuthenticationSession>> GetAuthenticationSession(CancellationToken cancellationToken)
+    public async Task<ActionResult<AuthenticationSessionResponse>> GetAuthenticationSession(CancellationToken cancellationToken)
     {
         if (User.Identity?.IsAuthenticated != true)
-            return Ok(new AuthenticationSession { IsAuthenticated = false });
+            return Ok(new AuthenticationSessionResponse { IsAuthenticated = false, User = null });
 
         var account = await userRepository.GetByIdAsync(User.ReadUserId(), cancellationToken)
             ?? throw new InvalidSessionException();
 
-        return Ok(new AuthenticationSession
+        return Ok(new AuthenticationSessionResponse
         {
             IsAuthenticated = true,
             User = mapper.ToResponse(account, account.GetProfileImageUrl(options.PublicApiOrigin))

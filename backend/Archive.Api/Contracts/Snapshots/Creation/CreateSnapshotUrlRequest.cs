@@ -5,30 +5,29 @@ using Archive.Core.Models.Snapshots;
 
 namespace Archive.Api.Contracts.Snapshots.Creation;
 
-/// <summary>Metadata and source URL for a new snapshot.</summary>
-/// <example>{"sourceUrl":"https://example.org/","title":"Example page","description":"A public page captured for reference.","tags":["reference","web"]}</example>
+[Description("Source URL and metadata for a new snapshot.")]
 public sealed class CreateSnapshotUrlRequest : IValidatableObject
 {
     [JsonPropertyName("sourceUrl")]
-    [Description("Public HTTP or HTTPS URL to archive.")]
+    [Description("Public HTTP or HTTPS URL to archive. The normalized URL must also meet the length limit.")]
     [Required(AllowEmptyStrings = false, ErrorMessage = "A source URL is required.")]
     [Url]
     [StringLength(SnapshotValidation.MaxSourceUrlLength)]
     public required string SourceUrl { get; init; }
 
     [JsonPropertyName("title")]
-    [Description("Title for the snapshot that will be created. Control characters are not permitted.")]
+    [Description("Snapshot title. Control characters are not permitted.")]
     [Required(AllowEmptyStrings = false, ErrorMessage = "A title is required.")]
     [StringLength(SnapshotValidation.MaxTitleLength)]
     public required string Title { get; init; }
 
     [JsonPropertyName("description")]
-    [Description("Optional snapshot description, up to 2,048 characters.")]
+    [Description("Optional snapshot description.")]
     [StringLength(SnapshotValidation.MaxDescriptionLength)]
     public string? Description { get; init; }
 
     [JsonPropertyName("tags")]
-    [Description("Up to 30 tags of 1 to 128 characters each. Leading hash signs and surrounding whitespace are removed; tags are stored in lowercase and duplicates are removed. Empty tags and control characters are not permitted.")]
+    [Description("Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.")]
     [MaxLength(SnapshotValidation.MaxTags)]
     public string[]? Tags { get; init; }
 

@@ -1,4 +1,4 @@
-import { SnapshotOrder, SnapshotQuality, SourceType, type CaptureDistributionResponse, type ListSnapshotsData } from "$api";
+import { SnapshotSortOrder, SnapshotQuality, SourceType, type CaptureDistributionResponse, type ListSnapshotsData } from "$api";
 import { normalizeTags } from "$lib/components/tags/tags";
 import { snapshotLimits, validSourceUrl } from "$lib/snapshot-validation";
 import { DateTime } from "luxon";
@@ -134,7 +134,7 @@ export function apiQuery(state: SearchState): NonNullable<ListSnapshotsData["que
 		quality: state.quality,
 		capturedFrom: state.capturedFrom,
 		capturedUntil: state.capturedUntil,
-		order: state.order === "asc" ? SnapshotOrder.ASC : SnapshotOrder.DESC,
+		order: state.order === "asc" ? SnapshotSortOrder.ASC : SnapshotSortOrder.DESC,
 		page: state.page,
 		pageSize
 	};

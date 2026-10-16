@@ -25,7 +25,6 @@ public sealed class SnapshotCreationOperationTransformer(SnapshotUploadLimits li
                 parameter.ParameterType == typeof(CreateSnapshotFileRequest)))
             return;
 
-        // Use the framework's schema service so validation, property names and references stay intact.
         var urlSchema = await context.GetOrCreateSchemaAsync(typeof(CreateSnapshotUrlRequest), null, cancellationToken);
         var fileSchema = await context.GetOrCreateSchemaAsync(typeof(CreateSnapshotFileRequest), null, cancellationToken);
 
@@ -44,8 +43,7 @@ public sealed class SnapshotCreationOperationTransformer(SnapshotUploadLimits li
             "A parsed file above the file limit returns 413; multipart parsing failures return 400. " +
             "Repeat the tags form field for multiple tags. HTTP 202 returns the snapshot ID, statusUrl and snapshotUrl. " +
             "Poll GET /api/snapshots/{snapshotId}/status or stream /api/snapshots/{snapshotId}/events to follow progress. " +
-            "Capture duration, snapshot storage and resource limits are configured separately on the worker. " +
-            "Processing may be discarded when a worker limit is reached.";
+            "Processing ends with DISCARDED if a capture limit is reached.";
         operation.RequestBody = new OpenApiRequestBody
         {
             Required = true,

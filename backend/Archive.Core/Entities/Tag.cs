@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Archive.Core.Models.Snapshots;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +15,7 @@ public sealed class Tag
     public Guid Id { get; set; } = Guid.NewGuid();
 
     [Required]
-    [MaxLength(128)]
+    [MaxLength(SnapshotValidation.MaxTagLength)]
     [Column("value")]
     public required string Value { get; set; }
 

@@ -1,8 +1,9 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Microsoft.Extensions.Options;
 using Archive.Api.Authentication;
-using Archive.Api.Contracts;
+using Archive.Api.Contracts.Snapshots.Processing;
 using Archive.Api.Contracts.Snapshots.Creation;
+using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Processing;
 using Archive.Core.Processing;
@@ -13,19 +14,18 @@ namespace Archive.Api.Controllers;
 
 public sealed partial class SnapshotsController
 {
-    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
-    { Converters = { new JsonStringEnumConverter(null, allowIntegerValues: false) } };
+    private JsonSerializerOptions EventJsonOptions =>
+        HttpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.JsonSerializerOptions;
 
     [HttpPost, Consumes("application/json")]
     [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CreateSnapshotFromUrl"), EndpointSummary("Submits a URL for capture.")]
-    [ProducesResponseType<SnapshotReceipt>(StatusCodes.Status202Accepted, "application/json")]
+    [ProducesResponseType<SnapshotCreationResponse>(StatusCodes.Status202Accepted, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
-    public async Task<ActionResult<SnapshotReceipt>> CreateFromUrlAsync([FromBody] CreateSnapshotUrlRequest request,
+    public async Task<ActionResult<SnapshotCreationResponse>> CreateFromUrlAsync([FromBody] CreateSnapshotUrlRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
         return CreationResponse(await snapshotRepository.CreateFromUrlAsync(
             new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId), cancellationToken));
     }
@@ -33,15 +33,14 @@ public sealed partial class SnapshotsController
     [HttpPost, Consumes("multipart/form-data")]
     [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CreateSnapshotFromFile"), EndpointSummary("Submits an HTML, MHTML or Webarchive import.")]
-    [ProducesResponseType<SnapshotReceipt>(StatusCodes.Status202Accepted, "application/json")]
+    [ProducesResponseType<SnapshotCreationResponse>(StatusCodes.Status202Accepted, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType, "application/problem+json")]
-    public async Task<ActionResult<SnapshotReceipt>> CreateFromFileAsync([FromForm] CreateSnapshotFileRequest request,
+    public async Task<ActionResult<SnapshotCreationResponse>> CreateFromFileAsync([FromForm] CreateSnapshotFileRequest request,
         CancellationToken cancellationToken)
     {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
         return CreationResponse(await snapshotRepository.CreateFromFileAsync(
             new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId),
             new(request.File.FileName, request.File.Length, request.File.OpenReadStream), cancellationToken));
@@ -56,7 +55,7 @@ public sealed partial class SnapshotsController
     {
         Response.Headers.CacheControl = "no-store";
         var state = await processing.GetByIdAsync(snapshotId, cancellationToken);
-        return state is null ? NotFound() : Ok(SnapshotProcessingResponse.From(state));
+        return state is null ? NotFound() : Ok(mapper.ToResponse(state));
     }
 
     [HttpGet("{snapshotId:guid}/events")]
@@ -75,7 +74,7 @@ public sealed partial class SnapshotsController
         string? lastPayload = null;
         while (!cancellationToken.IsCancellationRequested)
         {
-            var payload = JsonSerializer.Serialize(SnapshotProcessingResponse.From(state), EventJsonOptions);
+            var payload = JsonSerializer.Serialize(mapper.ToResponse(state), EventJsonOptions);
             if (payload != lastPayload)
             {
                 await Response.WriteAsync($"data: {payload}\n\n", cancellationToken);
@@ -113,7 +112,7 @@ public sealed partial class SnapshotsController
         var result = await processing.CancelAsync(snapshotId, cancellationToken);
         return result.Outcome switch
         {
-            CancellationOutcome.Accepted => Ok(SnapshotProcessingResponse.From(result.State!)),
+            CancellationOutcome.Accepted => Ok(mapper.ToResponse(result.State!)),
             CancellationOutcome.Missing => NotFound(),
             _ => Problem(statusCode: 409, title: "Snapshot cannot be cancelled", detail: "Publication has started or processing has ended.")
         };
@@ -121,19 +120,23 @@ public sealed partial class SnapshotsController
 
     private Guid? CurrentUserId => User.Identity?.IsAuthenticated == true ? User.ReadUserId() : null;
 
-    private ActionResult<SnapshotReceipt> CreationResponse(SnapshotCreationResult result)
+    private ActionResult<SnapshotCreationResponse> CreationResponse(SnapshotCreationResult result)
     {
         switch (result)
         {
             case SnapshotCreationResult.Created created:
                 var snapshotUrl = $"/api/snapshots/{created.Id}";
                 var statusUrl = $"{snapshotUrl}/status";
-                return Accepted(statusUrl, new SnapshotReceipt(created.Id, statusUrl, snapshotUrl));
+                return Accepted(statusUrl, new SnapshotCreationResponse
+                {
+                    Id = created.Id,
+                    StatusUrl = statusUrl,
+                    SnapshotUrl = snapshotUrl
+                });
             case SnapshotCreationResult.UploadTooLarge:
                 return Problem(statusCode: 413, title: "File too large", detail: "The uploaded file exceeds the system limit.");
             case SnapshotCreationResult.Invalid invalid:
-                foreach (var error in invalid.Errors)
-                    ModelState.AddModelError(error.Field == "originUrl" ? "sourceUrl" : error.Field, error.Message);
+                ModelState.AddErrors(invalid.Errors);
                 return ValidationProblem(ModelState);
             default: throw new InvalidOperationException("Unknown snapshot creation result.");
         }
@@ -141,7 +144,8 @@ public sealed partial class SnapshotsController
 
     private async Task WriteStreamErrorAsync(int status, string title, CancellationToken token)
     {
-        await Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(new { status, title })}\n\n", token);
+        var error = new SnapshotProcessingErrorResponse { Status = status, Title = title };
+        await Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(error, EventJsonOptions)}\n\n", token);
         await Response.Body.FlushAsync(token);
     }
 }

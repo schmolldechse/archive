@@ -10,7 +10,7 @@ internal sealed partial class SnapshotRepository
 {
     public async Task<SnapshotSearchResult> SearchAsync(SnapshotSearch search, CancellationToken cancellationToken = default)
     {
-        var errors = SnapshotValidation.GetErrors(search);
+        var errors = ModelValidation.GetErrors(search);
         if (errors.Count > 0)
             return new SnapshotSearchResult.Invalid(errors);
 

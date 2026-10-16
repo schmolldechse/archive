@@ -20,11 +20,11 @@ internal sealed partial class SnapshotRepository
 
     private async Task<SnapshotCreationResult> CreateAsync(SnapshotCreationRequest request, SnapshotUpload? upload, CancellationToken cancellationToken)
     {
-        var errors = SnapshotValidation.GetErrors(request);
+        var errors = ModelValidation.GetErrors(request);
         if (errors.Count > 0)
             return new SnapshotCreationResult.Invalid(errors);
 
-        UrlNormalizer.TryNormalizeSource(request.OriginUrl, out var originUrl, out _);
+        UrlNormalizer.TryNormalizeSource(request.SourceUrl, out var originUrl, out _);
         var title = request.Title.Trim();
         var tags = (request.Tags ?? []).Select(SnapshotValidation.NormalizeTag).ToArray();
 

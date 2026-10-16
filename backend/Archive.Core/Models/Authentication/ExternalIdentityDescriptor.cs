@@ -4,4 +4,4 @@ public sealed record ExternalIdentityDescriptor(
     string ProviderKey,
     string ProviderDisplayName,
     string ExternalSubject,
-    byte[]? ProfilePicture);
+    byte[]? ProfileImage);
