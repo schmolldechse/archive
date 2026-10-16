@@ -25,9 +25,6 @@ services:
       Processing__CleanupBatchSize: ${PROCESSING_CLEANUP_BATCH_SIZE:-100}
     expose:
       - "8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - api-key-ring:/app/key-ring
     networks:
@@ -67,8 +64,6 @@ services:
       - ${ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY:-../../.secrets}:/run/secrets:ro
     depends_on:
       api:
-        condition: service_healthy
-      postgres:
         condition: service_healthy
     networks:
       - archive
