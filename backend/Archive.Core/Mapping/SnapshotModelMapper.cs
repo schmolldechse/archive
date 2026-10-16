@@ -26,5 +26,5 @@ internal static partial class SnapshotModelMapper
     private static ArchiveCreator? MapCreator(ArchiveUser? creator) =>
         creator == null || creator.RegistrationCompletedAt == null || creator.Handle == null || creator.DisplayName == null
             ? null
-            : new ArchiveCreator(creator.Handle, creator.DisplayName, creator.ProfileImage);
+            : new ArchiveCreator(creator.Handle, creator.DisplayName, creator.ProfileImage != null && creator.ProfileImage.Length > 0);
 }

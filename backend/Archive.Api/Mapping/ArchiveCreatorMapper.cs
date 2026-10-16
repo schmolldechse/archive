@@ -8,7 +8,7 @@ namespace Archive.Api.Mapping;
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
 public partial class ArchiveCreatorMapper(ArchiveAuthenticationOptions options)
 {
-    [MapperIgnoreSource(nameof(ArchiveCreator.ProfileImage))]
+    [MapperIgnoreSource(nameof(ArchiveCreator.HasProfileImage))]
     [MapPropertyFromSource(nameof(ArchiveCreatorResponse.ProfileImageUrl), Use = nameof(GetProfileImageUrl))]
     public partial ArchiveCreatorResponse ToResponse(ArchiveCreator creator);
 

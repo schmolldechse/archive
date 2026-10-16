@@ -820,6 +820,10 @@ export type GetCurrentUserProfileImageErrors = {
 	 * Not Found
 	 */
 	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: unknown;
 };
 
 export type GetCurrentUserProfileImageError = GetCurrentUserProfileImageErrors[keyof GetCurrentUserProfileImageErrors];
@@ -850,6 +854,10 @@ export type GetUserProfileImageErrors = {
 	 * Not Found
 	 */
 	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: unknown;
 };
 
 export type GetUserProfileImageError = GetUserProfileImageErrors[keyof GetUserProfileImageErrors];

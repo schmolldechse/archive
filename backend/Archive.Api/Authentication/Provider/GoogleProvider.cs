@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Archive.Core.Models.Authentication;
+using Archive.Core.Models.ProfileImages;
 using Archive.Core.Repositories.AuthenticationRepository;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -11,7 +12,6 @@ namespace Archive.Api.Authentication.Provider;
 public sealed class GoogleProvider : IAuthenticationProvider
 {
     private const string PictureClaimType = "urn:google:picture";
-    private const int MaxProfileImageBytes = 2 * 1024 * 1024;
 
     public string Key => "google";
     public string DisplayName => "Google";
@@ -113,7 +113,7 @@ public sealed class GoogleProvider : IAuthenticationProvider
         deadline.CancelAfter(TimeSpan.FromSeconds(3));
 
         using var response = await client.GetAsync(pictureUrl, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
-        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxProfileImageBytes) return null;
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > ProfileImageEncoding.MaxBytes) return null;
 
         await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
 
@@ -122,11 +122,10 @@ public sealed class GoogleProvider : IAuthenticationProvider
         int count;
         while ((count = await stream.ReadAsync(buffer, deadline.Token)) != 0)
         {
-            if (image.Length + count > MaxProfileImageBytes) return null;
+            if (image.Length + count > ProfileImageEncoding.MaxBytes) return null;
             image.Write(buffer, 0, count);
         }
 
-        var bytes = image.ToArray();
-        return ProfileImageContent.ContentType(bytes) is null ? null : bytes;
+        return image.ToArray();
     }
 }
