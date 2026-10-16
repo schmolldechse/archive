@@ -7,6 +7,7 @@ using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
+using Archive.Worker.Storage;
 using Microsoft.Playwright;
 using Archive.Core.Entities.Processing;
 
@@ -144,15 +145,14 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 // Freeze the browser before writing; later navigation cannot change
                 // the validated HTML, screenshot or the drained resource collection.
                 await ClosePageAsync(page);
-                var prefix = $"snapshots/{job.Id:N}";
                 progress?.Report(ProgressStep.SavingSnapshot);
-                var manifest = await StoreResourcesAsync(prefix, normalizedUrl, html, screenshot, collector.Resources,
+                var manifest = await StoreResourcesAsync(job.Id, normalizedUrl, html, screenshot, collector.Resources,
                     cancellationToken, collector.Incomplete);
                 var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
 
                 return new CaptureResult(
                     manifest.Incomplete ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
-                    prefix,
+                    manifest.ContentPrefix,
                     manifest.StorageBytes, manifest.ResourceCount, duration, manifest.StoredObjectKeys);
             }
             catch (Exception exception) when (exception is CaptureChallengeEncounteredException ||
@@ -238,40 +238,29 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         await Task.Delay(_limits.QuietPeriod, cancellationToken);
     }
 
-    private async Task<StoredManifest> StoreResourcesAsync(string prefix, string? originalUrl, string html, byte[] screenshot,
+    private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId, string? originalUrl, string html, byte[] screenshot,
         IReadOnlyDictionary<string, CapturedResource> captured, CancellationToken cancellationToken, bool incomplete = false)
     {
-        var map = captured.Values.ToDictionary(x => x.Url, x => $"/api/snapshots/{prefix.Split('/').Last()}/content/assets/{Hash(x.Url)}", StringComparer.Ordinal);
-        var rewrittenHtml = RewriteReferences(html, map, originalUrl, $"/api/snapshots/{prefix.Split('/').Last()}/content/");
-        var htmlKey = $"{prefix}/index.html";
-        var screenshotKey = $"{prefix}/screenshot.png";
-        var manifestKey = $"{prefix}/manifest.json";
-        var totalBytes = 0L;
-        var storedKeys = new List<string>(captured.Count + 3);
+        var writer = new SnapshotObjectWriter(objectStore, snapshotId, _limits.MaxStorageBytes, logger);
+        var contentBase = $"/api/snapshots/{snapshotId:N}/content/";
+        var map = captured.Values.ToDictionary(x => x.Url, x => $"{contentBase}assets/{Hash(x.Url)}", StringComparer.Ordinal);
+        var rewrittenHtml = RewriteReferences(html, map, originalUrl, contentBase);
+        var htmlKey = writer.GetObjectKey("index.html");
+        var screenshotKey = writer.GetObjectKey("screenshot.png");
 
         try
         {
             var rewrittenHtmlBytes = Encoding.UTF8.GetBytes(rewrittenHtml);
-            totalBytes += rewrittenHtmlBytes.LongLength;
-            EnsureStorageLimit(totalBytes);
-            storedKeys.Add(htmlKey);
-            await PutBytesAsync(htmlKey, rewrittenHtmlBytes, "text/html; charset=utf-8", cancellationToken);
-            totalBytes += screenshot.LongLength;
-            EnsureStorageLimit(totalBytes);
-            storedKeys.Add(screenshotKey);
-            await PutBytesAsync(screenshotKey, screenshot, "image/png", cancellationToken);
+            await writer.WriteAsync("index.html", rewrittenHtmlBytes, "text/html; charset=utf-8", cancellationToken);
+            await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
 
             foreach (var resource in captured.Values)
             {
-                var key = $"{prefix}/assets/{Hash(resource.Url)}";
-                EnsureStorageLimit(totalBytes + resource.Body.LongLength);
+                writer.EnsureCapacity(resource.Body.LongLength);
                 var body = resource.ContentType.Equals("text/css", StringComparison.OrdinalIgnoreCase)
-                    ? Encoding.UTF8.GetBytes(RewriteReferences(Encoding.UTF8.GetString(resource.Body), map, resource.Url, $"/api/snapshots/{prefix.Split('/').Last()}/content/"))
+                    ? Encoding.UTF8.GetBytes(RewriteReferences(Encoding.UTF8.GetString(resource.Body), map, resource.Url, contentBase))
                     : resource.Body;
-                EnsureStorageLimit(totalBytes + body.LongLength);
-                storedKeys.Add(key);
-                await PutBytesAsync(key, body, resource.ContentType, cancellationToken);
-                totalBytes += body.LongLength;
+                await writer.WriteAsync($"assets/{Hash(resource.Url)}", body, resource.ContentType, cancellationToken);
             }
 
             var manifest = new
@@ -279,44 +268,19 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 version = 1,
                 htmlObjectKey = htmlKey,
                 screenshotObjectKey = screenshotKey,
-                resources = captured.Values.Select(x => new { url = x.Url, contentType = x.ContentType, objectKey = $"{prefix}/assets/{Hash(x.Url)}" }),
-                storageBytes = totalBytes,
+                resources = captured.Values.Select(x => new { url = x.Url, contentType = x.ContentType, objectKey = writer.GetObjectKey($"assets/{Hash(x.Url)}") }),
+                storageBytes = writer.StorageBytes,
                 incomplete
             };
-            var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true });
-            EnsureStorageLimit(totalBytes + manifestBytes.LongLength);
-            storedKeys.Add(manifestKey);
-            await PutBytesAsync(manifestKey, manifestBytes, "application/json", cancellationToken);
-            totalBytes += manifestBytes.LongLength;
+            await writer.WriteManifestAsync(manifest, new JsonSerializerOptions { WriteIndented = true }, cancellationToken);
 
-            return new StoredManifest(totalBytes, captured.Count, incomplete, storedKeys.ToArray());
+            return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, captured.Count, incomplete, writer.StoredObjectKeys);
         }
         catch
         {
-            await DeleteObjectsAsync(storedKeys);
+            await writer.RollbackAsync();
             throw;
         }
-    }
-
-    private async Task DeleteObjectsAsync(IEnumerable<string> keys)
-    {
-        foreach (var key in keys.Distinct(StringComparer.Ordinal).Reverse())
-        {
-            try { await objectStore.DeleteAsync(key, CancellationToken.None); }
-            catch (Exception exception) { logger.LogWarning(exception, "Unvollständiges Archivobjekt {ObjectKey} konnte nicht gelöscht werden", key); }
-        }
-    }
-
-    private void EnsureStorageLimit(long totalBytes)
-    {
-        if (totalBytes > _limits.MaxStorageBytes)
-            throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
-    }
-
-    private async Task PutBytesAsync(string key, byte[] bytes, string contentType, CancellationToken cancellationToken)
-    {
-        await using var stream = new MemoryStream(bytes, writable: false);
-        await objectStore.PutAsync(key, stream, contentType, cancellationToken);
     }
 
     private static string RewriteReferences(string html, IReadOnlyDictionary<string, string> map, string? originalUrl, string contentBase)
@@ -369,6 +333,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         public int Viewport { get; set; }
         public int Mutations { get; set; }
     }
-    private sealed record StoredManifest(long StorageBytes, int ResourceCount, bool Incomplete,
+    private sealed record StoredManifest(string ContentPrefix, long StorageBytes, int ResourceCount, bool Incomplete,
         IReadOnlyList<string> StoredObjectKeys);
 }
