@@ -3,7 +3,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Archive.Worker.Import;
+namespace Archive.Worker.Import.Decoders;
 
 internal static class PropertyListReader
 {

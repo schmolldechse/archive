@@ -7,11 +7,14 @@ using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
+using Archive.Worker.Capture.Browser.Access;
+using Archive.Worker.Capture.Crawling;
+using Archive.Worker.Capture.Network;
 using Archive.Worker.Storage;
 using Microsoft.Playwright;
 using Archive.Core.Entities.Processing;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Browser;
 
 public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, ArchiveOptions options,
     ArchiveBrowserOptions browserOptions, WebBotAuthSigner webBotAuthSigner, CrawlPolicyService crawlPolicy,

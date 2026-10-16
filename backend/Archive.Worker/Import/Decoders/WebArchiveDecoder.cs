@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Archive.Core.Entities;
 
-namespace Archive.Worker.Import;
+namespace Archive.Worker.Import.Decoders;
 
 public sealed class WebArchiveDecoder : IUploadedDocumentDecoder
 {

@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
+using Archive.Worker.Capture.Network;
 using Microsoft.Playwright;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Browser.Access;
 
 // Context-level routing sees the first request of popups as well. Only pages
 // explicitly registered by the capture engine are allowed to reach the network.

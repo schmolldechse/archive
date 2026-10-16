@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using Archive.Core.Jobs;
+using Archive.Worker.Capture.Network;
 using Microsoft.Playwright;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Browser.Access;
 
 // One session per page. Response state from a previous document must never approve
 // a new document, including a same-URL reload during a Cloudflare challenge.
@@ -383,5 +384,3 @@ internal sealed class CapturePageAccess : IDisposable
         _page.FrameNavigated -= OnFrameNavigated;
     }
 }
-
-internal sealed class CaptureChallengeEncounteredException : Exception;

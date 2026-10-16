@@ -1,48 +1,19 @@
 using Archive.Core.Entities;
 using Archive.Core.Entities.Processing;
-using Archive.Core.Processing;
 using Archive.Core.Models.Processing;
 using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
+using Archive.Worker.Capture.Browser;
 using Archive.Worker.Import;
 
-namespace Archive.Worker;
+namespace Archive.Worker.Processing;
 
-public sealed class ArchiveWorkerService(IServiceScopeFactory scopeFactory,
+internal sealed class SnapshotProcessor(IServiceScopeFactory scopeFactory,
     BrowserCaptureEngine captureEngine, OfflineImportEngine offlineImportEngine,
-    IArchiveObjectStore objectStore, ILogger<ArchiveWorkerService> logger) : BackgroundService
+    IArchiveObjectStore objectStore, ILogger<SnapshotProcessor> logger)
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await using var lease = await ProcessingLease.AcquireAsync(scopeFactory, stoppingToken);
-                using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                var monitor = lease.MonitorAsync(lifetime, logger);
-                try
-                {
-                    var interruptedUploads = await lease.RecoverInterruptedAsync(lifetime.Token);
-                    foreach (var upload in interruptedUploads) await DeleteUploadAsync(upload, lifetime.Token);
-                    while (!lifetime.IsCancellationRequested)
-                    {
-                        var claim = await lease.TryClaimNextAsync(Guid.NewGuid(), lifetime.Token);
-                        if (claim is null) { await Task.Delay(500, lifetime.Token); continue; }
-                        await ProcessAsync(claim, lifetime.Token);
-                    }
-                }
-                finally { lifetime.Cancel(); await monitor; }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception exception) { logger.LogError(exception, "Worker lease will be reacquired before recovery and new claims"); }
-            try { await Task.Delay(1_000, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-        }
-    }
-
-    private async Task ProcessAsync(ClaimedSnapshot claim, CancellationToken token)
+    public async Task ProcessAsync(ClaimedSnapshot claim, CancellationToken token)
     {
         var input = claim.Input;
         CaptureResult? capture = null;
@@ -70,7 +41,7 @@ public sealed class ArchiveWorkerService(IServiceScopeFactory scopeFactory,
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // The next lease reconciles the attempt. Do not delete uncertain results.
+            // Keep stored objects when publication cannot be confirmed.
             return;
         }
         catch (Exception exception) { logger.LogError(exception, "Snapshot {SnapshotId} processing failed", input.Id); }
@@ -129,7 +100,7 @@ public sealed class ArchiveWorkerService(IServiceScopeFactory scopeFactory,
         }
     }
 
-    private async Task DeleteUploadAsync(string? key, CancellationToken token)
+    public async Task DeleteUploadAsync(string? key, CancellationToken token)
     {
         if (key is null) return;
         try { await objectStore.DeleteAsync(key, token); }

@@ -1,7 +1,7 @@
 using System.Text;
 using Archive.Core.Entities;
 
-namespace Archive.Worker.Import;
+namespace Archive.Worker.Import.Decoders;
 
 public sealed class HtmlDecoder : IUploadedDocumentDecoder
 {

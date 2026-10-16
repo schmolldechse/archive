@@ -2,8 +2,10 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using Archive.Worker.Capture.Browser;
+using Archive.Worker.Capture.Network;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Crawling;
 
 public sealed class CrawlPolicyService : IDisposable
 {

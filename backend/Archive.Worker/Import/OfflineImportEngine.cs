@@ -8,6 +8,7 @@ using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture;
+using Archive.Worker.Capture.Browser;
 using Archive.Worker.Storage;
 using Microsoft.Playwright;
 using Archive.Core.Entities.Processing;

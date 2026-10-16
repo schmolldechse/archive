@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using NSec.Cryptography;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Network;
 
 public sealed class WebBotAuthSigner : IDisposable
 {

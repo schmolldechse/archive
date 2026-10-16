@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Crawling;
 
 public sealed class HostRateLimiter(CrawlPolicyOptions options)
 {

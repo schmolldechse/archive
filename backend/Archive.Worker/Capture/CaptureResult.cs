@@ -9,5 +9,3 @@ public sealed record CaptureResult(
     int ResourceCount,
     long DurationMilliseconds,
     IReadOnlyList<string> StoredObjectKeys);
-
-public sealed record CapturedResource(string Url, string ContentType, byte[] Body);

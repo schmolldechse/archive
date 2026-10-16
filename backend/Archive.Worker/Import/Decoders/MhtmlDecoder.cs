@@ -1,7 +1,7 @@
 using Archive.Core.Entities;
 using MimeKit;
 
-namespace Archive.Worker.Import;
+namespace Archive.Worker.Import.Decoders;
 
 public sealed class MhtmlDecoder : IUploadedDocumentDecoder
 {

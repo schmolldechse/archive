@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Browser.Access;
 
 internal static class CloudflareChallengeDetector
 {

@@ -1,7 +1,8 @@
 using Archive.Core.Jobs;
+using Archive.Worker.Capture.Browser.Access;
 using Microsoft.Playwright;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Browser;
 
 internal sealed class CapturedResourceCollector : IAsyncDisposable
 {

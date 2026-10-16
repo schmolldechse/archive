@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Network;
 
 // Application-level SSRF guard. Production deployments must additionally deny
 // private/link-local destinations at the network boundary to close DNS rebinding

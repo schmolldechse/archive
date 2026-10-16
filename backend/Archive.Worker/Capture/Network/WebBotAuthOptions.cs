@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Archive.Worker.Capture;
+namespace Archive.Worker.Capture.Network;
 
 public sealed class WebBotAuthOptions : IValidatableObject
 {
