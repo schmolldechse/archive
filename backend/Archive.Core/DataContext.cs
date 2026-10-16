@@ -9,8 +9,6 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
 {
     public DbSet<SnapshotProcessing> SnapshotProcessing => Set<SnapshotProcessing>();
 
-    public DbSet<Project> Projects => Set<Project>();
-
     public DbSet<Snapshot> Snapshots => Set<Snapshot>();
     public DbSet<SnapshotTag> SnapshotTags => Set<SnapshotTag>();
 
@@ -22,7 +20,6 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasPostgresExtension("pgcrypto");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DataContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }

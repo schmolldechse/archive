@@ -22,13 +22,6 @@ public sealed class Snapshot
     [DeleteBehavior(DeleteBehavior.SetNull)]
     public ArchiveUser? CreatedBy { get; set; }
 
-    [Column("project_id")]
-    public Guid ProjectId { get; set; }
-
-    [ForeignKey(nameof(ProjectId))]
-    [InverseProperty(nameof(Entities.Project.Snapshots))]
-    public Project Project { get; set; } = null!;
-
     [Column("source_type")]
     public SourceType SourceType { get; set; }
 

@@ -22,7 +22,6 @@ namespace Archive.Core.Migrations
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "processing_status", new[] { "ABORTED", "CANCELLED", "COMPLETED", "DISCARDED", "FAILED", "QUEUED", "RUNNING" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "progress_step", new[] { "FINISHED", "LOADING_DYNAMIC_CONTENT", "LOADING_PAGE", "SAVING_SNAPSHOT", "SOURCE_CHECK" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "snapshot_quality", new[] { "COMPLETE", "INCOMPLETE" });
@@ -204,38 +203,6 @@ namespace Archive.Core.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Archive.Core.Entities.Project", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasMaxLength(4500)
-                        .HasColumnType("character varying(4500)")
-                        .HasColumnName("project_key");
-
-                    b.Property<byte[]>("ProjectKeyHash")
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea")
-                        .HasColumnName("project_key_hash")
-                        .HasComputedColumnSql("digest(project_key, 'sha256')", true);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectKeyHash")
-                        .IsUnique();
-
-                    b.ToTable("projects", "archive");
-                });
-
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -278,10 +245,6 @@ namespace Archive.Core.Migrations
                         .HasColumnType("character varying(4096)")
                         .HasColumnName("origin_url");
 
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
                     b.Property<SnapshotQuality?>("Quality")
                         .HasColumnType("types.snapshot_quality")
                         .HasColumnName("quality");
@@ -313,8 +276,6 @@ namespace Archive.Core.Migrations
                     b.HasIndex("OriginUrl");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("OriginUrl"), "hash");
-
-                    b.HasIndex("ProjectId");
 
                     b.ToTable("snapshots", "archive");
                 });
@@ -394,15 +355,7 @@ namespace Archive.Core.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("Archive.Core.Entities.Project", "Project")
-                        .WithMany("Snapshots")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("CreatedBy");
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.SnapshotTag", b =>
@@ -432,11 +385,6 @@ namespace Archive.Core.Migrations
             modelBuilder.Entity("Archive.Core.Entities.Authentication.AuthProvider", b =>
                 {
                     b.Navigation("Identities");
-                });
-
-            modelBuilder.Entity("Archive.Core.Entities.Project", b =>
-                {
-                    b.Navigation("Snapshots");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Snapshot", b =>

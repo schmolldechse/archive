@@ -18,13 +18,6 @@ public static class UrlNormalizer
         return true;
     }
 
-    public static string ProjectKey(string normalizedSource)
-    {
-        var uri = new Uri(normalizedSource);
-        var path = uri.AbsolutePath.TrimEnd('/');
-        return $"{uri.Host.ToLowerInvariant()}:{uri.Port}{(string.IsNullOrEmpty(path) ? "/" : path)}";
-    }
-
     private static string Normalize(Uri uri, bool includeQuery)
     {
         var builder = new UriBuilder(uri)

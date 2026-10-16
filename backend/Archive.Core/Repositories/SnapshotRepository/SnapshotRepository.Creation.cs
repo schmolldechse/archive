@@ -79,17 +79,6 @@ internal sealed partial class SnapshotRepository
             }
 
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-            var projectKey = UrlNormalizer.ProjectKey(originUrl);
-            // Unique constraints arbitrate concurrent submissions of the same source or tag.
-            await database.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO archive.projects (id, project_key, created_at)
-                VALUES ({Guid.NewGuid()}, {projectKey}, {DateTimeOffset.UtcNow})
-                ON CONFLICT (project_key_hash) DO NOTHING
-                """, cancellationToken);
-            snapshot.ProjectId = await database.Database.SqlQuery<Guid>($"""
-                SELECT id AS "Value" FROM archive.projects
-                WHERE project_key_hash = digest({projectKey}, 'sha256') AND project_key = {projectKey}
-                """).SingleAsync(cancellationToken);
             foreach (var value in tags.Distinct(StringComparer.Ordinal))
             {
                 await database.Database.ExecuteSqlInterpolatedAsync($"""
