@@ -1,3 +1,4 @@
+using Amazon.S3;
 using Archive.Core.Entities;
 using Archive.Core.Uploads;
 using Archive.Core.Options;
@@ -11,6 +12,7 @@ using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.ProfileImageRepository;
 using Archive.Core.Entities.Processing;
+using Archive.Core.Storage;
 
 namespace Archive.Core;
 
@@ -46,6 +48,21 @@ public static class Injection
         services.AddOptions<ProcessingOptions>().Bind(configuration.GetSection(ProcessingOptions.SectionName))
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ProcessingOptions>>().Value);
+
+        services.AddSingleton<IAmazonS3>(provider =>
+        {
+            var options = provider.GetRequiredService<ObjectStorageOptions>();
+            var config = new AmazonS3Config
+            {
+                ServiceURL = options.ServiceUrl,
+                ForcePathStyle = true
+            };
+
+            return string.IsNullOrWhiteSpace(options.AccessKey)
+                ? new AmazonS3Client(config)
+                : new AmazonS3Client(options.AccessKey, options.SecretKey, config);
+        });
+        services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 
         services.AddDbContext<DataContext>((provider, options) => options.UseNpgsql(
             configuration.GetConnectionString("DefaultConnection"),

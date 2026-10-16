@@ -4,12 +4,9 @@ using Archive.Api.Mapping;
 using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
-using Archive.Api.Storage;
 using Archive.Api.Serialization;
-using Archive.Api.Maintenance;
 using Archive.Core;
 using Archive.Core.Options;
-using Archive.Core.Storage;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.EntityFrameworkCore;
@@ -54,8 +51,6 @@ builder.Services.AddSingleton<ArchiveCreatorMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
-
-builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 
 builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
     .AllowAnyOrigin()

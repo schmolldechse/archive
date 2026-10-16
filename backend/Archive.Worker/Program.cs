@@ -1,10 +1,8 @@
 using Archive.Core;
 using Archive.Core.Options;
-using Archive.Core.Storage;
 using Archive.Worker;
 using Archive.Worker.Capture;
 using Archive.Worker.Import;
-using Archive.Worker.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -32,7 +30,6 @@ builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<C
 builder.Services.AddSingleton<HostRateLimiter>();
 builder.Services.AddSingleton<CrawlPolicyService>();
 builder.Services.AddArchiveCore(builder.Configuration);
-builder.Services.AddSingleton<IArchiveObjectStore, S3ArchiveObjectStore>();
 builder.Services.AddSingleton<BrowserCaptureEngine>();
 builder.Services.AddSingleton<IUploadedDocumentDecoder, HtmlDecoder>();
 builder.Services.AddSingleton<IUploadedDocumentDecoder, MhtmlDecoder>();
