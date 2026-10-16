@@ -22,6 +22,7 @@ namespace Archive.Core.Migrations
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "processing_status", new[] { "ABORTED", "CANCELLED", "COMPLETED", "DISCARDED", "FAILED", "QUEUED", "RUNNING" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "progress_step", new[] { "FINISHED", "LOADING_DYNAMIC_CONTENT", "LOADING_PAGE", "SAVING_SNAPSHOT", "SOURCE_CHECK" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "snapshot_quality", new[] { "COMPLETE", "INCOMPLETE" });
@@ -220,9 +221,16 @@ namespace Archive.Core.Migrations
                         .HasColumnType("character varying(4500)")
                         .HasColumnName("project_key");
 
+                    b.Property<byte[]>("ProjectKeyHash")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea")
+                        .HasColumnName("project_key_hash")
+                        .HasComputedColumnSql("digest(project_key, 'sha256')", true);
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ProjectKey")
+                    b.HasIndex("ProjectKeyHash")
                         .IsUnique();
 
                     b.ToTable("projects", "archive");

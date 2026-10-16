@@ -23,7 +23,8 @@ namespace Archive.Core.Migrations
                 .Annotation("Npgsql:Enum:types.job_status", "ABORTED,CANCELLED,COMPLETED,DISCARDED,FAILED,QUEUED,RUNNING")
                 .Annotation("Npgsql:Enum:types.progress_step", "FINISHED,LOADING_DYNAMIC_CONTENT,LOADING_PAGE,SAVING_SNAPSHOT,SOURCE_CHECK")
                 .Annotation("Npgsql:Enum:types.snapshot_quality", "COMPLETE,INCOMPLETE")
-                .Annotation("Npgsql:Enum:types.source_type", "HTML,URL");
+                .Annotation("Npgsql:Enum:types.source_type", "HTML,URL")
+                .Annotation("Npgsql:PostgresExtension:pgcrypto", ",,");
 
             migrationBuilder.CreateTable(
                 name: "archive_jobs",
@@ -56,6 +57,7 @@ namespace Archive.Core.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     project_key = table.Column<string>(type: "character varying(4500)", maxLength: 4500, nullable: false),
+                    project_key_hash = table.Column<byte[]>(type: "bytea", nullable: false, computedColumnSql: "digest(project_key, 'sha256')", stored: true),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -170,10 +172,10 @@ namespace Archive.Core.Migrations
                 columns: new[] { "status", "created_at" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_projects_project_key",
+                name: "IX_projects_project_key_hash",
                 schema: "archive",
                 table: "projects",
-                column: "project_key",
+                column: "project_key_hash",
                 unique: true);
 
             migrationBuilder.CreateIndex(

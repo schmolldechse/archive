@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Archive.Core.Entities;
 
 [Table("projects", Schema = "archive")]
-[Index(nameof(ProjectKey), IsUnique = true)]
+[Index(nameof(ProjectKeyHash), IsUnique = true)]
 public sealed class Project
 {
     [Key]
@@ -17,6 +17,9 @@ public sealed class Project
     [MaxLength(4_500)]
     [Column("project_key")]
     public required string ProjectKey { get; set; }
+
+    [Column("project_key_hash")]
+    public byte[] ProjectKeyHash { get; private set; } = [];
 
     [Column("created_at")]
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
