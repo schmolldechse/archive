@@ -14,6 +14,7 @@ public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext
             "Host=localhost;Port=5432;Database=archive;Username=archive;Password=password",
             npgsql =>
             {
+                npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public");
                 npgsql.MapEnum<SourceType>("source_type", "types");
                 npgsql.MapEnum<SnapshotQuality>("snapshot_quality", "types");
                 npgsql.MapEnum<ProcessingStatus>("processing_status", "types");

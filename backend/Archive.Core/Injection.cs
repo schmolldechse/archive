@@ -68,6 +68,7 @@ public static class Injection
             configuration.GetConnectionString("DefaultConnection"),
             options =>
             {
+                options.MigrationsHistoryTable("__EFMigrationsHistory", "public");
                 options.MapEnum<SourceType>("source_type", "types");
                 options.MapEnum<SnapshotQuality>("snapshot_quality", "types");
                 options.MapEnum<ProcessingStatus>("processing_status", "types");
