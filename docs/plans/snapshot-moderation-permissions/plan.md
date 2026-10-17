@@ -191,7 +191,7 @@ Leseantworten dürfen daraus berechnete Angaben enthalten. Diese werden nicht al
 
 ### 5.3 Eine Historientabelle, abstrakte Eintragsdaten
 
-Vorgesehen ist eine konkrete Persistenzentität `SnapshotHistoryEntry` in `archive.snapshot_history`. Die Abstraktion liegt im JSONB-Inhalt:
+Die im Interview bestätigte Aufteilung ist eine konkrete Persistenzentität `SnapshotHistoryEntry` in `archive.snapshot_history`. Die Abstraktion liegt im JSONB-Inhalt. Der [Abgleich mit dokumentierter Praxis](history-design-review.md) bewertet dazu die Mapping-Varianten für die im Projekt verwendeten EF-/Npgsql-Versionen:
 
 ```text
 SnapshotHistoryEntry
@@ -236,7 +236,9 @@ Beispiele für Data; gemeinsame Metadaten werden nicht darin dupliziert:
 { "type": "processing_finished", "status": "FAILED" }
 ```
 
-Die Speicherung verwendet eine lokale EF-Konfiguration für JSONB und einen kleinen Konverter mit zentralem `System.Text.Json`-Serializer. Der fachliche Property-Typ bleibt `SnapshotHistoryData`; SQL-Abfragen auf JSON-Schlüssel werden bei Bedarf gezielt im konkreten Repository ausgeführt. Npgsql unterstützt JSONB als String-Mapping, bei dem die Anwendung die Serialisierung übernimmt. [Npgsql: JSON Mapping](https://www.npgsql.org/efcore/mapping/json.html#string-mapping)
+Die Speicherung verwendet eine lokale EF-Konfiguration für JSONB und einen kleinen Konverter mit zentralem `System.Text.Json`-Serializer. Payloads sind unveränderliche Records; der fachliche Property-Typ bleibt `SnapshotHistoryData`. SQL-Abfragen auf JSON-Schlüssel werden bei Bedarf gezielt im konkreten Repository ausgeführt; eine beliebige Übersetzung von Zugriffen auf innere Properties wird nicht vorausgesetzt. Npgsql unterstützt JSONB als String-Mapping, bei dem die Anwendung die Serialisierung übernimmt. [Npgsql: JSON Mapping](https://www.npgsql.org/efcore/mapping/json.html#string-mapping)
+
+Für fest modellierte JSON-Dokumente wird üblicherweise `ToJson()` mit Complex Types empfohlen. Für die hier gewünschte abstrakte Payload-Hierarchie wird dieser Weg nicht ungeprüft verwendet: EF unterstützt Vererbung von Complex Types derzeit nicht. Der lokale Konverter bildet deshalb bewusst nur diesen unveränderlichen Ereigniskatalog ab. [Microsoft: Complex Types](https://learn.microsoft.com/en-us/ef/core/modeling/complex-types)
 
 Die Payload-Hierarchie wird über explizite `JsonDerivedType`-Varianten und den Discriminator `type` serialisiert. Unbekannte Typkennungen werden als kontrollierter Lesefehler behandelt. [Microsoft: JSON polymorphism](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/polymorphism)
 
