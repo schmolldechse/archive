@@ -1098,11 +1098,11 @@ export type ListUsersData = {
 	path?: never;
 	query?: {
 		/**
-		 * Case-insensitive search across handle, display name, and role. Combines with the role filter.
+		 * Case-insensitive substring search across handle and display name only. Combines with the role filter.
 		 */
 		q?: string;
 		/**
-		 * Optional role filter. Only USER and ADMIN are accepted.
+		 * Optional exact role filter, combined with the handle and display name search. Only USER and ADMIN are accepted.
 		 */
 		role?: ArchiveRole;
 		/**

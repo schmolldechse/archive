@@ -14,6 +14,7 @@
 	import { apiUrl } from "$lib/api-url";
 	import { pageHref } from "$lib/admin/navigation";
 	import Button from "$lib/components/ui/Button.svelte";
+	import { InputRoot, InputLabel, InputControl } from "$lib/components/ui/input";
 	import AdminPagination from "./AdminPagination.svelte";
 	import {
 		DialogRoot,
@@ -195,8 +196,8 @@
 			<p>Sets the default permissions for this account.</p>
 		</div>
 		<div class="admin-role-control">
-			<label for="user-role">Assigned role</label>
-			<select id="user-role" bind:value={role} disabled={!canRole} onchange={() => (success = "")}
+			<label for="user-role">Assigned role <span class="field-qualifier">Required</span></label>
+			<select id="user-role" bind:value={role} required disabled={!canRole} onchange={() => (success = "")}
 				><option value={ArchiveRole.USER}>User</option><option value={ArchiveRole.ADMIN}>Admin</option></select
 			>
 			<p class="admin-hint">Personal overrides remain in place when the role changes.</p>
@@ -210,27 +211,32 @@
 		<p class="admin-hint">Use role keeps the default. Allow or Deny takes precedence for this account.</p>
 		<form method="GET" class="admin-search admin-permission-search" role="search" aria-label="Search permissions">
 			{#each [...context] as [key, value]}<input type="hidden" name={key} {value} />{/each}
-			<label class="admin-search-field"
-				>Search permissions<input
+			<InputRoot id="admin-permission-query" class="admin-permission-query">
+				<InputLabel>Search permissions <span class="field-qualifier">Optional</span></InputLabel>
+				<InputControl
 					name="permissionQ"
 					value={data.permissionQ}
-					maxlength="128"
+					maxlength={128}
 					type="search"
 					placeholder="Name or permission key"
-				/></label
-			>
-			<Button type="submit">Search</Button>
+				/>
+			</InputRoot>
+			<Button type="submit" size="large">Search</Button>
 			{#if data.permissionQ}<Button href={permissionResetHref} variant="text">Clear</Button>{/if}
 		</form>
 		<div class="admin-permission-register">
-			<span>Permission</span><span>Saved access</span><span>Personal override</span>
+			<span>Permission</span><span>Saved access</span><span
+				>Personal override <span class="field-qualifier">Optional</span></span
+			>
 		</div>
 		<ul class="admin-permission-list" aria-label="Permission settings">
 			{#each data.permissionItems as definition (definition.key)}
 				{@const permission = saved.permissions.find((item) => item.key === definition.key)!}
 				<li>
 					<div class="admin-permission-description">
-						<label for={`permission-${definition.key}`}>{definition.displayName}</label><code>{definition.key}</code>
+						<label for={`permission-${definition.key}`}
+							>{definition.displayName}<span class="sr-only"> personal override, optional</span></label
+						><code>{definition.key}</code>
 						<p>{definition.description}</p>
 					</div>
 					<div class="admin-permission-access" data-allowed={permission.allowed}>
@@ -239,7 +245,9 @@
 						>
 					</div>
 					<div class="admin-permission-control">
-						<label class="admin-mobile-label" for={`permission-${definition.key}`}>Personal override</label><select
+						<label class="admin-mobile-label" for={`permission-${definition.key}`}
+							>Personal override <span class="field-qualifier">Optional</span></label
+						><select
 							id={`permission-${definition.key}`}
 							value={overrides[definition.key] ?? ""}
 							disabled={!canPermissions}
@@ -355,7 +363,7 @@
 		gap: 1rem;
 		margin-block: 1.5rem;
 	}
-	.admin-search-field {
+	.admin-permission-search :global(.admin-permission-query) {
 		flex: 1;
 		min-width: 0;
 	}
@@ -445,6 +453,9 @@
 	.admin-permission-search {
 		max-width: 40rem;
 		margin-block: 1.5rem 2rem;
+	}
+	.admin-permission-search :global([data-input-control]) {
+		scroll-margin-block: 6rem;
 	}
 	.admin-permission-register,
 	.admin-permission-list > li {
@@ -577,10 +588,10 @@
 	}
 	label {
 		display: block;
-		font-size: 0.875rem;
+		font-size: 0.9375rem;
 		font-weight: 600;
+		line-height: 1.4;
 	}
-	input:not([type="hidden"]),
 	select {
 		display: block;
 		width: 100%;
@@ -616,7 +627,7 @@
 		.admin-permission-search {
 			flex-wrap: wrap;
 		}
-		.admin-permission-search .admin-search-field {
+		.admin-permission-search :global(.admin-permission-query) {
 			flex-basis: 100%;
 		}
 		.admin-permission-register {

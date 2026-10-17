@@ -91,7 +91,11 @@
 							<div class="directory-empty">
 								<SearchX aria-hidden="true" />
 								<h3>{filtered ? "No users found" : "No users yet"}</h3>
-								<p>{filtered ? "Try another handle, name or role." : "Registered users will appear here."}</p>
+								<p>
+									{filtered
+										? "Try another handle or display name, or change the role filter."
+										: "Registered users will appear here."}
+								</p>
 								{#if filtered}<Button href="/admin/users">Clear search</Button>{/if}
 							</div>
 						</TableCell>

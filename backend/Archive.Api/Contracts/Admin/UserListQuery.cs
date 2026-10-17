@@ -6,19 +6,19 @@ using Archive.Core.Entities.Authentication.Permissible;
 
 namespace Archive.Api.Contracts.Admin;
 
-/// <summary>Bounded registered-user search; role filtering combines with free text.</summary>
-[Description("Bounded registered-user search by handle, display name, and role.")]
+/// <summary>Bounded registered-user search by handle or display name, with an optional exact role filter.</summary>
+[Description("Bounded registered-user search by handle or display name, combined with an optional exact role filter.")]
 public sealed class UserListQuery
 {
     [StringLength(128)]
     [JsonPropertyName("q")]
-    [Description("Case-insensitive search across handle, display name, and role. Combines with the role filter.")]
+    [Description("Case-insensitive substring search across handle and display name only. Combines with the role filter.")]
     [FromQuery(Name = "q")]
     public string? Q { get; init; }
 
     [EnumDataType(typeof(ArchiveRole))]
     [JsonPropertyName("role")]
-    [Description("Optional role filter. Only USER and ADMIN are accepted.")]
+    [Description("Optional exact role filter, combined with the handle and display name search. Only USER and ADMIN are accepted.")]
     [FromQuery(Name = "role")]
     public ArchiveRole? Role { get; init; }
 

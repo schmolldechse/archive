@@ -15,10 +15,8 @@ internal sealed partial class UserRepository
         if (!string.IsNullOrWhiteSpace(query))
         {
             var term = query.Trim().ToLowerInvariant();
-            var matchesUser = "user".Contains(term, StringComparison.Ordinal);
-            var matchesAdmin = "admin".Contains(term, StringComparison.Ordinal);
-            users = users.Where(user => user.Handle!.ToLower().Contains(term) || user.DisplayName!.ToLower().Contains(term) ||
-                matchesUser && user.Role == ArchiveRole.User || matchesAdmin && user.Role == ArchiveRole.Admin);
+            // Free text identifies accounts; role membership is handled by the exact filter above.
+            users = users.Where(user => user.Handle!.ToLower().Contains(term) || user.DisplayName!.ToLower().Contains(term));
         }
         var total = await users.CountAsync(cancellationToken);
         var items = await users.OrderBy(user => user.Handle).Skip((page - 1) * pageSize).Take(pageSize)

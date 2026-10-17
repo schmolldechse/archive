@@ -6,7 +6,7 @@ namespace Archive.Core.Repositories.UserRepository;
 
 public interface IUserRepository
 {
-    /// <summary>Searches registered accounts by handle, display name, or role.</summary>
+    /// <summary>Searches registered accounts by handle or display name, combined with an optional exact role filter.</summary>
     Task<UserListPage> SearchAsync(string? query, Entities.Authentication.Permissible.ArchiveRole? role, int page, int pageSize, CancellationToken cancellationToken = default);
 
     /// <summary>Loads current access settings for a registered account.</summary>

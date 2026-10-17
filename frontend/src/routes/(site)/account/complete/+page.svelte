@@ -73,7 +73,7 @@
 					<p class="introduction">You can change these later.</p>
 					<div class="profile-fields">
 						<InputRoot required hasDescription invalid={Boolean(handleError)} disabled={saving}>
-							<InputLabel>Handle <span class="field-qualifier">required</span></InputLabel>
+							<InputLabel>Handle <span class="field-qualifier">Required</span></InputLabel>
 							<InputControl
 								name="handle"
 								bind:value={handle}
@@ -90,7 +90,7 @@
 							{#if handleError}<InputError>{handleError}</InputError>{/if}
 						</InputRoot>
 						<InputRoot required hasDescription invalid={Boolean(nameError)} disabled={saving}>
-							<InputLabel>Display name <span class="field-qualifier">required</span></InputLabel>
+							<InputLabel>Display name <span class="field-qualifier">Required</span></InputLabel>
 							<InputControl name="displayName" bind:value={displayName} autocomplete="nickname" minlength={6} maxlength={64} />
 							<InputDescription>6–64 characters. Spaces are fine.</InputDescription>
 							{#if nameError}<InputError>{nameError}</InputError>{/if}

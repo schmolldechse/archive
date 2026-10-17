@@ -37,13 +37,13 @@
 <form method="GET" role="search" aria-label="Search users" aria-busy={pending ? "true" : undefined} class="user-search">
 	<div class="search-main">
 		<InputRoot id="admin-user-query" disabled={pending}>
-			<InputLabel>Search users</InputLabel>
+			<InputLabel>Search users <span class="field-qualifier">Optional</span></InputLabel>
 			<InputControl
 				type="search"
 				name="q"
 				value={query}
 				maxlength={128}
-				placeholder="Handle, display name or role"
+				placeholder="Handle or display name"
 				autocomplete="off"
 				spellcheck={false}
 				oninput={(event) => (query = event.currentTarget.value)}
@@ -56,7 +56,7 @@
 	<Separator />
 	<div class="search-filters">
 		<SelectRoot type="single" name="role" bind:value={role} disabled={pending} class="user-role-filter">
-			<SelectLabel>Role</SelectLabel>
+			<SelectLabel>Role <span class="field-qualifier">Optional</span></SelectLabel>
 			<SelectTrigger><SelectValue>{roles.find((item) => item.value === role)?.label ?? "All roles"}</SelectValue></SelectTrigger
 			>
 			<SelectContent>

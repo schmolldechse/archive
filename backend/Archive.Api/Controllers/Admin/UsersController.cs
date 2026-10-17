@@ -28,11 +28,11 @@ namespace Archive.Api.Controllers.Admin;
 public sealed class UsersController(IUserRepository users, UserAccessMapper mapper,
     IAuthorizationService authorization, ArchiveAuthenticationOptions options) : ControllerBase
 {
-    /// <summary>Searches registered accounts by handle, display name, and role.</summary>
+    /// <summary>Searches registered accounts by handle or display name, with an optional exact role filter.</summary>
     [HttpGet]
     [EndpointName("ListUsers")]
     [EndpointSummary("Lists registered users.")]
-    [EndpointDescription("Requires admin.access and admin.users.access. Searches handle, display name, and role, combines the optional role filter, and returns registered profiles ordered by handle.")]
+    [EndpointDescription("Requires admin.access and admin.users.access. Searches handle and display name only, combines the optional exact role filter, and returns registered profiles ordered by handle.")]
     [ProducesResponseType<UserListResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<UserListResponse>> List([FromQuery] UserListQuery query, CancellationToken cancellationToken)
