@@ -38,7 +38,8 @@ public static class ArchiveAuthenticationExtension
                 .WithOrigins(options.FrontendOrigin.TrimEnd('/'))
                 .AllowAnyHeader()
                 .AllowAnyMethod()
-                .AllowCredentials()));
+                .AllowCredentials()
+                .WithExposedHeaders("ETag")));
 
         services.AddArchiveAuthorization();
 

@@ -6,7 +6,7 @@ using Npgsql;
 
 namespace Archive.Core.Repositories.UserRepository;
 
-internal sealed class UserRepository(DataContext dataContext) : IUserRepository
+internal sealed partial class UserRepository(DataContext dataContext) : IUserRepository
 {
     public async Task<ArchiveUser?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) => await dataContext.Users
         .AsNoTracking()

@@ -8,6 +8,7 @@ namespace Archive.Api.Mapping;
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
 public partial class AuthenticationMapper
 {
+    [MapperIgnoreSource(nameof(ArchiveUser.PermissionOverrides))]
     [MapperIgnoreSource(nameof(ArchiveUser.ProfileImage))]
     [MapperIgnoreSource(nameof(ArchiveUser.Id))]
     [MapperIgnoreSource(nameof(ArchiveUser.CreatedAt))]

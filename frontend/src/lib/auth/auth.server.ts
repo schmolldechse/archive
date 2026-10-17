@@ -2,7 +2,7 @@ import type { AuthenticationProviderResponse, AuthenticationSessionResponse } fr
 import { backendUrl } from "$lib/server/api";
 
 export async function readSession(cookie: string | null): Promise<AuthenticationSessionResponse | null> {
-	const anonymous: AuthenticationSessionResponse = { isAuthenticated: false, user: null };
+	const anonymous: AuthenticationSessionResponse = { isAuthenticated: false, user: null, permissions: [] };
 	if (!cookie) return anonymous;
 
 	try {

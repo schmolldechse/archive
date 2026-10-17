@@ -1,13 +1,19 @@
 using System.ComponentModel;
+using Archive.Core.Entities.Authentication.Permissible;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Archive.Core.Models.Users;
 
 namespace Archive.Api.Contracts.Authentication;
 
-[Description("Profile of the authenticated user.")]
-public sealed record UserProfileResponse
+[Description("A user profile without internal identifiers.")]
+public sealed class UserProfileResponse
 {
+    /// <summary>The assigned role; individual overrides can change its default permissions.</summary>
+    [JsonPropertyName("role")]
+    [Description("Assigned role. Personal permission overrides may extend or restrict its defaults.")]
+    public required ArchiveRole Role { get; init; }
+
     [JsonPropertyName("handle")]
     [Description("Lowercase user handle. Null until a handle is saved.")]
     [StringLength(UserProfileValidation.MaxHandleLength, MinimumLength = UserProfileValidation.MinHandleLength)]

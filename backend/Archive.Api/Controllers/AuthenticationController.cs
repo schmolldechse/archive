@@ -1,4 +1,5 @@
 using Archive.Api.Authentication;
+using Archive.Core.Authorization;
 using Archive.Api.Authentication.Catalog;
 using Archive.Api.Contracts.Authentication;
 using Archive.Api.Exceptions;
@@ -47,8 +48,9 @@ public sealed class AuthenticationController(
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
     public async Task<ActionResult<AuthenticationSessionResponse>> GetAuthenticationSession(CancellationToken cancellationToken)
     {
+        Response.Headers.CacheControl = "private, no-store";
         if (User.Identity?.IsAuthenticated != true)
-            return Ok(new AuthenticationSessionResponse { IsAuthenticated = false, User = null });
+            return Ok(new AuthenticationSessionResponse { IsAuthenticated = false, User = null, Permissions = [] });
 
         var account = await userRepository.GetByIdAsync(User.ReadUserId(), cancellationToken)
             ?? throw new InvalidSessionException();
@@ -56,6 +58,7 @@ public sealed class AuthenticationController(
         return Ok(new AuthenticationSessionResponse
         {
             IsAuthenticated = true,
+            Permissions = PermissionEvaluator.GetAllowedPermissions(account),
             User = mapper.ToResponse(account, account.GetProfileImageUrl(options.PublicApiOrigin))
         });
     }

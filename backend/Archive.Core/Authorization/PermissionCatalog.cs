@@ -14,6 +14,16 @@ public static class PermissionCatalog
     public static ImmutableArray<PermissionDefinition> All { get; } =
     [
         new(
+            ArchivePermissions.AccessAdminPortal,
+            "Access admin portal",
+            "Open the admin portal. Access to individual sections and administrative actions requires their respective permissions.",
+            [ArchiveRole.Admin]),
+        new(
+            ArchivePermissions.AccessAdminUsers,
+            "Access user administration",
+            "Open the Users section and view user profiles, roles, and individual permission settings. Changing access requires the corresponding management permission.",
+            [ArchiveRole.Admin]),
+        new(
             ArchivePermissions.ReviewSnapshots,
             "Review snapshots",
             "View submitted snapshots, their previews, and review history. Approve submissions for public access or reject them with an optional reason.",
@@ -26,12 +36,12 @@ public static class PermissionCatalog
         new(
             ArchivePermissions.AssignUserRoles,
             "Manage user roles",
-            "View user accounts and change another user's role between User and Admin. The assigned role determines which permissions the user receives by default.",
+            "Change another user's role between User and Admin. The role determines default permissions; existing personal overrides remain unchanged. Requires access to the admin portal and user administration.",
             [ArchiveRole.Admin]),
         new(
             ArchivePermissions.AssignUserPermissions,
             "Manage permission overrides",
-            "View a user's access settings and manage individual permission overrides. Allow grants a permission, Deny blocks it, and removing an override restores the role default.",
+            "Set, replace, or remove another user's individual permission overrides. Allow grants a permission, Deny blocks it, and removing an override restores the role default. Requires access to the admin portal and user administration.",
             [ArchiveRole.Admin])
     ];
 

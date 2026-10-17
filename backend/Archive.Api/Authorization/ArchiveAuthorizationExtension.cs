@@ -33,10 +33,8 @@ public static class ArchiveAuthorizationExtension
                     new PermissionRequirement([permission.Key]));
 
             AddRegisteredPolicy(options, ArchiveAuthorizationPolicies.UserAccessRead,
-                new PermissionRequirement([
-                    ArchivePermissions.AssignUserRoles,
-                    ArchivePermissions.AssignUserPermissions
-                ]));
+                new PermissionRequirement([ArchivePermissions.AccessAdminPortal]),
+                new PermissionRequirement([ArchivePermissions.AccessAdminUsers]));
         });
 
         return services;

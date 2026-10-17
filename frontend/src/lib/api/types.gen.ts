@@ -22,6 +22,16 @@ export type ArchiveCreatorResponse = {
 	profileImageUrl: null | string;
 };
 
+export enum ArchivePermissionEffect {
+	ALLOW = "ALLOW",
+	DENY = "DENY"
+}
+
+export enum ArchiveRole {
+	USER = "USER",
+	ADMIN = "ADMIN"
+}
+
 /**
  * An available authentication provider.
  */
@@ -40,6 +50,10 @@ export type AuthenticationProviderResponse = {
  * Authentication state and current user profile.
  */
 export type AuthenticationSessionResponse = {
+	/**
+	 * Effective permission keys in catalog order. Empty for anonymous or incomplete accounts. Operation prerequisites must be checked together.
+	 */
+	permissions: Array<string>;
 	/**
 	 * Whether the request has an authenticated user session.
 	 */
@@ -116,6 +130,45 @@ export type HealthResponse = {
 };
 
 export type IFormFile = Blob | File;
+
+/**
+ * Supported permission definitions in stable catalog order.
+ */
+export type PermissionCatalogResponse = {
+	/**
+	 * All supported permission definitions, without publishing role defaults.
+	 */
+	items: Array<PermissionDefinitionResponse>;
+};
+
+/**
+ * A supported permission without internal role defaults.
+ */
+export type PermissionDefinitionResponse = {
+	/**
+	 * Exact, case-sensitive permission key.
+	 */
+	key: string;
+	/**
+	 * English display name from the permission catalog.
+	 */
+	displayName: string;
+	/**
+	 * Scope, behavior, and prerequisites of the permission.
+	 */
+	description: string;
+};
+
+/**
+ * One personal permission override change. A null effect removes the stored exception.
+ */
+export type PermissionOverrideRequest = {
+	/**
+	 * Known case-sensitive permission key. Each key may occur only once per update.
+	 */
+	permission: string;
+	effect: null | ArchivePermissionEffect;
+};
 
 export type ProblemDetails = {
 	type?: null | string;
@@ -328,6 +381,17 @@ export enum SourceType {
 export type Stream = Blob | File;
 
 /**
+ * Atomic partial access update. Unspecified fields and unlisted overrides remain unchanged.
+ */
+export type UpdateUserAccessRequest = {
+	role?: null | ArchiveRole;
+	/**
+	 * Explicit changes only. Unlisted permission overrides remain unchanged.
+	 */
+	permissionOverrides?: null | Array<PermissionOverrideRequest>;
+};
+
+/**
  * Display name and handle to save for the authenticated user.
  */
 export type UpdateUserProfileRequest = {
@@ -342,9 +406,76 @@ export type UpdateUserProfileRequest = {
 };
 
 /**
- * Profile of the authenticated user.
+ * A registered account's saved role and permission settings, addressed by handle.
+ */
+export type UserAccessResponse = {
+	/**
+	 * Current unique lowercase handle of this registered user.
+	 */
+	handle: string;
+	/**
+	 * Current display name of the registered user.
+	 */
+	displayName: string;
+	/**
+	 * Saved role whose defaults are evaluated before personal overrides.
+	 */
+	role: ArchiveRole;
+	/**
+	 * Saved evaluation for every supported permission in catalog order.
+	 */
+	permissions: Array<UserPermissionResponse>;
+};
+
+/**
+ * A handle-ordered page of fully registered user profiles.
+ */
+export type UserListResponse = {
+	/**
+	 * Registered user profiles using the shared profile contract, including public profile image URLs.
+	 */
+	items: Array<UserProfileResponse>;
+	/**
+	 * Total number of registered users matching the search and role filter.
+	 */
+	total: number | string;
+	/**
+	 * Requested one-based page number.
+	 */
+	page: number | string;
+	/**
+	 * Maximum number of profiles returned in this page.
+	 */
+	pageSize: number | string;
+};
+
+/**
+ * Saved evaluation of one permission, including the personal override.
+ */
+export type UserPermissionResponse = {
+	/**
+	 * Exact permission key from the catalog.
+	 */
+	key: string;
+	/**
+	 * Whether the saved role grants this permission by default.
+	 */
+	defaultAllowed: boolean;
+	override: null | ArchivePermissionEffect;
+	/**
+	 * Effective result for this key only. An operation can require several allowed keys together.
+	 */
+	allowed: boolean;
+};
+
+/**
+ * A user profile without internal identifiers.
  */
 export type UserProfileResponse = {
+	/**
+	 * Assigned role. Personal permission overrides may extend or restrict its defaults.
+	 */
+	role: ArchiveRole;
 	/**
 	 * Lowercase user handle. Null until a handle is saved.
 	 */
@@ -932,3 +1063,190 @@ export type UpdateCurrentUserResponses = {
 };
 
 export type UpdateCurrentUserResponse = UpdateCurrentUserResponses[keyof UpdateCurrentUserResponses];
+
+export type ListPermissionsData = {
+	body?: never;
+	path?: never;
+	query?: never;
+	url: "/api/admin/permissions";
+};
+
+export type ListPermissionsErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+};
+
+export type ListPermissionsError = ListPermissionsErrors[keyof ListPermissionsErrors];
+
+export type ListPermissionsResponses = {
+	/**
+	 * OK
+	 */
+	200: PermissionCatalogResponse;
+};
+
+export type ListPermissionsResponse = ListPermissionsResponses[keyof ListPermissionsResponses];
+
+export type ListUsersData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Case-insensitive search across handle, display name, and role. Combines with the role filter.
+		 */
+		q?: string;
+		/**
+		 * Optional role filter. Only USER and ADMIN are accepted.
+		 */
+		role?: ArchiveRole;
+		/**
+		 * One-based page number. Defaults to 1.
+		 */
+		page?: number | string;
+		/**
+		 * Maximum profiles per page, from 1 to 100. Defaults to 25.
+		 */
+		pageSize?: number | string;
+	};
+	url: "/api/admin/users";
+};
+
+export type ListUsersErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type ListUsersError = ListUsersErrors[keyof ListUsersErrors];
+
+export type ListUsersResponses = {
+	/**
+	 * OK
+	 */
+	200: UserListResponse;
+};
+
+export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
+
+export type GetUserAccessData = {
+	body?: never;
+	path: {
+		handle: string;
+	};
+	query?: never;
+	url: "/api/admin/users/{handle}/access";
+};
+
+export type GetUserAccessErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type GetUserAccessError = GetUserAccessErrors[keyof GetUserAccessErrors];
+
+export type GetUserAccessResponses = {
+	/**
+	 * OK
+	 */
+	200: UserAccessResponse;
+};
+
+export type GetUserAccessResponse = GetUserAccessResponses[keyof GetUserAccessResponses];
+
+export type UpdateUserAccessData = {
+	body: UpdateUserAccessRequest;
+	headers: {
+		/**
+		 * Exactly one strong ETag returned by GET on this access resource. Required for saving.
+		 */
+		"If-Match": string;
+	};
+	path: {
+		handle: string;
+	};
+	query?: never;
+	url: "/api/admin/users/{handle}/access";
+};
+
+export type UpdateUserAccessErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Unsupported Media Type
+	 */
+	415: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+	/**
+	 * Service Unavailable
+	 */
+	503: ProblemDetails;
+};
+
+export type UpdateUserAccessError = UpdateUserAccessErrors[keyof UpdateUserAccessErrors];
+
+export type UpdateUserAccessResponses = {
+	/**
+	 * OK
+	 */
+	200: UserAccessResponse;
+};
+
+export type UpdateUserAccessResponse = UpdateUserAccessResponses[keyof UpdateUserAccessResponses];

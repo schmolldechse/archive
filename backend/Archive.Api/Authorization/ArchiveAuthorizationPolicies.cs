@@ -11,6 +11,6 @@ public static class ArchiveAuthorizationPolicies
     /// <summary>Requires a registered user whose current database role is Admin.</summary>
     public const string Admin = "Archive.Admin";
 
-    /// <summary>Requires either role-assignment or permission-assignment access.</summary>
+    /// <summary>Requires both portal access and access to user administration.</summary>
     public const string UserAccessRead = "Archive.UserAccessRead";
 }

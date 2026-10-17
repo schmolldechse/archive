@@ -17,7 +17,11 @@
 		DialogClose
 	} from "$lib/components/ui/dialog";
 
-	let { user, onopen }: { user: UserProfileResponse; onopen?: () => void } = $props();
+	let {
+		user,
+		onopen,
+		canOpenAdminPortal = false
+	}: { user: UserProfileResponse; onopen?: () => void; canOpenAdminPortal?: boolean } = $props();
 	let open = $state(false);
 	let closeButton = $state<HTMLButtonElement | null>(null);
 </script>
@@ -79,6 +83,14 @@
 					>
 						Continue registration<ArrowRight aria-hidden="true" />
 					</Button>
+				</div>
+			{/if}
+
+			{#if canOpenAdminPortal}
+				<div class="account-admin">
+					<Button href="/admin" variant="text" onclick={() => (open = false)}
+						>Admin portal<ArrowRight aria-hidden="true" /></Button
+					>
 				</div>
 			{/if}
 
@@ -178,6 +190,11 @@
 		width: 100%;
 		justify-content: space-between;
 		text-align: start;
+	}
+
+	.account-admin {
+		padding: 0.25rem 0.5rem;
+		border-top: 1px solid var(--border-trace);
 	}
 
 	.account-logout {

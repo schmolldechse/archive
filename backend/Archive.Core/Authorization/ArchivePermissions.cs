@@ -5,6 +5,12 @@ namespace Archive.Core.Authorization;
 /// </summary>
 public static class ArchivePermissions
 {
+    /// <summary>Opens the portal; individual sections require their own access permission.</summary>
+    public const string AccessAdminPortal = "admin.access";
+
+    /// <summary>Reads user profiles, roles, and personal permission settings in the portal.</summary>
+    public const string AccessAdminUsers = "admin.users.access";
+
     /// <summary>Allows reading, approving, and rejecting submitted snapshots.</summary>
     public const string ReviewSnapshots = "snapshots.review";
 
