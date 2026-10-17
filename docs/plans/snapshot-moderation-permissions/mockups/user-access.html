@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>User access · archive</title>
+    <link rel="stylesheet" href="mockups.css" />
+    <script src="mockups.js" defer></script>
+  </head>
+  <body>
+    <!-- The editor demonstrates both an Allow beyond User rights and a Deny overriding Admin. -->
+    <a class="skip-link" href="#main-content">Skip to user access</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="submissions.html" aria-label="archive — Home"
+          ><svg viewBox="0 0 64 64" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M14,58V6h2v7h40v2H16v10h28v2H16v10h36v2H16v10h21v2H16v7Z"
+            />
+            <path fill="var(--time-marker)" d="M6 36h18v4H6z" /></svg
+          ><span class="brand-word">archive</span></a
+        >
+        <nav
+          class="primary-nav"
+          id="primary-navigation"
+          aria-label="Primary navigation"
+        >
+          <a href="/#browse">Browse</a><a href="/#about">About</a
+          ><a href="/archive/new">Archive a page</a>
+        </nav>
+        <div class="header-actions">
+          <span class="avatar" aria-label="Signed in as Alex Morgan">AM</span
+          ><button
+            class="button menu-toggle"
+            data-menu
+            aria-controls="primary-navigation"
+            aria-expanded="false"
+          >
+            Menu</button
+          ><button
+            class="button"
+            data-theme-toggle
+            aria-pressed="false"
+            aria-label="Dark theme"
+          >
+            ◐ <span>Theme</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="site-main" id="main-content">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="/#browse">Archive</a><span aria-hidden="true">/</span
+        ><span>User access</span>
+      </nav>
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">Administration · Accounts</span>
+          <h1>User access</h1>
+          <p>Assign roles and set individual permissions.</p>
+        </div>
+      </div>
+      <nav class="section-nav" aria-label="Account and administration">
+        <a href="submissions.html">My submissions</a
+        ><a href="snapshot-review.html">Snapshot review</a
+        ><a href="user-access.html" aria-current="page">User access</a>
+      </nav>
+      <div class="toolbar">
+        <div>
+          <label for="user-search">Find a user</label
+          ><input
+            id="user-search"
+            data-user-search
+            type="search"
+            placeholder="Display name or handle"
+          />
+        </div>
+      </div>
+      <div class="register-meta">
+        <span>3 users</span><span>Select a user to manage access</span>
+      </div>
+      <div class="split">
+        <div class="user-list" aria-label="Users">
+          <button class="queue-item" data-user-sample="sam" aria-pressed="true">
+            <strong>Sam Lee</strong><span class="record-value">@sam.lee</span
+            ><span class="role-tag">User · Admin</span>
+          </button>
+          <button
+            class="queue-item"
+            data-user-sample="jamie"
+            aria-pressed="false"
+          >
+            <strong>Jamie Park</strong
+            ><span class="record-value">@jamie.park</span
+            ><span class="role-tag">User · Individual review access</span>
+          </button>
+          <button
+            class="queue-item"
+            data-user-sample="alex"
+            aria-pressed="false"
+          >
+            <strong>Alex Morgan <span class="muted">(you)</span></strong
+            ><span class="record-value">@alex.morgan</span
+            ><span class="role-tag">User · Admin</span>
+          </button>
+        </div>
+        <section class="detail-panel" aria-label="Selected user access">
+          <span class="eyebrow">Selected user</span>
+          <h2 data-user-name>Sam Lee</h2>
+          <p class="record-value muted" data-user-handle>@sam.lee</p>
+          <section class="access-section" aria-labelledby="roles-heading">
+            <h3 id="roles-heading">Roles</h3>
+            <div class="role-line">
+              <div>
+                <strong>User</strong>
+                <p class="hint">Assigned to every account.</p>
+              </div>
+              <span class="status">✓ Base role</span>
+            </div>
+            <div class="role-line">
+              <div>
+                <label class="role-toggle" for="admin-role"
+                  ><input id="admin-role" type="checkbox" checked />
+                  Admin</label
+                >
+                <p class="hint">
+                  Grants review, publication and user management rights.
+                </p>
+              </div>
+              <button class="button" data-save-access="role">Save role</button>
+            </div>
+            <p class="hint">
+              Assigned roles: <span data-selected-role>User · Admin</span>
+            </p>
+          </section>
+          <section class="access-section" aria-labelledby="permissions-heading">
+            <h3 id="permissions-heading">Individual permissions</h3>
+            <p class="muted">
+              Inherit follows role rights. Allow grants a right. Deny overrides
+              a role grant.
+            </p>
+            <div class="permission-row" data-permission="review">
+              <div>
+                <h3>Review snapshots</h3>
+                <p class="hint" data-role-default>
+                  Role default: Allowed by Admin
+                </p>
+                <span class="effective allowed" data-effective
+                  >✓ Allowed · Role default</span
+                >
+              </div>
+              <div>
+                <label for="permission-review">Individual setting</label
+                ><select id="permission-review">
+                  <option value="inherit">Inherit</option>
+                  <option value="allow">Allow</option>
+                  <option value="deny">Deny</option>
+                </select>
+              </div>
+              <button
+                class="button"
+                data-save-access="permission"
+                aria-label="Save Review snapshots permission"
+              >
+                Save
+              </button>
+            </div>
+            <div class="permission-row" data-permission="publish">
+              <div>
+                <h3>Publish without approval</h3>
+                <p class="hint" data-role-default>
+                  Role default: Allowed by Admin
+                </p>
+                <span class="effective denied" data-effective
+                  >− Denied · Individual setting</span
+                >
+              </div>
+              <div>
+                <label for="permission-publish">Individual setting</label
+                ><select id="permission-publish">
+                  <option value="inherit">Inherit</option>
+                  <option value="allow">Allow</option>
+                  <option value="deny" selected>Deny</option>
+                </select>
+              </div>
+              <button
+                class="button"
+                data-save-access="permission"
+                aria-label="Save Publish without approval permission"
+              >
+                Save
+              </button>
+            </div>
+            <div
+              class="permission-row"
+              data-permission="roles"
+              data-requires-admin="true"
+            >
+              <div>
+                <h3>Manage user roles</h3>
+                <p class="hint" data-role-default>
+                  Role default: Allowed by Admin
+                </p>
+                <span class="effective allowed" data-effective
+                  >✓ Allowed · Role default</span
+                >
+              </div>
+              <div>
+                <label for="permission-roles">Individual setting</label
+                ><select id="permission-roles">
+                  <option value="inherit">Inherit</option>
+                  <option value="allow">Allow</option>
+                  <option value="deny">Deny</option>
+                </select>
+              </div>
+              <button
+                class="button"
+                data-save-access="permission"
+                aria-label="Save Manage user roles permission"
+              >
+                Save
+              </button>
+            </div>
+            <div
+              class="permission-row"
+              data-permission="permissions"
+              data-requires-admin="true"
+            >
+              <div>
+                <h3>Manage individual permissions</h3>
+                <p class="hint" data-role-default>
+                  Role default: Allowed by Admin
+                </p>
+                <span class="effective allowed" data-effective
+                  >✓ Allowed · Role default</span
+                >
+              </div>
+              <div>
+                <label for="permission-management">Individual setting</label
+                ><select id="permission-management">
+                  <option value="inherit">Inherit</option>
+                  <option value="allow">Allow</option>
+                  <option value="deny">Deny</option>
+                </select>
+              </div>
+              <button
+                class="button"
+                data-save-access="permission"
+                aria-label="Save Manage individual permissions permission"
+              >
+                Save
+              </button>
+            </div>
+          </section>
+          <p class="hint">
+            User management also requires the Admin role. Changes apply after
+            saving.
+          </p>
+          <div class="notice">
+            <strong>Individual restriction</strong>
+            <p data-override-explanation>
+              Sam can review snapshots, but cannot publish without approval.
+            </p>
+          </div>
+        </section>
+      </div>
+      <details class="demo-variants">
+        <summary>Preview additional page states</summary>
+        <div class="variant-list">
+          <div class="notice">
+            <strong>Keep one administrator with full access</strong>
+            <p>
+              This change would remove the last administrator who can manage
+              roles and individual permissions.
+            </p>
+          </div>
+          <div class="notice">
+            <strong>Access has changed</strong>
+            <p>Reload this user’s permissions before saving your changes.</p>
+          </div>
+          <div class="notice">
+            <strong>Changes could not be saved</strong>
+            <p>
+              Your selections are still here. Try saving again when the service
+              is available.
+            </p>
+          </div>
+        </div>
+      </details>
+    </main>
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <p>A public reading room for preserved pages.</p>
+        <p class="prototype-note">
+          Design preview · Sample records · No changes are saved
+        </p>
+      </div>
+    </footer>
+    <div
+      class="feedback"
+      role="status"
+      aria-live="polite"
+      data-feedback
+      hidden
+    ></div>
+  </body>
+</html>
