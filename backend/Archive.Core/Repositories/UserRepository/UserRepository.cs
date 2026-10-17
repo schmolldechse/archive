@@ -1,4 +1,4 @@
-﻿using Archive.Core.Entities.Authentication;
+using Archive.Core.Entities.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Models.Users;
 using Archive.Core.Models;
@@ -10,6 +10,8 @@ internal sealed class UserRepository(DataContext dataContext) : IUserRepository
 {
     public async Task<ArchiveUser?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) => await dataContext.Users
         .AsNoTracking()
+        .Include(user => user.Identities)
+        .Include(user => user.PermissionOverrides)
         .FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
 
     public async Task<ArchiveUser?> GetByHandleAsync(string handle, CancellationToken cancellationToken = default) => await dataContext.Users

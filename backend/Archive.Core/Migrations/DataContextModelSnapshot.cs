@@ -2,6 +2,7 @@
 using System;
 using Archive.Core;
 using Archive.Core.Entities;
+using Archive.Core.Entities.Authentication.Permissible;
 using Archive.Core.Entities.Processing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -22,8 +23,10 @@ namespace Archive.Core.Migrations
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "permission_effect", new[] { "ALLOW", "DENY" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "processing_status", new[] { "ABORTED", "CANCELLED", "COMPLETED", "DISCARDED", "FAILED", "QUEUED", "RUNNING" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "progress_step", new[] { "FINISHED", "LOADING_DYNAMIC_CONTENT", "LOADING_PAGE", "SAVING_SNAPSHOT", "SOURCE_CHECK" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "role", new[] { "ADMIN", "USER" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "snapshot_quality", new[] { "COMPLETE", "INCOMPLETE" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "types", "source_type", new[] { "HTML", "MHTML", "URL", "WEBARCHIVE" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -56,6 +59,10 @@ namespace Archive.Core.Migrations
                     b.Property<DateTimeOffset?>("RegistrationCompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("registration_completed_at");
+
+                    b.Property<ArchiveRole>("Role")
+                        .HasColumnType("types.role")
+                        .HasColumnName("role");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -95,6 +102,26 @@ namespace Archive.Core.Migrations
                         .IsUnique();
 
                     b.ToTable("auth_providers", "authentication");
+                });
+
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.Permissible.ArchiveUserPermissionOverride", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Permission")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("permission");
+
+                    b.Property<ArchivePermissionEffect>("Effect")
+                        .HasColumnType("types.permission_effect")
+                        .HasColumnName("effect");
+
+                    b.HasKey("UserId", "Permission");
+
+                    b.ToTable("user_permission_overrides", "authentication");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Authentication.UserAuthIdentity", b =>
@@ -195,11 +222,11 @@ namespace Archive.Core.Migrations
                         {
                             t.HasCheckConstraint("CK_snapshot_processing_cancel", "NOT cancel_requested OR status = 'RUNNING'");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_owner", "(status = 'RUNNING' AND owner_token IS NOT NULL AND started_at IS NOT NULL)\nOR (status <> 'RUNNING' AND owner_token IS NULL)");
+                            t.HasCheckConstraint("CK_snapshot_processing_owner", "(status = 'RUNNING' AND owner_token IS NOT NULL AND started_at IS NOT NULL)\r\nOR (status <> 'RUNNING' AND owner_token IS NULL)");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_step", "(status <> 'QUEUED' OR progress_step = 'SOURCE_CHECK')\nAND ((status = 'COMPLETED' AND progress_step = 'FINISHED')\n    OR (status <> 'COMPLETED' AND progress_step <> 'FINISHED'))");
+                            t.HasCheckConstraint("CK_snapshot_processing_step", "(status <> 'QUEUED' OR progress_step = 'SOURCE_CHECK')\r\nAND ((status = 'COMPLETED' AND progress_step = 'FINISHED')\r\n    OR (status <> 'COMPLETED' AND progress_step <> 'FINISHED'))");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_terminal", "(status IN ('QUEUED', 'RUNNING') AND completed_at IS NULL AND expires_at IS NULL)\nOR (status NOT IN ('QUEUED', 'RUNNING') AND completed_at IS NOT NULL\n    AND expires_at IS NOT NULL AND expires_at >= completed_at)");
+                            t.HasCheckConstraint("CK_snapshot_processing_terminal", "(status IN ('QUEUED', 'RUNNING') AND completed_at IS NULL AND expires_at IS NULL)\r\nOR (status NOT IN ('QUEUED', 'RUNNING') AND completed_at IS NOT NULL\r\n    AND expires_at IS NOT NULL AND expires_at >= completed_at)");
                         });
                 });
 
@@ -318,6 +345,17 @@ namespace Archive.Core.Migrations
                     b.ToTable("tags", "archive");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.Authentication.Permissible.ArchiveUserPermissionOverride", b =>
+                {
+                    b.HasOne("Archive.Core.Entities.Authentication.ArchiveUser", "User")
+                        .WithMany("PermissionOverrides")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.Authentication.UserAuthIdentity", b =>
                 {
                     b.HasOne("Archive.Core.Entities.Authentication.AuthProvider", "AuthProvider")
@@ -380,6 +418,8 @@ namespace Archive.Core.Migrations
             modelBuilder.Entity("Archive.Core.Entities.Authentication.ArchiveUser", b =>
                 {
                     b.Navigation("Identities");
+
+                    b.Navigation("PermissionOverrides");
                 });
 
             modelBuilder.Entity("Archive.Core.Entities.Authentication.AuthProvider", b =>

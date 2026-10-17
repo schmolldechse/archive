@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Archive.Core.Entities.Authentication.Permissible;
 using Archive.Core.Models.Users;
 
 namespace Archive.Core.Entities.Authentication;
@@ -37,6 +38,13 @@ public sealed class ArchiveUser
     [NotMapped]
     public bool IsRegistrationComplete => RegistrationCompletedAt.HasValue;
 
+    [Required]
+    [Column("role")]
+    public ArchiveRole Role { get; set; } = ArchiveRole.User;
+
     [InverseProperty(nameof(UserAuthIdentity.User))]
     public ICollection<UserAuthIdentity> Identities { get; set; } = [];
+
+    [InverseProperty(nameof(ArchiveUserPermissionOverride.User))]
+    public ICollection<ArchiveUserPermissionOverride> PermissionOverrides { get; set; } = [];
 }

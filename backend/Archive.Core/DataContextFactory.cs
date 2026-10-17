@@ -2,6 +2,7 @@ using Archive.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Archive.Core.Entities.Processing;
+using Archive.Core.Entities.Authentication.Permissible;
 
 namespace Archive.Core;
 
@@ -15,10 +16,15 @@ public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext
             npgsql =>
             {
                 npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "public");
+
                 npgsql.MapEnum<SourceType>("source_type", "types");
                 npgsql.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+
                 npgsql.MapEnum<ProcessingStatus>("processing_status", "types");
                 npgsql.MapEnum<ProgressStep>("progress_step", "types");
+
+                npgsql.MapEnum<ArchiveRole>("role", "types");
+                npgsql.MapEnum<ArchivePermissionEffect>("permission_effect", "types");
             });
         return new DataContext(optionsBuilder.Options);
     }

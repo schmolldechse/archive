@@ -1,4 +1,4 @@
-﻿using Archive.Core.Entities.Authentication;
+using Archive.Core.Entities.Authentication;
 
 using Archive.Core.Models.Users;
 
