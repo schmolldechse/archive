@@ -66,6 +66,9 @@
 	const changes = $derived(saved.permissions.filter((item) => (overrides[item.key] ?? null) !== item.override));
 	const dirty = $derived(role !== saved.role || changes.length > 0);
 	const context = $derived(new URL(data.usersHref, "https://archive.invalid").searchParams);
+	const permissionResetHref = $derived(
+		pageHref(new URL(page.url.pathname + (context.size ? `?${context}` : ""), page.url.origin), "permissionPage", 1)
+	);
 
 	beforeNavigate((navigation) => {
 		if (dirty && navigation.to?.url.pathname !== page.url.pathname && !window.confirm("Discard unsaved access changes?"))
@@ -187,20 +190,24 @@
 	</p>{/if}
 <div class="admin-access-layout">
 	<section class="admin-role-section" aria-labelledby="role-heading">
-		<h2 id="role-heading">Role</h2>
-		<p>Sets the default permissions for this account.</p>
-		<label for="user-role">Assigned role</label>
-		<select id="user-role" bind:value={role} disabled={!canRole} onchange={() => (success = "")}
-			><option value={ArchiveRole.USER}>User</option><option value={ArchiveRole.ADMIN}>Admin</option></select
-		>
-		<p class="admin-hint">Personal overrides remain in place when the role changes.</p>
+		<div class="admin-section-intro">
+			<h2 id="role-heading">Role</h2>
+			<p>Sets the default permissions for this account.</p>
+		</div>
+		<div class="admin-role-control">
+			<label for="user-role">Assigned role</label>
+			<select id="user-role" bind:value={role} disabled={!canRole} onchange={() => (success = "")}
+				><option value={ArchiveRole.USER}>User</option><option value={ArchiveRole.ADMIN}>Admin</option></select
+			>
+			<p class="admin-hint">Personal overrides remain in place when the role changes.</p>
+		</div>
 	</section>
 	<section class="admin-permissions-section" aria-labelledby="permissions-heading">
 		<div class="admin-section-heading">
 			<h2 id="permissions-heading">Permissions</h2>
-			<span>{data.catalog.length}</span>
+			<span>{data.catalog.length} permissions</span>
 		</div>
-		<p class="admin-hint">Use role keeps the default. Allow or Deny sets a personal override.</p>
+		<p class="admin-hint">Use role keeps the default. Allow or Deny takes precedence for this account.</p>
 		<form method="GET" class="admin-search admin-permission-search" role="search" aria-label="Search permissions">
 			{#each [...context] as [key, value]}<input type="hidden" name={key} {value} />{/each}
 			<label class="admin-search-field"
@@ -213,10 +220,10 @@
 				/></label
 			>
 			<Button type="submit">Search</Button>
+			{#if data.permissionQ}<Button href={permissionResetHref} variant="text">Clear</Button>{/if}
 		</form>
-		<p class="admin-hint">Current access reflects saved settings. Changes apply when you save.</p>
 		<div class="admin-permission-register">
-			<span>Permission</span><span>Current access</span><span>Personal override</span>
+			<span>Permission</span><span>Saved access</span><span>Personal override</span>
 		</div>
 		<ul class="admin-permission-list" aria-label="Permission settings">
 			{#each data.permissionItems as definition (definition.key)}
@@ -252,16 +259,14 @@
 		{#if !data.permissionItems.length}<div class="admin-empty">
 				<h3>No permissions found</h3>
 				<p>Try another name or permission key.</p>
-				<Button
-					href={pageHref(
-						new URL(page.url.pathname + (context.size ? `?${context}` : ""), page.url.origin),
-						"permissionPage",
-						1
-					)}
-					variant="text">Show all permissions</Button
-				>
+				<Button href={permissionResetHref} variant="text">Show all permissions</Button>
 			</div>{/if}
 		<div class="admin-pagination">
+			<p class="admin-hint">
+				{data.permissionTotal === 0
+					? "0 permissions"
+					: `${(data.permissionPage - 1) * data.permissionPageSize + 1}–${Math.min(data.permissionPage * data.permissionPageSize, data.permissionTotal)} of ${data.permissionTotal} permissions`}
+			</p>
 			<AdminPagination
 				total={data.permissionTotal}
 				pageSize={data.permissionPageSize}
@@ -330,11 +335,11 @@
 		margin: auto;
 	}
 	.admin-page-heading {
-		margin-block: 1.5rem 2rem;
+		margin-block: 1.5rem 2.5rem;
 	}
 	.admin-page-heading h1 {
 		margin: 0;
-		font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+		font-size: clamp(2.25rem, 4vw, 3rem);
 		font-weight: 500;
 		line-height: 1.12;
 		letter-spacing: -0.025em;
@@ -352,6 +357,7 @@
 	}
 	.admin-search-field {
 		flex: 1;
+		min-width: 0;
 	}
 	.admin-role {
 		justify-self: start;
@@ -359,6 +365,10 @@
 		align-items: center;
 		gap: 0.5rem;
 		font-size: 0.875rem;
+		border: 1px solid var(--border-trace);
+		padding: 0.375rem 0.75rem;
+		border-radius: var(--radius-control);
+		flex: none;
 	}
 	.admin-role[data-admin="true"]::before {
 		content: "";
@@ -368,8 +378,15 @@
 	}
 	.admin-pagination {
 		display: flex;
-		justify-content: end;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 1rem;
 		margin-top: 1.5rem;
+	}
+	.admin-pagination p {
+		margin: 0;
+		font-variant-numeric: tabular-nums;
 	}
 	.admin-profile-heading {
 		display: flex;
@@ -382,21 +399,30 @@
 	}
 	.admin-access-layout {
 		display: grid;
-		grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
-		gap: clamp(2rem, 5vw, 5rem);
-		border-top: 1px solid var(--reading-ink);
+		gap: 2.5rem;
+	}
+	.admin-role-section,
+	.admin-permissions-section {
+		border-top: 1px solid var(--border-trace);
 		padding-top: 2rem;
+		min-width: 0;
+	}
+	.admin-role-section {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+		gap: 2rem;
 	}
 	.admin-access-layout h2 {
 		margin: 0;
 		font-size: 1.875rem;
 		font-weight: 500;
 		line-height: 1.2;
+		overflow-wrap: anywhere;
 	}
-	.admin-role-section > p {
+	.admin-section-intro p {
 		color: var(--marginal-note);
 		font-size: 0.9375rem;
-		margin-block: 0.75rem 1.5rem;
+		margin-block: 0.75rem 0;
 	}
 	.admin-role-section .admin-hint,
 	.admin-hint {
@@ -405,7 +431,7 @@
 		line-height: 1.5;
 	}
 	.admin-role-section .admin-hint {
-		margin-top: 0.75rem;
+		margin-block: 0.75rem 0;
 	}
 	.admin-section-heading {
 		display: flex;
@@ -417,13 +443,14 @@
 		color: var(--marginal-note);
 	}
 	.admin-permission-search {
-		margin-block: 1.5rem;
+		max-width: 40rem;
+		margin-block: 1.5rem 2rem;
 	}
 	.admin-permission-register,
 	.admin-permission-list > li {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 7rem 9rem;
-		gap: 1.5rem;
+		grid-template-columns: minmax(0, 1fr) 8.5rem 11rem;
+		gap: 2rem;
 	}
 	.admin-permission-register {
 		border-block: 1px solid var(--border-trace);
@@ -456,6 +483,7 @@
 		color: var(--marginal-note);
 		font-size: 0.875rem;
 		line-height: 1.5;
+		max-width: 70ch;
 	}
 	.admin-permission-access {
 		display: grid;
@@ -486,12 +514,16 @@
 		font-size: 0.9375rem;
 	}
 	.admin-save-bar {
+		position: sticky;
+		bottom: 0;
+		z-index: 5;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 1rem;
 		border-top: 1px solid var(--border-trace);
-		padding-top: 1.5rem;
+		background: var(--reading-room);
+		padding-block: 1rem;
 		margin-top: 2rem;
 	}
 	.admin-save-bar p {
@@ -501,6 +533,7 @@
 	.admin-save-actions {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: 0.75rem;
 		flex: none;
 	}
@@ -559,6 +592,7 @@
 		background: var(--reading-room);
 		color: var(--reading-ink);
 		font-size: 1rem;
+		scroll-margin-block: 6rem;
 	}
 	select {
 		min-width: 8.5rem;
@@ -568,18 +602,22 @@
 		opacity: 0.75;
 		cursor: not-allowed;
 	}
-	@media (max-width: 64rem) {
-		.admin-access-layout {
-			grid-template-columns: minmax(0, 1fr);
-			gap: 2rem;
-		}
-		.admin-role-section {
-			max-width: 28rem;
-		}
-	}
 	@media (max-width: 42rem) {
-		.admin-search-field {
+		.admin-role-section {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 1.5rem;
+		}
+		.admin-profile-heading {
+			align-items: start;
+		}
+		.admin-profile-heading > div {
 			min-width: 0;
+		}
+		.admin-permission-search {
+			flex-wrap: wrap;
+		}
+		.admin-permission-search .admin-search-field {
+			flex-basis: 100%;
 		}
 		.admin-permission-register {
 			display: none;
@@ -609,8 +647,28 @@
 		.admin-save-actions {
 			justify-content: end;
 		}
-		.admin-pagination {
-			justify-content: start;
+		.admin-section-heading > span {
+			font-size: 0.75rem;
+		}
+		.admin-section-heading {
+			gap: 1rem;
+			flex-wrap: wrap;
+		}
+	}
+	@media (max-width: 26rem) {
+		.admin-permission-list > li {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.admin-save-bar {
+			gap: 0.5rem;
+		}
+		.admin-save-bar p {
+			font-size: 0.875rem;
+		}
+	}
+	@media (max-height: 32rem) {
+		.admin-save-bar {
+			position: static;
 		}
 	}
 </style>

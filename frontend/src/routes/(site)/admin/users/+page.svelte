@@ -4,14 +4,6 @@
 	import Avatar from "$lib/components/ui/Avatar.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
-	import {
-		Breadcrumb,
-		BreadcrumbList,
-		BreadcrumbItem,
-		BreadcrumbLink,
-		BreadcrumbSeparator,
-		BreadcrumbPage
-	} from "$lib/components/ui/breadcrumb";
 	import { pageHref } from "$lib/admin/navigation";
 	import type { PageProps } from "./$types";
 	let { data }: PageProps = $props();
@@ -21,13 +13,6 @@
 </script>
 
 <svelte:head><title>Users · Administration · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<Breadcrumb
-	><BreadcrumbList
-		><BreadcrumbItem><BreadcrumbLink href="/">Archive</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem
-			><BreadcrumbLink href="/admin">Administration</BreadcrumbLink></BreadcrumbItem
-		><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>Users</BreadcrumbPage></BreadcrumbItem></BreadcrumbList
-	></Breadcrumb
->
 <header class="admin-page-heading">
 	<h1>Users</h1>
 	<p>Manage roles and individual permissions.</p>
@@ -47,33 +32,34 @@
 			><option value="">All roles</option><option value="USER">User</option><option value="ADMIN">Admin</option></select
 		></label
 	>
-	<Button type="submit" variant="primary">Search</Button>
-	{#if data.filters.q || data.filters.role}<Button href="/admin/users" variant="text">Clear</Button>{/if}
+	<div class="admin-search-actions">
+		<Button type="submit" variant="primary">Search</Button>
+		{#if data.filters.q || data.filters.role}<Button href="/admin/users" variant="text">Clear</Button>{/if}
+	</div>
 </form>
-<div class="admin-register">
-	<p>
-		{total === 0
-			? "No users"
-			: `${((current - 1) * size + 1).toLocaleString()}–${Math.min(current * size, total).toLocaleString()} of ${total.toLocaleString()} users`}
-	</p>
-	<span>Role</span>
+<div class="admin-register" aria-hidden="true">
+	<span>User</span><span>Role</span><span class="admin-access-label">Access</span>
 </div>
 <ul class="admin-user-list" aria-label="Users">
 	{#each data.users.items as user (user.handle)}
 		<li>
 			<a href={`/admin/users/${encodeURIComponent(user.handle!)}${page.url.search}`}>
-				<Avatar
-					src={user.profileImageUrl}
-					initials={user.displayName
-						?.split(/\s+/)
-						.map((part) => part[0])
-						.slice(0, 2)
-						.join("")}
-					decorative
-				/>
-				<span class="admin-user-name"><strong>{user.displayName}</strong><span class="record-value">@{user.handle}</span></span>
+				<span class="admin-user-identity">
+					<Avatar
+						src={user.profileImageUrl}
+						initials={user.displayName
+							?.split(/\s+/)
+							.map((part) => part[0])
+							.slice(0, 2)
+							.join("")}
+						decorative
+					/>
+					<span class="admin-user-name"
+						><strong>{user.displayName}</strong><span class="record-value">@{user.handle}</span></span
+					>
+				</span>
 				<span class="admin-role" data-admin={user.role === "ADMIN"}>{user.role === "ADMIN" ? "Admin" : "User"}</span>
-				<ArrowRight aria-hidden="true" />
+				<span class="admin-user-action"><span>Manage access</span><ArrowRight aria-hidden="true" /></span>
 			</a>
 		</li>
 	{/each}
@@ -83,6 +69,11 @@
 		<p>{total ? "Choose a previous page to continue." : "Try another handle, name or role."}</p>
 	</div>{/if}
 <div class="admin-pagination">
+	<p>
+		{total === 0
+			? "0 users"
+			: `${((current - 1) * size + 1).toLocaleString()}–${Math.min(current * size, total).toLocaleString()} of ${total.toLocaleString()} users`}
+	</p>
 	<AdminPagination
 		{total}
 		pageSize={size}
@@ -94,11 +85,11 @@
 
 <style>
 	.admin-page-heading {
-		margin-block: 1.5rem 2rem;
+		margin-block: 2.5rem 2rem;
 	}
 	.admin-page-heading h1 {
 		margin: 0;
-		font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+		font-size: clamp(2.5rem, 4.5vw, 3.5rem);
 		font-weight: 500;
 		line-height: 1.12;
 		letter-spacing: -0.025em;
@@ -109,28 +100,34 @@
 		color: var(--marginal-note);
 	}
 	.admin-search {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 11rem auto;
 		align-items: end;
 		gap: 1rem;
-		margin-block: 1.5rem;
+		padding-block: 1.5rem 2rem;
+		border-top: 1px solid var(--border-trace);
 	}
 	.admin-search-field {
-		flex: 1;
+		min-width: 0;
+	}
+	.admin-search-actions {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.75rem;
 	}
 	.admin-register {
-		display: flex;
-		justify-content: space-between;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 7rem 9rem;
+		gap: 1.5rem;
 		align-items: center;
 		border-block: 1px solid var(--border-trace);
-		padding-block: 0.625rem;
+		padding: 0.75rem 1rem;
 		color: var(--marginal-note);
 		font-size: 0.875rem;
 	}
-	.admin-register p {
-		margin: 0;
-	}
-	.admin-register > span {
-		margin-inline-end: 3rem;
+	.admin-access-label {
+		justify-self: end;
 	}
 	.admin-user-list {
 		padding: 0;
@@ -142,10 +139,11 @@
 	}
 	.admin-user-list a {
 		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) 5rem 1.25rem;
+		grid-template-columns: minmax(0, 1fr) 7rem 9rem;
 		align-items: center;
-		gap: 1rem;
-		padding: 1rem 0.5rem;
+		gap: 1.5rem;
+		min-height: 5.5rem;
+		padding: 1rem;
 		color: var(--reading-ink);
 		text-decoration: none;
 	}
@@ -167,6 +165,21 @@
 		font-size: 0.8125rem;
 		color: var(--marginal-note);
 	}
+	.admin-user-identity {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		min-width: 0;
+	}
+	.admin-user-action {
+		display: inline-flex;
+		align-items: center;
+		justify-self: end;
+		gap: 0.75rem;
+		color: var(--register-mark);
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
 	.admin-user-list :global(svg) {
 		width: 1.125rem;
 		height: 1.125rem;
@@ -187,8 +200,17 @@
 	}
 	.admin-pagination {
 		display: flex;
-		justify-content: end;
-		margin-top: 1.5rem;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 1rem;
+		padding-top: 1.5rem;
+	}
+	.admin-pagination p {
+		margin: 0;
+		color: var(--marginal-note);
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
 	}
 	.admin-empty {
 		padding-block: 3rem;
@@ -230,26 +252,37 @@
 	}
 	@media (max-width: 42rem) {
 		.admin-search {
-			flex-wrap: wrap;
+			grid-template-columns: minmax(0, 1fr) auto;
 		}
 		.admin-search-field {
-			flex-basis: 100%;
+			grid-column: 1 / -1;
 		}
-		.admin-search > label:not(.admin-search-field) {
-			flex: 1;
+		.admin-search-actions {
+			gap: 0.5rem;
 		}
-		.admin-user-list a {
+		.admin-user-list a,
+		.admin-register {
 			gap: 0.75rem;
-			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-columns: minmax(0, 1fr) 3rem 1rem;
+			padding-inline: 0;
 		}
-		.admin-user-list :global(svg) {
+		.admin-access-label,
+		.admin-user-action > span {
 			display: none;
 		}
-		.admin-register > span {
-			margin-right: 0.5rem;
+		.admin-user-identity {
+			gap: 0.75rem;
 		}
-		.admin-pagination {
-			justify-content: start;
+		.admin-page-heading {
+			margin-block: 2rem 1.5rem;
+		}
+	}
+	@media (max-width: 26rem) {
+		.admin-search {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.admin-search-actions {
+			justify-content: end;
 		}
 	}
 </style>

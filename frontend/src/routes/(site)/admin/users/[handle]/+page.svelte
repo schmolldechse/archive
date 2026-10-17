@@ -15,13 +15,18 @@
 <svelte:head
 	><title>{data.access.displayName} · Users · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head
 >
-<Breadcrumb
-	><BreadcrumbList
-		><BreadcrumbItem><BreadcrumbLink href="/">Archive</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem
-			><BreadcrumbLink href="/admin">Administration</BreadcrumbLink></BreadcrumbItem
-		><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbLink href={data.usersHref}>Users</BreadcrumbLink></BreadcrumbItem
-		><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>@{data.access.handle}</BreadcrumbPage></BreadcrumbItem
-		></BreadcrumbList
-	></Breadcrumb
->
+<div class="admin-detail-path">
+	<Breadcrumb
+		><BreadcrumbList
+			><BreadcrumbItem><BreadcrumbLink href={data.usersHref}>Users</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator
+			/><BreadcrumbItem><BreadcrumbPage>@{data.access.handle}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList
+		></Breadcrumb
+	>
+</div>
 {#key data.access.handle}<UserAccessEditor {data} />{/key}
+
+<style>
+	.admin-detail-path {
+		padding-top: 1.25rem;
+	}
+</style>
