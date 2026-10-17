@@ -53,7 +53,7 @@
 			</TableHeader>
 			<TableBody>
 				{#each users.items as user (user.handle)}
-					{@const href = `/admin/users/${encodeURIComponent(user.handle!)}${page.url.search}`}
+					{@const href = `/admin/users/@${encodeURIComponent(user.handle!)}${page.url.search}`}
 					<TableRow>
 						<TableCell>
 							<a class="user-identity" {href}>

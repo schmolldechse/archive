@@ -3,7 +3,6 @@
 	import { beforeNavigate, invalidate } from "$app/navigation";
 	import { page } from "$app/state";
 	import {
-		ArchiveRole,
 		ArchivePermissionEffect,
 		type UserAccessResponse,
 		type PermissionDefinitionResponse,
@@ -14,8 +13,12 @@
 	import { apiUrl } from "$lib/api-url";
 	import { pageHref } from "$lib/admin/navigation";
 	import Button from "$lib/components/ui/Button.svelte";
-	import { InputRoot, InputLabel, InputControl } from "$lib/components/ui/input";
+	import Avatar from "$lib/components/ui/Avatar.svelte";
 	import AdminPagination from "./AdminPagination.svelte";
+	import UserPermissionSearch from "./UserPermissionSearch.svelte";
+	import UserPermissionTable from "./UserPermissionTable.svelte";
+	import UserRoleAssignment from "./UserRoleAssignment.svelte";
+	import UserAccessChanges from "./UserAccessChanges.svelte";
 	import {
 		DialogRoot,
 		DialogContent,
@@ -65,7 +68,8 @@
 		data.capabilities.permissions && !ownAccount && !blocked && !saving && !reloading && !conflict
 	);
 	const changes = $derived(saved.permissions.filter((item) => (overrides[item.key] ?? null) !== item.override));
-	const dirty = $derived(role !== saved.role || changes.length > 0);
+	const changeCount = $derived(changes.length + Number(role !== saved.role));
+	const dirty = $derived(changeCount > 0);
 	const context = $derived(new URL(data.usersHref, "https://archive.invalid").searchParams);
 	const permissionResetHref = $derived(
 		pageHref(new URL(page.url.pathname + (context.size ? `?${context}` : ""), page.url.origin), "permissionPage", 1)
@@ -88,9 +92,6 @@
 	function reset() {
 		setBaseline(saved, etag);
 		success = "";
-	}
-	function overrideLabel(value: ArchivePermissionEffect | null) {
-		return value === null ? "Use role" : value === ArchivePermissionEffect.ALLOW ? "Allow" : "Deny";
 	}
 
 	async function reloadAccess() {
@@ -175,106 +176,59 @@
 	}}
 />
 
-<header class="admin-page-heading admin-profile-heading">
-	<div>
-		<h1>{saved.displayName}</h1>
-		<p class="record-value">@{saved.handle}</p>
-	</div>
-	<span class="admin-role" data-admin={saved.role === ArchiveRole.ADMIN}
-		>{saved.role === ArchiveRole.ADMIN ? "Admin" : "User"}</span
-	>
-</header>
+<section class="account-overview" aria-label="Account access">
+	<header class="account-heading">
+		<Avatar
+			size="default"
+			decorative
+			initials={saved.displayName
+				.split(/\s+/)
+				.map((part) => part[0])
+				.slice(0, 2)
+				.join("")}
+		/>
+		<div class="account-identity">
+			<h1>{saved.displayName}</h1>
+		</div>
+	</header>
+	<UserRoleAssignment
+		{role}
+		disabled={!canRole}
+		onRoleChange={(value) => {
+			role = value;
+			success = "";
+		}}
+	/>
+</section>
 {#if ownAccount}<p class="admin-notice">
 		Your own access is read-only. Ask another administrator to make changes.
 	</p>{:else if !data.capabilities.roles && !data.capabilities.permissions}<p class="admin-notice">
 		You have read-only access to user administration.
 	</p>{/if}
-<div class="admin-access-layout">
-	<section class="admin-role-section" aria-labelledby="role-heading">
-		<div class="admin-section-intro">
-			<h2 id="role-heading">Role</h2>
-			<p>Sets the default permissions for this account.</p>
-		</div>
-		<div class="admin-role-control">
-			<label for="user-role">Assigned role <span class="field-qualifier">Required</span></label>
-			<select id="user-role" bind:value={role} required disabled={!canRole} onchange={() => (success = "")}
-				><option value={ArchiveRole.USER}>User</option><option value={ArchiveRole.ADMIN}>Admin</option></select
-			>
-			<p class="admin-hint">Personal overrides remain in place when the role changes.</p>
-		</div>
-	</section>
-	<section class="admin-permissions-section" aria-labelledby="permissions-heading">
-		<div class="admin-section-heading">
-			<h2 id="permissions-heading">Permissions</h2>
-			<span>{data.catalog.length} permissions</span>
-		</div>
-		<p class="admin-hint">Use role keeps the default. Allow or Deny takes precedence for this account.</p>
-		<form method="GET" class="admin-search admin-permission-search" role="search" aria-label="Search permissions">
-			{#each [...context] as [key, value]}<input type="hidden" name={key} {value} />{/each}
-			<InputRoot id="admin-permission-query" class="admin-permission-query">
-				<InputLabel>Search permissions <span class="field-qualifier">Optional</span></InputLabel>
-				<InputControl
-					name="permissionQ"
-					value={data.permissionQ}
-					maxlength={128}
-					type="search"
-					placeholder="Name or permission key"
-				/>
-			</InputRoot>
-			<Button type="submit" size="large">Search</Button>
-			{#if data.permissionQ}<Button href={permissionResetHref} variant="text">Clear</Button>{/if}
-		</form>
-		<div class="admin-permission-register">
-			<span>Permission</span><span>Saved access</span><span
-				>Personal override <span class="field-qualifier">Optional</span></span
-			>
-		</div>
-		<ul class="admin-permission-list" aria-label="Permission settings">
-			{#each data.permissionItems as definition (definition.key)}
-				{@const permission = saved.permissions.find((item) => item.key === definition.key)!}
-				<li>
-					<div class="admin-permission-description">
-						<label for={`permission-${definition.key}`}
-							>{definition.displayName}<span class="sr-only"> personal override, optional</span></label
-						><code>{definition.key}</code>
-						<p>{definition.description}</p>
-					</div>
-					<div class="admin-permission-access" data-allowed={permission.allowed}>
-						<strong>{permission.allowed ? "Allowed" : "Not allowed"}</strong><span
-							>{permission.override === null ? "From role" : "Personal override"}</span
-						>
-					</div>
-					<div class="admin-permission-control">
-						<label class="admin-mobile-label" for={`permission-${definition.key}`}
-							>Personal override <span class="field-qualifier">Optional</span></label
-						><select
-							id={`permission-${definition.key}`}
-							value={overrides[definition.key] ?? ""}
-							disabled={!canPermissions}
-							onchange={(event) => {
-								overrides[definition.key] =
-									event.currentTarget.value === "" ? null : (event.currentTarget.value as ArchivePermissionEffect);
-								success = "";
-							}}
-							><option value="">Use role</option><option value={ArchivePermissionEffect.ALLOW}>Allow</option><option
-								value={ArchivePermissionEffect.DENY}>Deny</option
-							></select
-						>
-					</div>
-				</li>
-			{/each}
-		</ul>
-		{#if !data.permissionItems.length}<div class="admin-empty">
-				<h3>No permissions found</h3>
-				<p>Try another name or permission key.</p>
-				<Button href={permissionResetHref} variant="text">Show all permissions</Button>
-			</div>{/if}
+<section class="admin-permissions-section" aria-labelledby="permissions-heading">
+	<div class="admin-section-heading">
+		<h2 id="permissions-heading">Permissions</h2>
+		<p role="status" aria-atomic="true">
+			{data.permissionTotal <= data.permissionPageSize
+				? `${data.permissionTotal} ${data.permissionTotal === 1 ? "permission" : "permissions"}`
+				: `${(data.permissionPage - 1) * data.permissionPageSize + 1}–${Math.min(data.permissionPage * data.permissionPageSize, data.permissionTotal)} of ${data.permissionTotal} permissions`}
+		</p>
+	</div>
+	<p class="admin-hint">Use role follows the default. Allow and Deny apply only to this account.</p>
+	{#key data.permissionQ}<UserPermissionSearch query={data.permissionQ} {context} resetHref={permissionResetHref} />{/key}
+	<UserPermissionTable
+		definitions={data.permissionItems}
+		permissions={saved.permissions}
+		{overrides}
+		disabled={!canPermissions}
+		resetHref={permissionResetHref}
+		onOverrideChange={(key, effect) => {
+			overrides[key] = effect;
+			success = "";
+		}}
+	/>
+	{#if data.permissionTotal > data.permissionPageSize}
 		<div class="admin-pagination">
-			<p class="admin-hint">
-				{data.permissionTotal === 0
-					? "0 permissions"
-					: `${(data.permissionPage - 1) * data.permissionPageSize + 1}–${Math.min(data.permissionPage * data.permissionPageSize, data.permissionTotal)} of ${data.permissionTotal} permissions`}
-			</p>
 			<AdminPagination
 				total={data.permissionTotal}
 				pageSize={data.permissionPageSize}
@@ -283,8 +237,8 @@
 				label="Permission pages"
 			/>
 		</div>
-	</section>
-</div>
+	{/if}
+</section>
 <div class="admin-save-bar">
 	<div aria-live="polite" tabindex="-1" bind:this={saveStatus}>
 		{#if saving}<p>Saving changes…</p>{:else if message}<p class="admin-save-error" role="alert">
@@ -292,9 +246,7 @@
 			</p>{:else if success}<p class="admin-save-success">
 				✓ {success}
 			</p>{:else}<p>
-				{dirty
-					? `${changes.length + Number(role !== saved.role)} unsaved ${changes.length + Number(role !== saved.role) === 1 ? "change" : "changes"}`
-					: "No unsaved changes"}
+				{dirty ? `${changeCount} unsaved ${changeCount === 1 ? "change" : "changes"}` : "No unsaved changes"}
 			</p>{/if}
 	</div>
 	<div class="admin-save-actions">
@@ -318,21 +270,14 @@
 		class="admin-confirmation"
 		returnFocus={() => (saveButton instanceof HTMLButtonElement && !saveButton.disabled ? saveButton : saveStatus)}
 	>
-		<DialogTitle>Update access</DialogTitle>
-		<DialogDescription>Save these changes for @{saved.handle}?</DialogDescription>
-		<ul class="admin-confirm-changes">
-			{#if role !== saved.role}<li>
-					<strong>Role</strong><span
-						>{saved.role === ArchiveRole.ADMIN ? "Admin" : "User"} → {role === ArchiveRole.ADMIN ? "Admin" : "User"}</span
-					>
-				</li>{/if}{#each changes as change (change.key)}<li>
-					<strong>{data.catalog.find((item) => item.key === change.key)?.displayName}</strong><span
-						>{overrideLabel(change.override)} → {overrideLabel(overrides[change.key] ?? null)}</span
-					>
-				</li>{/each}
-		</ul>
+		<DialogTitle>Confirm access changes</DialogTitle>
+		<DialogDescription
+			>{changeCount}
+			{changeCount === 1 ? "change" : "changes"} for <span class="record-value">@{saved.handle}</span>.</DialogDescription
+		>
+		<UserAccessChanges savedRole={saved.role} {role} {changes} catalog={data.catalog} {overrides} />
 		<DialogActions
-			><DialogClose>Cancel</DialogClose><Button variant="primary" onclick={save}>Save changes</Button></DialogActions
+			><DialogClose>Keep editing</DialogClose><Button variant="primary" onclick={save}>Save changes</Button></DialogActions
 		>
 	</DialogContent>
 </DialogRoot>
@@ -342,181 +287,67 @@
 	:global(.admin-confirmation[data-modal="true"]) {
 		margin: auto;
 	}
-	.admin-page-heading {
-		margin-block: 1.5rem 2.5rem;
+	.account-overview {
+		display: grid;
+		grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+		align-items: center;
+		gap: 2rem 3rem;
+		margin-block: 1.75rem 2rem;
+		padding-bottom: 2rem;
+		border-bottom: 1px solid var(--border-trace);
 	}
-	.admin-page-heading h1 {
+	.account-heading {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		min-width: 0;
+	}
+	.account-identity {
+		min-width: 0;
+	}
+	.account-heading h1 {
 		margin: 0;
-		font-size: clamp(2.25rem, 4vw, 3rem);
+		font-size: clamp(1.75rem, 3vw, 2.25rem);
 		font-weight: 500;
 		line-height: 1.12;
 		letter-spacing: -0.025em;
 		overflow-wrap: anywhere;
 	}
-	.admin-page-heading p {
-		margin: 0.5rem 0 0;
-		color: var(--marginal-note);
-	}
-	.admin-search {
-		display: flex;
-		align-items: end;
-		gap: 1rem;
-		margin-block: 1.5rem;
-	}
-	.admin-permission-search :global(.admin-permission-query) {
-		flex: 1;
-		min-width: 0;
-	}
-	.admin-role {
-		justify-self: start;
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.875rem;
-		border: 1px solid var(--border-trace);
-		padding: 0.375rem 0.75rem;
-		border-radius: var(--radius-control);
-		flex: none;
-	}
-	.admin-role[data-admin="true"]::before {
-		content: "";
-		width: 0.375rem;
-		height: 0.375rem;
-		background: var(--register-mark);
-	}
 	.admin-pagination {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: end;
 		flex-wrap: wrap;
 		gap: 1rem;
 		margin-top: 1.5rem;
 	}
-	.admin-pagination p {
-		margin: 0;
-		font-variant-numeric: tabular-nums;
-	}
-	.admin-profile-heading {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-	}
-	.admin-profile-heading .record-value {
-		font-size: 0.875rem;
-	}
-	.admin-access-layout {
-		display: grid;
-		gap: 2.5rem;
-	}
-	.admin-role-section,
 	.admin-permissions-section {
-		border-top: 1px solid var(--border-trace);
-		padding-top: 2rem;
 		min-width: 0;
 	}
-	.admin-role-section {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
-		gap: 2rem;
-	}
-	.admin-access-layout h2 {
+	.admin-permissions-section h2 {
 		margin: 0;
 		font-size: 1.875rem;
 		font-weight: 500;
 		line-height: 1.2;
 		overflow-wrap: anywhere;
 	}
-	.admin-section-intro p {
-		color: var(--marginal-note);
-		font-size: 0.9375rem;
-		margin-block: 0.75rem 0;
-	}
-	.admin-role-section .admin-hint,
 	.admin-hint {
 		color: var(--marginal-note);
 		font-size: 0.875rem;
 		line-height: 1.5;
 	}
-	.admin-role-section .admin-hint {
-		margin-block: 0.75rem 0;
-	}
 	.admin-section-heading {
 		display: flex;
 		justify-content: space-between;
-		align-items: center;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.5rem;
 	}
-	.admin-section-heading > span {
-		font: 400 0.8125rem var(--font-record);
-		color: var(--marginal-note);
-	}
-	.admin-permission-search {
-		max-width: 40rem;
-		margin-block: 1.5rem 2rem;
-	}
-	.admin-permission-search :global([data-input-control]) {
-		scroll-margin-block: 6rem;
-	}
-	.admin-permission-register,
-	.admin-permission-list > li {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 8.5rem 11rem;
-		gap: 2rem;
-	}
-	.admin-permission-register {
-		border-block: 1px solid var(--border-trace);
-		padding-block: 0.625rem;
-		color: var(--marginal-note);
-		font-size: 0.8125rem;
-	}
-	.admin-permission-list {
-		list-style: none;
-		padding: 0;
+	.admin-section-heading > p {
 		margin: 0;
-	}
-	.admin-permission-list > li {
-		padding-block: 1.5rem;
-		border-bottom: 1px solid color-mix(in srgb, var(--border-trace) 45%, transparent);
-		align-items: start;
-	}
-	.admin-permission-description label {
-		font-size: 1rem;
-	}
-	.admin-permission-description code {
-		display: block;
-		margin-top: 0.25rem;
-		font: 400 0.75rem / 1.5 var(--font-record);
-		color: var(--marginal-note);
-		overflow-wrap: anywhere;
-	}
-	.admin-permission-description p {
-		margin: 0.625rem 0 0;
-		color: var(--marginal-note);
 		font-size: 0.875rem;
-		line-height: 1.5;
-		max-width: 70ch;
-	}
-	.admin-permission-access {
-		display: grid;
-		gap: 0.25rem;
-		padding-top: 0.125rem;
-		font-size: 0.875rem;
-	}
-	.admin-permission-access strong {
-		font-weight: 600;
-	}
-	.admin-permission-access[data-allowed="true"] strong {
-		color: var(--preservation-green);
-	}
-	.admin-permission-access span {
-		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
 		color: var(--marginal-note);
-	}
-	.admin-permission-control select {
-		margin: 0;
-	}
-	.admin-mobile-label {
-		display: none !important;
 	}
 	.admin-notice {
 		border-inline-start: 3px solid var(--register-mark);
@@ -554,103 +385,13 @@
 	.admin-save-success {
 		color: var(--preservation-green);
 	}
-	.admin-empty {
-		padding-block: 3rem;
-		color: var(--marginal-note);
-	}
-	.admin-empty h3 {
-		margin: 0;
-		color: var(--reading-ink);
-		font-weight: 500;
-	}
-	.admin-empty p {
-		margin-top: 0.75rem;
-	}
-	.admin-confirm-changes {
-		list-style: none;
-		padding: 0;
-		margin: 1.5rem 0;
-		max-height: 50vh;
-		overflow: auto;
-	}
-	.admin-confirm-changes li {
-		display: grid;
-		gap: 0.25rem;
-		padding-block: 0.75rem;
-		border-bottom: 1px solid var(--border-trace);
-		font-size: 0.9375rem;
-	}
-	.admin-confirm-changes span {
-		color: var(--marginal-note);
-	}
-	.admin-confirm-changes li:last-child {
-		border-bottom: 0;
-	}
-	label {
-		display: block;
-		font-size: 0.9375rem;
-		font-weight: 600;
-		line-height: 1.4;
-	}
-	select {
-		display: block;
-		width: 100%;
-		min-height: 2.75rem;
-		margin-top: 0.375rem;
-		border: 1px solid var(--border-trace);
-		border-radius: var(--radius-control);
-		padding: 0.5rem 0.75rem;
-		background: var(--reading-room);
-		color: var(--reading-ink);
-		font-size: 1rem;
-		scroll-margin-block: 6rem;
-	}
-	select {
-		min-width: 8.5rem;
-	}
-	select:disabled {
-		background: var(--archive-layer);
-		opacity: 0.75;
-		cursor: not-allowed;
-	}
-	@media (max-width: 42rem) {
-		.admin-role-section {
+	@media (max-width: 56rem) {
+		.account-overview {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 1.5rem;
 		}
-		.admin-profile-heading {
-			align-items: start;
-		}
-		.admin-profile-heading > div {
-			min-width: 0;
-		}
-		.admin-permission-search {
-			flex-wrap: wrap;
-		}
-		.admin-permission-search :global(.admin-permission-query) {
-			flex-basis: 100%;
-		}
-		.admin-permission-register {
-			display: none;
-		}
-		.admin-permission-list {
-			border-top: 1px solid var(--border-trace);
-		}
-		.admin-permission-list > li {
-			grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 45%);
-			gap: 1rem;
-		}
-		.admin-permission-description {
-			grid-column: 1 / -1;
-		}
-		.admin-permission-access {
-			align-self: end;
-			padding-block: 0.5rem;
-		}
-		.admin-mobile-label {
-			display: block !important;
-			margin-bottom: 0.375rem;
-		}
+	}
+	@media (max-width: 42rem) {
 		.admin-save-bar {
 			flex-direction: column;
 			align-items: stretch;
@@ -658,18 +399,8 @@
 		.admin-save-actions {
 			justify-content: end;
 		}
-		.admin-section-heading > span {
-			font-size: 0.75rem;
-		}
-		.admin-section-heading {
-			gap: 1rem;
-			flex-wrap: wrap;
-		}
 	}
 	@media (max-width: 26rem) {
-		.admin-permission-list > li {
-			grid-template-columns: minmax(0, 1fr);
-		}
 		.admin-save-bar {
 			gap: 0.5rem;
 		}

@@ -4,7 +4,7 @@ import { readAdmin, requireAdmin } from "$lib/server/admin";
 import { pageHref, usersHref } from "$lib/admin/navigation";
 import type { PageServerLoad } from "./$types";
 
-/** Only this account's permissions are paginated here; user search remains on its parent page. */
+/** The static @ prefix identifies a handle; permission pagination stays separate from the user directory. */
 export const load: PageServerLoad = async (event) => {
 	const capabilities = requireAdmin(event, "users");
 	const permissionQ = (event.url.searchParams.get("permissionQ") ?? "").trim();
