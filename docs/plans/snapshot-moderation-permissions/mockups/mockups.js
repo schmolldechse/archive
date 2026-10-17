@@ -77,7 +77,6 @@ document
     const badge = record.querySelector("[data-moderation]");
     badge.className = "status resubmitted";
     badge.textContent = "↻ Resubmitted";
-    record.querySelector("[data-round]").textContent = "Review round 2";
     const submittedTime = record.querySelector(".record-subline time");
     submittedTime.dateTime = new Date().toISOString();
     submittedTime.textContent = submittedTime.dateTime
@@ -86,7 +85,7 @@ document
     record.querySelector("[data-latest-reason]").hidden = true;
     const entry = document.createElement("li");
     const title = document.createElement("strong");
-    title.textContent = "Resubmitted · Round 2";
+    title.textContent = "Resubmitted";
     const time = document.createElement("time");
     time.dateTime = new Date().toISOString();
     time.textContent = time.dateTime
@@ -145,7 +144,7 @@ function decide(status) {
   const reason = document.querySelector("#rejection-reason")?.value.trim();
   const entry = document.createElement("li");
   const title = document.createElement("strong");
-  title.textContent = `${status === "approved" ? "Approved" : "Rejected"} · ${document.querySelector("[data-review-round]").textContent}`;
+  title.textContent = status === "approved" ? "Approved" : "Rejected";
   entry.append(title);
   if (status === "rejected" && reason) {
     const paragraph = document.createElement("p");
@@ -220,35 +219,35 @@ const reviewExamples = {
     title: "Open access to local history",
     url: "https://example.org/history/open-access",
     creator: "Jamie Park · @jamie.park",
-    round: 2,
+    history: ["Resubmitted", "Rejected", "Submitted"],
     status: "resubmitted",
   },
   pending: {
     title: "A field guide to urban trees",
     url: "https://example.org/journal/urban-trees",
     creator: "Alex Morgan · @alex.morgan",
-    round: 1,
+    history: ["Submitted"],
     status: "pending",
   },
   anonymous: {
     title: "Public garden catalogue",
     url: "https://example.org/gardens/catalogue",
     creator: "Anonymous",
-    round: 1,
+    history: ["Submitted"],
     status: "pending",
   },
   rejected: {
     title: "The changing coastline",
     url: "https://example.org/research/the-changing-coastline",
     creator: "Alex Morgan · @alex.morgan",
-    round: 1,
+    history: ["Rejected", "Submitted"],
     status: "rejected",
   },
   approved: {
     title: "Notes from the public library",
     url: "https://example.org/library/notes",
     creator: "Alex Morgan · @alex.morgan",
-    round: 2,
+    history: ["Approved", "Resubmitted", "Rejected", "Submitted"],
     status: "approved",
   },
 };
@@ -267,8 +266,6 @@ document.querySelectorAll("[data-review-sample]").forEach((button) => {
     document.querySelector("[data-review-copy]").dataset.copy = sample.url;
     document.querySelector("[data-review-creator]").textContent =
       sample.creator;
-    document.querySelector("[data-review-round]").textContent =
-      `Review round ${sample.round}`;
     const status = document.querySelector("[data-review-status]");
     const labels = {
       pending: "◷ Pending",
@@ -292,14 +289,13 @@ document.querySelectorAll("[data-review-sample]").forEach((button) => {
       state === "approved" ? "Public" : "Not public";
     const timeline = document.querySelector("[data-review-history]");
     timeline.replaceChildren();
-    const entries =
-      sample.round === 2
-        ? [
-            `${state === "approved" ? "Approved" : "Resubmitted"} · Round 2`,
-            "Rejected · Round 1",
-            "Submitted · Round 1",
-          ]
-        : [state === "rejected" ? "Rejected · Round 1" : "Submitted · Round 1"];
+    const entries = [...sample.history];
+    if (
+      (state === "approved" || state === "rejected") &&
+      state !== sample.status
+    ) {
+      entries.unshift(state === "approved" ? "Approved" : "Rejected");
+    }
     entries.forEach((text) => {
       const entry = document.createElement("li");
       const title = document.createElement("strong");

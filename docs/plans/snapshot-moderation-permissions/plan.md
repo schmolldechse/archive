@@ -1,6 +1,6 @@
 # Rollen, individuelle Berechtigungen und Snapshot-Moderation
 
-**Status:** Lösungsvorschlag zur Freigabe; keine Implementierung.
+**Status:** Überarbeiteter Lösungsvorschlag zur Freigabe; keine Implementierung.
 
 **Stand:** 2026-10-17.
 
@@ -10,120 +10,117 @@
 
 ## 1. Auftrag und verbindliche Entscheidungen
 
-Diese Erweiterung umfasst ausschließlich zwei Rollen (`User`, `Admin`), persönliche Rechte mit erlaubenden und einschränkenden Ausnahmen, die Genehmigung von Snapshots, Publikation ohne vorherige manuelle Genehmigung und eine abstrakte Snapshot-Historie. Hinzu kommen die dafür benötigten Seiten und Zugriffsregeln.
+Der Umfang umfasst zwei Rollen (`User`, `Admin`), persönliche Rechte mit erlaubenden und einschränkenden Ausnahmen, Snapshot-Genehmigungen, Publikation ohne vorherige manuelle Genehmigung sowie eine abstrakte, typisierte Snapshot-Historie. Hinzu kommen genau die dafür benötigten Seiten und Zugriffsregeln.
 
-Im Interview wurden folgende Punkte verbindlich geklärt:
+Verbindliche Entscheidungen aus dem Interview und der anschließenden Überarbeitung:
 
-1. Die Benutzerseite zeigt **nur die eigenen Übermittlungen**, niemals die anderer Benutzer oder anonyme Übermittlungen.
-2. **Der angemeldete Ersteller** darf seinen abgelehnten Snapshot erneut einreichen. Ein Prüfer erhält dieses Recht nicht allein durch seine Prüferberechtigung.
-3. Anonyme Besucher können weiterhin Snapshots übermitteln. Eine Wiedervorlage desselben Snapshots ist nur für angemeldete Ersteller möglich; anonym ist eine neue Übermittlung über das bestehende Formular möglich.
-4. Bereits vorhandene öffentliche Snapshots werden als **genehmigt** übernommen.
-5. Eine Ablehnung darf nach einer erneuten Einreichung von einer Genehmigung abgelöst werden. Die frühere Ablehnung bleibt in der Historie erhalten.
-6. Implementiert wird erst nach ausdrücklicher Freigabe dieses Vorschlags. Dieser Commit enthält ausschließlich Planung und isolierte HTML-Mockups.
+1. Die Benutzerseite zeigt **nur eigene Übermittlungen**, niemals fremde oder anonyme Übermittlungen.
+2. Nur der **angemeldete ursprüngliche Ersteller** darf einen abgelehnten Snapshot erneut einreichen. Ein Review-Recht ersetzt keine Eigentümerschaft.
+3. Gäste können weiterhin übermitteln. Für Gäste ist eine neue Übermittlung möglich, aber keine Wiedervorlage desselben Snapshots.
+4. Bereits öffentliche Snapshots werden als **genehmigter Bestand** übernommen.
+5. Vor einer Genehmigung nach Ablehnung muss eine Wiedervorlage als eigener Status gespeichert werden. Frühere Entscheidungen bleiben sichtbar.
+6. Es kommen **keine Versionsspalten, Änderungszähler oder entsprechenden API-Vergleichstoken** hinzu.
+7. Am Snapshot kommt ausschließlich der fachliche Moderationsstatus hinzu. Einreichungsdaten, Publikationsabsicht und Verarbeitungsausgang werden aus bestehenden Daten bzw. der Historie gelesen.
+8. Die Historie erhält eine JSONB-Spalte mit je Eintragsart typisiertem, abstraktem Inhalt; keine zusätzliche Tabellenvererbung.
+9. Die Benutzerseite liegt unter **`/account/submissions`**.
+10. Die Implementierung beginnt erst nach ausdrücklicher Freigabe. Dieser Branch enthält ausschließlich Planung und isolierte Mockups.
 
-Nicht vorgesehen sind zusätzliche Rollen, ein Rollenbaukasten, Projektberechtigungen, Benachrichtigungen, neue Anmeldeanbieter, Bearbeitung bereits archivierter Inhalte, Massenmoderation, eine allgemeine Audit-Plattform oder das Zurückziehen bereits genehmigter Snapshots. Die bestehenden technischen Capture- und Upload-Verfahren bleiben die Grundlage.
+Nicht vorgesehen sind weitere Rollen, ein Rollenbaukasten, Projekte, Benachrichtigungen, neue Login-Anbieter, Änderung archivierter Inhalte, Massenmoderation, eine allgemeine Audit-Plattform oder das Zurückziehen bereits genehmigter Snapshots.
 
-## 2. Befund im bestehenden Projekt
+## 2. Befund im vorhandenen Projekt
 
-Die folgenden Befunde beziehen sich auf den oben genannten Basis-Commit:
+| Bereich             | Ausgangslage                                                                                     | Geplante Konsequenz                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Backend             | ASP.NET Core API, `Archive.Core`, separater Worker, EF Core/PostgreSQL                           | Bestehende Controller, Core-Modelle, Mapper und Repositories fortführen                |
+| Benutzer            | Lokale `ArchiveUser`, externe Identitäten und Cookie-Session                                     | Navigationen für Rollen und individuelle Ausnahmen ergänzen                            |
+| Autorisierung       | `AddAuthorization()` ohne fachlichen Rechtekatalog                                               | Kleiner zentraler Resolver und benannte Policies                                       |
+| Eigentümer          | Nullable `Snapshot.CreatedByUserId`; nur vollständig registrierte Konten werden zugeordnet       | Bestehende Zuordnung serverseitig verwenden; keine spätere Übernahme anonymer Einträge |
+| Öffentliche Daten   | Suche, Inhalt und Screenshot verwenden im Wesentlichen `Quality != null`                         | Technisches Ergebnis und Freigabe trennen                                              |
+| Öffentliche Details | `GetByIdAsync` liefert auch unfertige Metadaten                                                  | Nur genehmigte und fertige Snapshots öffentlich liefern                                |
+| Verarbeitung        | `processing.snapshot_processing` wird bereinigt; erfolglose Snapshots werden bislang mitgelöscht | Snapshot und Historie behalten; terminalen Ausgang in der Historie sichern             |
+| Frontend            | Svelte 5/SvelteKit, `(site)`-Layout, Auth-Kontext und wiederverwendbare UI                       | Vorhandene Muster und Designsprache verwenden                                          |
+| Archiv-Viewer       | Relativer iframe-Pfad über einen SvelteKit-Content-Proxy                                         | Öffentlichen Proxy beibehalten; Begründung in Abschnitt 6.3                            |
+| Vorschau            | URL-Capture und Dateiimport erzeugen bereits Screenshots                                         | Moderationsvorschau mit Screenshot und Metadaten, ohne zusätzlichen Content-Proxy      |
+| API-Typen           | Generator liest `http://localhost:5200/openapi/v1.json`                                          | Spätere Vertragsänderungen aus dem laufenden Backend generieren                        |
 
-| Bereich          | Bestehende Umsetzung                                                                             | Konsequenz für die Erweiterung                                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Backend          | ASP.NET Core API, `Archive.Core`, separater `Archive.Worker`, EF Core/PostgreSQL                 | Controller, Mapper, Core-Modelle und konkrete Repositories fortführen             |
-| Benutzer         | `Entities/Authentication/ArchiveUser.cs`, externe Identitäten, Cookie-Session                    | Lokalen Benutzer um Rollenzuordnungen und persönliche Ausnahmen ergänzen          |
-| Rechte           | `AddAuthorization()` vorhanden, noch kein fachlicher Berechtigungskatalog                        | Zentralen Resolver und kleine Authorization-Handler ergänzen                      |
-| Eigentümer       | `Snapshot.CreatedByUserId` ist nullable; nur abgeschlossene Registrierungen werden zugeordnet    | Eigentümer serverseitig übernehmen; anonyme Einreichungen bleiben ohne Eigentümer |
-| Übermittlung     | `SnapshotsController.Processing.cs`, URL und Datei, anonym erlaubt                               | Beide Eingänge erhalten dieselben Moderationsregeln                               |
-| Veröffentlichung | `SnapshotRepository.Search.cs` sowie Content/Screenshot prüfen im Wesentlichen `Quality != null` | Technisches Ergebnis und öffentliche Freigabe ausdrücklich trennen                |
-| Detailzugriff    | `GetByIdAsync` liefert auch noch nicht fertiggestellte Metadaten                                 | Öffentliche Details auf genehmigte, fertige Snapshots beschränken                 |
-| Worker           | `SnapshotProcessingRepository.Worker.cs` setzt Ergebnisfelder in `PublishAsync`                  | Fertigstellung speichert das Ergebnis; Freigabe wird separat bestimmt             |
-| Verarbeitung     | `processing.snapshot_processing` ist flüchtig; Cleanup löscht erfolglose Snapshots               | Übermittlung und Historie dauerhaft erhalten; nur flüchtige Daten bereinigen      |
-| Status           | Öffentliche Status-/SSE-Endpunkte; technisch fertig wird derzeit aus `Quality` abgeleitet        | Technischen Status weiterhin von Moderation unterscheiden                         |
-| Frontend         | Svelte 5/SvelteKit, `(site)`-Layout, Auth-Kontext, wiederverwendbare UI-Komponenten              | Bestehende Muster verwenden, keine neue UI-Bibliothek                             |
-| Vorschau         | Öffentlicher Snapshot-Viewer und SvelteKit-Content-Proxy                                         | Private Prüfvorschau braucht einen eigenen geschützten Datenpfad                  |
-| API-Typen        | `frontend/openapi-ts.config.ts` liest `http://localhost:5200/openapi/v1.json`                    | Nach späteren Vertragsänderungen aus laufendem Backend neu generieren             |
-
-Wichtige Ausgangsdateien:
+Ausgangsdateien:
 
 - [Snapshot](../../../backend/Archive.Core/Entities/Snapshot.cs)
 - [Snapshot-Repository](../../../backend/Archive.Core/Repositories/SnapshotRepository/SnapshotRepository.cs)
-- [Suche](../../../backend/Archive.Core/Repositories/SnapshotRepository/SnapshotRepository.Search.cs)
+- [Öffentliche Suche](../../../backend/Archive.Core/Repositories/SnapshotRepository/SnapshotRepository.Search.cs)
 - [Verarbeitung und Cleanup](../../../backend/Archive.Core/Repositories/SnapshotProcessingRepository/)
 - [Authentifizierung](../../../backend/Archive.Api/Authentication/ArchiveAuthenticationExtension.cs)
 - [Übermittlungsformular](<../../../frontend/src/routes/(site)/archive/new/+page.svelte>)
+- [Archiv-Viewer](../../../frontend/src/routes/snapshots/[snapshotId]/+page.svelte)
+- [Öffentlicher Content-Proxy](../../../frontend/src/routes/api/snapshots/[snapshotId]/content/[...path]/+server.ts)
+- [API-Content-Auslieferung](../../../backend/Archive.Api/Controllers/SnapshotsController.cs)
+- [Produktionskonfiguration](../../../deploy/production/.env.example)
 - [Designsystem](../../../.agents/skills/designing-editorial-interfaces/references/design-system.md)
 
-Die zwei vorgefundenen unversionierten Dateien `deploy/production/local.compose.yml` und `deploy/production/start-local.sh` gehören nicht zu dieser Planung und werden nicht aufgenommen.
+Die vorgefundenen unversionierten Dateien `deploy/production/local.compose.yml` und `deploy/production/start-local.sh` werden nicht geändert oder aufgenommen. Die Suche nach weiteren Markdown-Plänen im Repository ergab keine zusätzlichen Planungsdateien mit den verworfenen Versionsfeldern; das zugehörige Prüfprotokoll und alle Mockups werden ebenfalls angepasst.
 
-## 3. Rollen und Rechte
+## 3. Rollen und individuelle Berechtigungen
 
 ### 3.1 Rollenmodell
 
-Die beiden Rollen sind ein fest definierter Katalog, keine frei editierbaren Datenbankobjekte:
+Der Katalog besteht aus `User` als verpflichtender Grundrolle und `Admin` als zusätzlich zuweisbarer/entziehbarer Rolle. Bestehende und neue lokale Konten erhalten `User`; niemand wird automatisch durch die erste Anmeldung Admin. Nach Entzug von `Admin` bleibt ein normales Benutzerkonto bestehen.
 
-- `User`: Grundrolle aller lokalen Benutzer, einschließlich bestehender Konten.
-- `Admin`: zusätzlich zuweisbare und entziehbare Rolle für Administration.
+Rollen sind fest definiert. Eine Tabelle mit frei editierbaren Rollendefinitionen oder Rollenrechten wird nicht benötigt.
 
-Ein Benutzer besitzt mehrere Rollenzuordnungen, derzeit ausschließlich `User` und optional `Admin`. `User` ist verpflichtend und wird beim Erstellen eines Kontos zugeordnet. Die Oberfläche erlaubt das Vergeben und Entziehen von `Admin`; die Grundrolle wird als fest angezeigt. Damit bleibt nach Entzug von `Admin` ein normaler Benutzer zurück. Dies ist ein konkreter Umsetzungsvorschlag für die gewünschten zwei Rollen.
+### 3.2 Berechtigungskatalog
 
-### 3.2 Kleiner Berechtigungskatalog
-
-| Schlüssel                            | Englische UI-Bezeichnung      | User | Admin |
+| Schlüssel                            | Englische Bezeichnung         | User | Admin |
 | ------------------------------------ | ----------------------------- | ---- | ----- |
 | `snapshots.review`                   | Review snapshots              | Nein | Ja    |
 | `snapshots.publish_without_approval` | Publish without approval      | Nein | Ja    |
 | `users.assign_roles`                 | Manage user roles             | Nein | Ja    |
 | `users.assign_permissions`           | Manage individual permissions | Nein | Ja    |
 
-`Review snapshots` umfasst Lesen der Prüfwarteschlange, geschützte Prüfvorschau, Genehmigen und Ablehnen. Die beiden Aktionen benötigen keine getrennten Berechtigungsschlüssel. `Publish without approval` gilt nur für neue eigene Übermittlungen mit explizit gewählter Direktpublikation, nicht für beliebige fremde oder bereits abgelehnte Snapshots.
+`Review snapshots` umfasst Prüfwarteschlange, Metadaten, Historie, geschützte Screenshots und Genehmigen/Ablehnen. `Publish without approval` gilt für die eigene ursprüngliche Übermittlung mit bewusst gewählter Direktpublikation. Eine Ablehnung kann damit nicht umgangen werden.
 
-Die eigene Übermittlungsliste und die eigene Wiedervorlage sind an Anmeldung, abgeschlossene Registrierung und Eigentümerschaft gebunden. Dafür wird kein zusätzliches administrierbares Recht eingeführt. Öffentliches Lesen genehmigter Snapshots und anonymes Übermitteln bleiben ohne Konto möglich.
+Eigene Liste und Wiedervorlage sind durch Anmeldung, abgeschlossene Registrierung und Eigentümerschaft geschützt. Dafür wird kein weiterer administrierbarer Berechtigungsschlüssel eingeführt. Öffentliches Lesen genehmigter Snapshots und anonymes Übermitteln bleiben möglich.
 
-Die Benutzerverwaltung erfordert zusätzlich zur jeweiligen Verwaltungsberechtigung die Rolle `Admin`. Ein `User` mit persönlich erlaubtem `snapshots.review` kann dagegen die Prüferseite nutzen. Dadurch kann Moderation delegiert werden, ohne auch Benutzerverwaltung zu delegieren. Ein `User` mit einem Verwaltungs-Override bleibt durch die fehlende Admin-Rolle ausgeschlossen; die Oberfläche zeigt dieses zusätzliche Erfordernis ausdrücklich an.
+Benutzerverwaltung erfordert neben dem jeweiligen Verwaltungsrecht die Rolle `Admin`. Ein `User` mit persönlichem Review-Allow kann dagegen die Moderationsseite nutzen. Ein Verwaltungs-Allow alleine verleiht einem User keine Admin-Rolle; die UI nennt diese zusätzliche Voraussetzung.
 
 ### 3.3 Persönliche Ausnahmen
 
-Pro `(UserId, Permission)` gibt es höchstens einen Eintrag mit `Allow` oder `Deny`. Kein Eintrag bedeutet `Inherit`.
+Pro `(UserId, Permission)` existiert höchstens ein Eintrag mit `Allow` oder `Deny`. Kein Eintrag bedeutet `Inherit`.
 
-Die Auswertung erfolgt pro Berechtigung in dieser Reihenfolge:
+Die Auswertung erfolgt in dieser Reihenfolge:
 
-1. Nicht authentifizierter oder nicht vorhandener Benutzer: kein geschütztes Recht.
+1. Ungültige oder fehlende Identität: kein geschütztes Recht.
 2. Persönliches `Deny`: verweigern, auch für Admins.
 3. Persönliches `Allow`: erlauben.
-4. Mindestens eine zugeordnete Rolle gewährt das Recht: erlauben.
-5. Sonst: verweigern.
+4. Rollenrecht vorhanden: erlauben.
+5. Andernfalls: verweigern.
 
-Die zusätzlichen Bedingungen Anmeldung, Registrierung, Eigentümerschaft und gegebenenfalls Admin-Rolle werden daneben geprüft. Ein Allow ersetzt diese Bedingungen nicht. Es gibt keinen Admin-Sonderweg, der ein persönliches Deny ignoriert.
+Zusätzliche Bedingungen wie Eigentümerschaft, vollständige Registrierung und erforderliche Admin-Rolle gelten weiterhin. Es gibt keinen Admin-Sonderweg, der Deny übergeht.
 
-| Fall                                              | Ergebnis                                                                                       |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| User, `snapshots.review = Allow`                  | Darf prüfen                                                                                    |
-| Admin, `snapshots.review = Deny`                  | Darf nicht prüfen                                                                              |
-| Admin, kein Override                              | Erhält das Rollenrecht                                                                         |
-| Override entfernen                                | Zur Rollenregel zurückkehren; nicht automatisch verbieten                                      |
-| Admin mit persönlichem Allow verliert Admin-Rolle | Persönliche Ausnahmen bleiben sichtbar bestehen; Verwaltungsaktionen benötigen weiterhin Admin |
+| Beispiel                       | Ergebnis                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| User mit Review-Allow          | Darf prüfen                                                                     |
+| Admin mit Review-Deny          | Darf nicht prüfen                                                               |
+| Admin ohne Ausnahme            | Rollenrecht gilt                                                                |
+| Persönliche Ausnahme entfernen | Rollenregel gilt wieder                                                         |
+| Admin-Rolle entziehen          | Individuelle Ausnahmen bleiben bestehen; Admin-Voraussetzungen gelten weiterhin |
 
-Die UI zeigt für jedes Recht **Role default**, **Individual setting** (`Inherit`, `Allow`, `Deny`) und **Effective access**. Ein abschließender Satz nennt die Ursache, etwa `Denied by individual setting`.
+Die UI zeigt `Role default`, `Individual setting` und `Effective access` mit Ursache. `Inherit` entfernt den Override. Ein ererbtes Recht wird mit `Deny` eingeschränkt; das Entfernen eines Allow ist nicht dasselbe wie ein Verbot.
 
-### 3.4 Technische Autorisierung
+### 3.4 Technische Einbindung
 
-Ein `PermissionResolver` in `Archive.Core` liest lokale Rollen und Ausnahmen. Die API bindet ihn über einen kleinen Requirement/Handler an benannte Policies. Kein generischer Policy-Interpreter und kein Austausch des vorhandenen Login-Systems.
+Ein kleiner `PermissionResolver` in `Archive.Core` und passende API-Policies ergänzen die vorhandene Cookie-Authentifizierung. Rollen und Ausnahmen werden aktuell aus der Datenbank gelesen und höchstens innerhalb eines Requests wiederverwendet. Es gibt weder dauerhafte Rechte-Claims noch einen Berechtigungs-Versionsdienst. Entzug wirkt beim nächsten Request ohne Neuanmeldung.
 
-Cookie-Claims enthalten weiterhin die Identität. Rollen und Rechte werden für geschützte Requests aktuell aus der Datenbank geladen und höchstens innerhalb desselben Requests wiederverwendet. Entzug wirkt somit beim nächsten Request und benötigt keine erneute Anmeldung. Die Session-Antwort enthält Rollen und effektiv erlaubte Rechte für die Navigation, ist aber keine vertrauenswürdige Entscheidungsquelle für Mutationen.
+Die Session-Antwort enthält Rollen und effektiv erlaubte Rechte für Navigation und sichtbare Aktionen. Der Server prüft jede geschützte Aktion selbst. Bei Ausfall der Rechtequelle wird kein geschützter Zugriff gewährt.
 
-Bei Direktpublikation muss der Worker den maßgeblichen Zugriffsstand innerhalb der Fertigstellungstransaktion gegen parallele Zugriffsänderungen absichern. Eine früher geladene Policy-Antwort allein reicht dafür nicht aus. Rollen-/Override-Änderungen und die finale Bypass-Prüfung koordinieren sich über die Zugriffsänderungssperre; immer Zugriffsstand vor Snapshot und Processing sperren. Die Sperre wird nur während der kurzen Datenbankentscheidung gehalten, niemals während Capture oder Objekt-Upload. Bei zeitlich überlappenden Operationen bestimmt der Commit-/Sperrablauf, ob die Freigabe vor oder nach dem Rechteentzug lag. Normale Review-Requests prüfen ihre aktuellen Rechte pro Request; bereits laufende Entscheidungen können ihren vor dem Entzug autorisierten Request abschließen.
+Für Rollenänderungen, den Schutz des letzten Admins und die finale Direktpublikation werden kurze Datenbanktransaktionen verwendet. Gemeinsame Sperrreihenfolge: Zugriffsänderungssperre, soweit benötigt, dann Snapshot, dann Processing. Keine Sperre bleibt während Capture oder Objekt-Upload offen. Bereits laufende, zuvor autorisierte Review-Requests können ihren Request abschließen; neue Requests prüfen den entzogenen Zugriff.
 
-Auch lang laufende private Vorschau-/Stream-Zugriffe müssen die Berechtigung bei jedem neuen Ressourcenrequest prüfen. Bei nicht erreichbarer Rechtequelle wird Zugriff nicht erteilt; die API meldet einen Dienstfehler statt anonyme Daten zu liefern.
+## 4. Verarbeitung, Moderation und Publikation
 
-## 4. Snapshot-Zustände und Veröffentlichung
+### 4.1 Getrennte fachliche Zustände
 
-### 4.1 Zwei unabhängige Dimensionen
+Die vorhandenen Verarbeitungszustände bleiben: `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `DISCARDED`, `ABORTED`.
 
-**Verarbeitung:** vorhandene Zustände `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `DISCARDED`, `ABORTED`.
-
-**Moderation:** neue Zustände `PENDING`, `APPROVED`, `REJECTED`, `RESUBMITTED`.
-
-Ein fertiges Capture ist noch keine öffentliche Freigabe. Die zentrale Regel lautet:
+Neu ist ausschließlich `Snapshot.ModerationStatus` mit `PENDING`, `APPROVED`, `REJECTED`, `RESUBMITTED`.
 
 ```text
 IsPublic = ModerationStatus == APPROVED
@@ -132,303 +129,332 @@ IsPublic = ModerationStatus == APPROVED
            AND CaptureCompletedAt != null
 ```
 
-`Quality` bleibt eine Aussage über das technische Ergebnis. `ApprovedAt` ist der Freigabezeitpunkt und ersetzt keinen Capture-Zeitpunkt. Die öffentliche Suche behält ihre bisherige zeitliche Sortierung nach Snapshot-Erstellung; verspätete Genehmigung schreibt Archivzeiten nicht um.
+`Quality` beschreibt das technische Ergebnis. Archivzeiten werden durch eine spätere Freigabe nicht umgeschrieben. Der Freigabezeitpunkt steht am Historieneintrag; eine weitere Snapshot-Spalte dafür entfällt.
 
-### 4.2 Zustandsübergänge
+### 4.2 Zulässige Übergänge
 
-| Ausgang                              | Aktion                                | Voraussetzung                                                                                   | Ziel          | Historie                          |
-| ------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------- | --------------------------------- |
-| Neu                                  | Übermitteln                           | Gültige URL oder Datei, anonym möglich                                                          | `PENDING`     | Submitted, Runde 1                |
-| `PENDING` / `RESUBMITTED`            | Genehmigen                            | Effektives Review-Recht; Ergebnis fertig                                                        | `APPROVED`    | Approved, manuell                 |
-| `PENDING` / `RESUBMITTED`            | Ablehnen                              | Effektives Review-Recht; Ergebnis fertig                                                        | `REJECTED`    | Rejected, optionale Begründung    |
-| `REJECTED`                           | Erneut einreichen                     | Angemeldeter ursprünglicher Ersteller; Ergebnis noch vorhanden                                  | `RESUBMITTED` | Resubmitted, nächste Runde        |
-| `RESUBMITTED`                        | Erneut ablehnen                       | Wie oben                                                                                        | `REJECTED`    | Neue Entscheidung zur neuen Runde |
-| `PENDING`, erstmalige Fertigstellung | Ohne manuelle Genehmigung publizieren | Direktpublikation bei Übermittlung gewählt; Ersteller besitzt das Recht auch bei Fertigstellung | `APPROVED`    | Approved, Permission bypass       |
+| Ausgang                      | Aktion                                | Voraussetzung                                                                     | Ziel          | Historie                    |
+| ---------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- | ------------- | --------------------------- |
+| Neu                          | Übermitteln                           | Gültige URL/Datei, auch anonym                                                    | `PENDING`     | Submitted                   |
+| `PENDING` oder `RESUBMITTED` | Genehmigen                            | Review-Recht, fertiges Ergebnis                                                   | `APPROVED`    | Approved, manuell           |
+| `PENDING` oder `RESUBMITTED` | Ablehnen                              | Review-Recht, fertiges Ergebnis                                                   | `REJECTED`    | Rejected, optionaler Grund  |
+| `REJECTED`                   | Erneut einreichen                     | Angemeldeter ursprünglicher Ersteller, Ergebnis vorhanden                         | `RESUBMITTED` | Resubmitted                 |
+| Initiales `PENDING`          | Ohne manuelle Genehmigung publizieren | Erfolgreicher Capture, initialer Direktwunsch und aktuell vorhandenes Direktrecht | `APPROVED`    | Approved, Permission bypass |
 
-`REJECTED → APPROVED` ist nicht erlaubt. Die Wiedervorlage muss zuerst als eigener Zustand gespeichert werden. Abgelehnte Snapshots bleiben mit ihren Ergebnisdateien erhalten. Die Wiedervorlage verwendet dieselbe Snapshot-ID und dieselben archivierten Inhalte, startet keinen neuen Capture und ändert keine Metadaten. Eine geänderte Quelle oder Datei wird als neuer Snapshot über das bestehende Formular übermittelt.
+`REJECTED → APPROVED` ist nicht zulässig. Wiedervorlage verwendet dieselbe ID und dieselben Inhalte, beginnt keinen neuen Capture und ändert keine Metadaten. Eine geänderte Quelle/Datei wird als neuer Snapshot übermittelt.
 
-Die Prüfwarteschlange enthält standardmäßig technisch fertige `PENDING`- und `RESUBMITTED`-Snapshots. Ein zusätzlicher Filter zeigt abgelehnte Entscheidungen lesend. Abgelehnte Einträge bieten für Prüfer keine direkte Freigabe und keinen Wiedervorlageknopf. Nur der Ersteller sieht `Resubmit for review` in seiner eigenen Liste.
+Die Queue zeigt standardmäßig fertige `PENDING`- und `RESUBMITTED`-Snapshots. Abgelehnte und genehmigte Einträge sind lesend filterbar. Prüfer erhalten keinen Wiedervorlageknopf für fremde Übermittlungen. Eine nummerierte Prüfungsrunde wird weder gespeichert noch angezeigt; die Historie zeigt die Abfolge.
 
-Technisch fehlgeschlagene oder abgebrochene Übermittlungen bleiben im eigenen Register sichtbar. Sie werden weder öffentlich noch manuell genehmigt und lassen sich nicht als fertiger Snapshot wiedervorlegen. `Archive a page` beginnt bei Bedarf eine neue Übermittlung; ein Retry-System wird nicht ergänzt.
+Erfolglose oder abgebrochene Übermittlungen bleiben in der eigenen Liste. Ohne fertiges Ergebnis sind sie nicht genehmigbar und nicht als unveränderter fertiger Snapshot wiedervorlegbar. Ein neuer technischer Versuch beginnt über das vorhandene Formular als neue Übermittlung.
 
-### 4.3 Publizieren ohne vorherige Genehmigung
+### 4.3 Publikation ohne manuelle Prüfung
 
-Das bestehende Formular erhält ausschließlich für effektiv berechtigte Benutzer die standardmäßig deaktivierte Option `Publish without review`. Ohne Auswahl gilt die normale Prüfung, auch für Admins. Beide Übermittlungsformate behandeln die Option gleich.
+Das Formular zeigt nur bei effektivem Direktrecht die standardmäßig deaktivierte Option `Publish without review`. Ohne Auswahl erfolgt die reguläre Prüfung, auch bei Admins.
 
-- Der Server liest Benutzer-ID und Rechte selbst; ein Client kann keinen Freigabestatus setzen.
-- Eine unberechtigte Direktpublikationsanforderung ergibt `403`; sie wird nicht stillschweigend ausgeführt oder heruntergestuft.
-- Die bewusste Anforderung wird bei Übermittlung gespeichert.
-- Erst bei erfolgreicher Fertigstellung wird das Recht des ursprünglichen Erstellers erneut geprüft. Bei zwischenzeitlichem Entzug bleibt der Snapshot `PENDING` und privat.
-- Genehmigung, Ergebnisdaten und Historieneintrag werden gemeinsam festgeschrieben. Das Freigabeereignis trägt `PermissionBypass`, keine erfundene manuelle Entscheidung.
-- Bei fehlgeschlagener Rechteabfrage bleibt die technische Fertigstellung möglich, aber es erfolgt keine Direktfreigabe. Eine manuelle Prüfung bleibt möglich.
-- Bei `RESUBMITTED` gibt es keinen Direktpublikationsweg. Eine Ablehnung kann mit diesem Recht nicht umgangen werden.
+- Der Server ermittelt Identität und Rechte selbst. Unberechtigter Direktwunsch ergibt `403`.
+- Der initiale Submitted-Eintrag enthält in seinen JSONB-Daten `publicationMode = Review` oder `Direct`. Kein zusätzliches Snapshot-Feld.
+- Bei Fertigstellung liest der Worker diese initialen Daten und prüft das Direktrecht erneut. Wiedervorlagen erhalten diesen Weg nicht.
+- Wurde das Recht vor der maßgeblichen Transaktion entzogen, bleibt das Ergebnis `PENDING` und privat.
+- Rechteänderung und abschließende Bypass-Prüfung werden über dieselbe kurze Zugriffsänderungssperre koordiniert. Bei überlappenden Vorgängen entscheidet die Transaktion, ob die Freigabe vor oder nach dem Entzug lag.
+- Ergebnis, terminaler Historieneintrag, Freigabestatus und Freigabeeintrag werden atomar gespeichert. Wiederholung darf keine zweite Freigabe erzeugen.
+- Ist eine belastbare Rechteprüfung nicht möglich, wird ausschließlich das Ergebnis gespeichert; manuelle Prüfung bleibt möglich.
 
-Damit liefern öffentliche Endpunkte weiterhin ausschließlich `APPROVED`, auch wenn keine Person vorher auf `Approve` geklickt hat.
+Auch Direktpublikation ergibt `APPROVED`, trägt aber `PermissionBypass` als Herkunft anstatt einer erfundenen manuellen Prüfung. Öffentliche Antworten liefern weiterhin ausschließlich genehmigte Snapshots.
 
-## 5. Datenmodell und abstrakte Historie
+## 5. Vereinfachtes Datenmodell und JSONB-Historie
 
-### 5.1 Authentifizierung
+### 5.1 Rollen und Ausnahmen
 
-| Entität                  | Wesentliche Felder und Regeln                                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `UserRole`               | `UserId`, `Role`; zusammengesetzter eindeutiger Schlüssel; nur User/Admin                                             |
-| `UserPermissionOverride` | `UserId`, `Permission`, `Effect`; eindeutiger Schlüssel `(UserId, Permission)`; nur bekannte Schlüssel und Allow/Deny |
-| `ArchiveUser`            | Navigationen zu Rollen/Ausnahmen; `AccessVersion` als explizite Version für Verwaltungsänderungen                     |
+| Entität                  | Daten und Regeln                                                         |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `UserRole`               | `UserId`, `Role`; eindeutiger Schlüssel; ausschließlich User/Admin       |
+| `UserPermissionOverride` | `UserId`, `Permission`, `Effect`; eindeutig pro Benutzer und Recht       |
+| `ArchiveUser`            | Navigationen zu Rollen und Ausnahmen; keine zusätzlichen Kontrollspalten |
 
-Rollen-Defaults und Rechtekatalog liegen typisiert im Core. Eine zusätzliche Tabelle mit frei änderbaren Rollenrechten ist für diese zwei Rollen unnötig. Metadaten für die Verwaltungsoberfläche kommen aus demselben Katalog.
+Rollen-Defaults und Rechtekatalog liegen typisiert im Core. Der vorhandene Benutzer-Zeitstempel wird nicht als verstecktes Vergleichstoken verwendet.
 
-### 5.2 Snapshot-Ergänzungen
+### 5.2 Snapshot und abgeleitete Lesedaten
 
-| Feld                              | Zweck                                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| `ModerationStatus`                | Aktueller fachlicher Status                                                           |
-| `ModerationVersion`               | Explizite Version für konkurrierende Entscheidungen/Wiedervorlagen                    |
-| `SubmissionNumber`                | Prüfungsrunde, beginnend mit 1                                                        |
-| `LastSubmittedAt`                 | Letzte Einreichung; Wiedervorlage ändert nicht `CreatedAt`                            |
-| `ApprovedAt`                      | Zeitpunkt wirksamer Freigabe, sonst null                                              |
-| `PublishWithoutApprovalRequested` | Bei initialer Übermittlung autorisierte Direktpublikationsabsicht                     |
-| `ProcessingOutcome`               | Nullable, dauerhaftes terminales Ergebnis aus dem bestehenden `ProcessingStatus`-Enum |
-| `ProcessingFinishedAt`            | Terminalzeit auch bei Fehler/Abbruch                                                  |
+Am Snapshot wird **nur `ModerationStatus` ergänzt**. Weitere benötigte Angaben entstehen durch gezielte Projektion:
 
-`ProcessingOutcome` darf nur terminale Werte enthalten. Während aktiver Verarbeitung ist es null und die vorhandene Processing-Tabelle liefert Queue-/Fortschrittsdaten. Nach Cleanup bleibt der terminale Ausgang am Snapshot erhalten. Die API leitet daraus einen einheitlichen lesbaren Verarbeitungszustand ab; es werden keine zwei aktiven Zustandsmaschinen gepflegt.
+| Information                        | Quelle                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| Letzte Einreichung                 | Neuester Submitted-/Resubmitted-Eintrag; beim Bestand ohne Eintrag `Snapshot.CreatedAt` |
+| Freigabezeitpunkt und Herkunft     | Approved-Eintrag                                                                        |
+| Bewusster Direktpublikationswunsch | Initialer Submitted-JSONB-Inhalt                                                        |
+| Fortschritt und Queueposition      | Bestehendes `SnapshotProcessing` während seiner Aufbewahrung                            |
+| Dauerhafter technischer Ausgang    | ProcessingFinished-Eintrag mit vorhandenem `ProcessingStatus`                           |
+| Zeitpunkt dieses Ausgangs          | `OccurredAt` desselben Eintrags                                                         |
+| Aktueller Ablehnungsgrund          | Zur aktuellen Ablehnung gehöriger Rejected-Eintrag                                      |
 
-### 5.3 Echte abstrakte Entität
+Leseantworten dürfen daraus berechnete Angaben enthalten. Diese werden nicht als Snapshot-Spalten gespiegelt. Bei Wiedervorlage bleibt ein früherer Grund historisch erhalten, ist aber kein aktueller Ablehnungsgrund des neuen Status.
 
-Vorgesehen ist eine **abstrakte C#-Klasse** `SnapshotHistoryEntry`. Sie ist nicht direkt instanziierbar. Zwei konkrete Entitäten erben davon:
+### 5.3 Eine Historientabelle, abstrakte Eintragsdaten
+
+Vorgesehen ist eine konkrete Persistenzentität `SnapshotHistoryEntry` in `archive.snapshot_history`. Die Abstraktion liegt im JSONB-Inhalt:
 
 ```text
-SnapshotHistoryEntry (abstract)
-├── SnapshotSubmissionHistoryEntry
-└── SnapshotDecisionHistoryEntry
+SnapshotHistoryEntry
+└── Data : SnapshotHistoryData (abstract, stored as JSONB)
+    ├── SubmittedHistoryData
+    ├── ResubmittedHistoryData
+    ├── ApprovedHistoryData
+    ├── RejectedHistoryData
+    └── ProcessingFinishedHistoryData
 ```
 
-Gemeinsame Felder:
+Gemeinsame Spalten:
 
-- `Id`, `SnapshotId`, `Sequence`, `OccurredAt` in UTC.
-- `SubmissionNumber` zur Zuordnung zur Prüfungsrunde.
-- `ActorKind`: `User`, `Anonymous` oder `System`.
-- Nullable `ActorUserId`; keine E-Mail, externe Provider-ID oder IP-Adresse.
+- `Id`: automatisch erzeugter numerischer Primärschlüssel, zugleich stabile Reihenfolge. Kein zusätzlicher Sequenz- oder Änderungszähler.
+- `SnapshotId`: zugehöriger Snapshot.
+- `OccurredAt`: UTC-Zeitpunkt.
+- `ActorKind`: User, Anonymous oder System.
+- Nullable `ActorUserId`: lokaler Benutzer; keine E-Mail, externe Provider-ID oder IP-Adresse.
+- `Data`: erforderliche JSONB-Spalte mit dem konkreten Eintragsinhalt.
 
-`SnapshotSubmissionHistoryEntry` beschreibt `Submitted` oder `Resubmitted`. Bei der ersten anonymen Einreichung steht `ActorKind = Anonymous`; bei einer Wiedervorlage ist der Akteur der angemeldete Eigentümer.
+| JSONB-Typ                       | Inhalt                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| `SubmittedHistoryData`          | `type = submitted`, `publicationMode = Review/Direct`                      |
+| `ResubmittedHistoryData`        | `type = resubmitted`; Akteur/Zeit stehen bereits an der Entität            |
+| `ApprovedHistoryData`           | `type = approved`, `source = Manual/PermissionBypass/LegacyMigration`      |
+| `RejectedHistoryData`           | `type = rejected`, optional `reason`                                       |
+| `ProcessingFinishedHistoryData` | `type = processing_finished`, terminaler `status` aus dem vorhandenen Enum |
 
-`SnapshotDecisionHistoryEntry` enthält Ausgangs-/Zielstatus, optionalen Ablehnungsgrund und `DecisionSource = Manual | PermissionBypass | LegacyMigration`. Ein Ablehnungsgrund ist auf 2.048 Zeichen begrenzt, wird getrimmt, als Klartext behandelt und bei leerem Inhalt als null gespeichert. Genehmigungen benötigen keinen Grund.
+Ein Grund wird getrimmt, als Klartext behandelt, auf 2.048 Zeichen begrenzt und bei leerem Inhalt null. Terminale Daten enthalten nur COMPLETED, FAILED, CANCELLED, DISCARDED oder ABORTED; Fortschrittsänderungen erzeugen keine Historienflut.
 
-EF Core bildet die Hierarchie per **Table per Hierarchy** in `archive.snapshot_history` mit einem stabilen Discriminator ab. Eine Tabelle, ein Index für die zeitliche Folge und konkrete Typen reichen aus; Event Sourcing wird nicht eingeführt. Die aktuelle Snapshot-Zeile bleibt die Quelle für Leseabfragen, die Historie erklärt ihre Übergänge.
+Beispiele für Data; gemeinsame Metadaten werden nicht darin dupliziert:
 
-### 5.4 Integrität und Aufbewahrung
+```json
+{ "type": "submitted", "publicationMode": "Review" }
+```
+
+```json
+{ "type": "rejected", "reason": "Please review the source attribution." }
+```
+
+```json
+{ "type": "processing_finished", "status": "FAILED" }
+```
+
+Die Speicherung verwendet eine lokale EF-Konfiguration für JSONB und einen kleinen Konverter mit zentralem `System.Text.Json`-Serializer. Der fachliche Property-Typ bleibt `SnapshotHistoryData`; SQL-Abfragen auf JSON-Schlüssel werden bei Bedarf gezielt im konkreten Repository ausgeführt. Npgsql unterstützt JSONB als String-Mapping, bei dem die Anwendung die Serialisierung übernimmt. [Npgsql: JSON Mapping](https://www.npgsql.org/efcore/mapping/json.html#string-mapping)
+
+Die Payload-Hierarchie wird über explizite `JsonDerivedType`-Varianten und den Discriminator `type` serialisiert. Unbekannte Typkennungen werden als kontrollierter Lesefehler behandelt. [Microsoft: JSON polymorphism](https://learn.microsoft.com/en-us/dotnet/standard/serialization/system-text-json/polymorphism)
+
+Weil JSONB die Schlüsselreihenfolge verändern kann, sieht der Serializer `AllowOutOfOrderMetadataProperties` vor. Diese Option gehört zum lokalen Serializer des Konverters; eine globale Umstellung der Datenbankverbindungen ist dafür nicht vorgesehen. [Npgsql: Polymorphic JSON mapping](https://www.npgsql.org/doc/types/json.html#polymorphic-json-mapping)
+
+Keine TPH-/TPT-Hierarchie, zusätzliche Typspalte oder generische Ereignisplattform. Der Discriminator steht einmal im JSONB-Inhalt. Der aktuelle Moderationsstatus bleibt für Freigabe und Queue am Snapshot; die Historie erklärt Übergänge und bewahrt den Verarbeitungsausgang. Daraus entsteht kein allgemeines Event-Sourcing-Modell.
+
+### 5.4 Integrität und Abfragen
 
 - Historie wird ausschließlich angehängt. Keine Update-/Delete-Endpunkte.
-- `(SnapshotId, Sequence)` ist eindeutig; die Reihenfolge wird unter Snapshot-Zeilensperre vergeben, nicht allein aus Zeitstempeln abgeleitet.
-- Statusänderung, Versionsinkrement und Historieneintrag erfolgen in derselben Datenbanktransaktion.
-- Historie besitzt keine Ablaufzeit. Verarbeitungscleanup darf Snapshot und Historie nicht mehr löschen.
-- Bei späterer Benutzerlöschung bleibt der Eintrag erhalten; Actor-FK wird null und die Oberfläche zeigt `Former user`. ActorKind verhindert Verwechslung mit einer anonymen Einreichung.
-- Die Benutzerliste zeigt Historie und Ablehnungsgründe nur für eigene Snapshots. Prüfer erhalten sie über den geschützten Moderationspfad. Öffentliche DTOs enthalten keine privaten Entscheidungen.
-- Indexvorschläge: `(CreatedByUserId, LastSubmittedAt, Id)`, `(ModerationStatus, LastSubmittedAt, Id)`, `(SnapshotId, Sequence)`; tatsächliche Querypläne bei Implementierung prüfen.
-- PostgreSQL-Enum-Mapping wie bei bestehenden Enums in Runtime- und Design-Time-Konfiguration ergänzen. Die Migrationshistorie bleibt in `public.__EFMigrationsHistory`.
+- Moderationsmutation und Eintrag werden gemeinsam unter Snapshot-Zeilensperre gespeichert.
+- Der Primärschlüssel wird innerhalb dieses Ablaufs vergeben. Damit bleibt die Reihenfolge pro Snapshot auch bei gleichen Zeiten stabil.
+- Fertigstellung schreibt vor dem Cleanup genau einen terminalen Eintrag. Wiederholung erkennt den terminalen Zustand unter derselben Sperre.
+- Nach Cleanup steht der Ausgang in der Historie. Bei Erfolg liefern zusätzlich die vorhandenen Ergebnisfelder den Erfolgsnachweis.
+- Eigentümer sehen eigene Historie, Prüfer den Moderationspfad. Öffentliche DTOs enthalten keine privaten Entscheidungen.
+- Bei späterer Benutzerlöschung bleibt die Historie erhalten; Actor-FK wird null, ActorKind User erlaubt `Former user`.
+- Indexvorschläge: vorhandene Snapshot-Indizes verwenden, dazu Eigentümerfilter, Moderationsstatus und `(SnapshotId, Id)`. Einen Ausdrucksindex auf JSON-Typkennung erst bei nachgewiesenem Bedarf ergänzen.
+- Listenprojektionen lesen Historienwerte datenbankseitig mit ihrer Seite. Kein vollständiges Laden aller Historien und kein Request pro Zeile.
+- Neue Enum-Mappings in Runtime- und Design-Time-Konfiguration konsistent ergänzen. Migrationshistorie bleibt `public.__EFMigrationsHistory`.
 
-## 6. Öffentliche und geschützte Lesewege
+## 6. Öffentliche Daten und Content-Auslieferung
 
-### 6.1 Öffentliche Sichtbarkeit vollständig anwenden
+### 6.1 Öffentliche Sichtbarkeit
 
-Ein expliziter, zentraler Query-Ausdruck für `IsPublic` wird in öffentlichen Repository-Methoden wiederverwendet. Kein globaler EF-Filter, der private Prüfabfragen oder den Worker unbeabsichtigt beeinflusst.
+Ein expliziter zentraler IsPublic-Query-Ausdruck wird in öffentlichen Repository-Methoden verwendet. Kein globaler EF-Filter, der Worker oder private Abfragen versteckt beeinflusst.
 
-| Zugriff                                  | Verhalten für nicht genehmigte Snapshots                                      |
-| ---------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/snapshots`                     | Nicht in Treffern, Gesamtzahlen, jüngsten Zeiten oder Jahresverteilung        |
-| `GET /api/snapshots/{id}`                | `404`, auch wenn auf demselben Request ein Admin angemeldet ist               |
-| `GET /api/snapshots/{id}/content/{path}` | `404`, einschließlich Startseite und Originaldatei                            |
-| `GET /api/snapshots/{id}/screenshot`     | `404`                                                                         |
-| `/snapshots/{id}`                        | Kein öffentlicher Viewer für private Einträge                                 |
-| Bestehender Frontend-Content-Proxy       | Darf den Backend-Filter nicht umgehen                                         |
-| Objektablage                             | Bucket und Ursprungszugang bleiben privat; keine öffentlichen Rohobjekt-Links |
+| Zugriff                                  | Nicht genehmigter Snapshot                                          |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| Liste/Suche                              | Fehlt in Treffern, Gesamtzahl, jüngsten Zeiten und Jahresverteilung |
+| Öffentliche Details                      | 404, auch bei angemeldetem Admin                                    |
+| Öffentlicher Content inkl. Originaldatei | 404                                                                 |
+| Öffentlicher Screenshot                  | 404                                                                 |
+| Viewer und bestehender Content-Proxy     | Keine private Auslieferung; Backend-Freigabe bleibt maßgeblich      |
+| Objektablage                             | Privat; keine frei erreichbaren Rohobjekt-Links                     |
 
-Die öffentliche API wird nicht abhängig von der Session in einen privaten Lesepfad verwandelt. Geschützte DTOs geben private Vorschau-URLs nur bei ausreichendem Review-Recht zurück. Auch Ersteller erhalten keine öffentliche URL vor Freigabe.
+Die öffentliche API wird nicht je nach Session zum privaten Lesepfad. Private Antworten sind private/no-store. Geschützte APIs verwenden die eingeschränkte Frontend-CORS-Policy. Cookie-Mutationen benötigen serverseitigen Origin-/CSRF-Schutz; CORS alleine genügt nicht. SvelteKit-Serveraktionen dürfen nur den konfigurierten Backend-Origin ansprechen.
 
-Private Antworten: `Cache-Control: private, no-store`, kein Shared Cache, keine öffentlich cachebaren Weiterleitungen zu Prüfinhalten. Authentifizierte API-Endpunkte verwenden die vorhandene eingeschränkte Frontend-CORS-Policy. Mutationen prüfen den konfigurierten Frontend-Origin; CORS allein ersetzt keinen Schutz gegen fremde Formular-POSTs.
+### 6.2 Anonyme Übermittlung
 
-Der konkrete Origin-/CSRF-Schutz für neue geschützte Mutationen muss serverseitig umgesetzt werden; aus der vorhandenen CORS-Konfiguration allein lässt sich kein solcher Schutz ableiten. SvelteKit-Serveraktionen dürfen nur an den fest konfigurierten Backend-Origin weiterleiten und müssen ihren eigenen Origin-Schutz beibehalten.
+URL-/Dateiübermittlung bleibt anonym. Status-/SSE-Antworten einer bekannten ID enthalten nur technische Empfangs- und Fortschrittsdaten: keine Quell-URL, privaten Metadaten, Gründe oder Inhalts-URLs. Die bestehende zeitliche Aufbewahrung wird nicht zum anonymen Historienzugriff erweitert.
 
-### 6.2 Bestehendes anonymes Formular
+COMPLETED bedeutet `Capture complete`, nicht automatische Publikation. Nach regulärem Abschluss erscheint `Capture complete. Publication requires approval.` Ein Viewer-Link wird erst nach tatsächlich erfolgreichem öffentlichen Detailabruf angezeigt.
 
-Die URL-/Dateiübermittlung bleibt anonym erlaubt. Öffentliche technische Status-/SSE-Antworten dürfen wie bisher nur den Verarbeitungsfortschritt einer bekannten ID enthalten: kein Titel, keine Quell-URL, keine Moderationsentscheidung, kein Grund, kein Autor und keine privaten Inhalts-URLs. Dies ist eine begrenzte technische Empfangsbestätigung, kein Zugriff auf den Übermittlungsbereich.
+Während der Einreichung kommen Titel/Quelle aus dem lokalen Entwurf. Beim Wiederaufruf können angemeldete Eigentümer private Metadaten abrufen; Gäste sehen nur technischen Status. Cancel endet vor Speicherung des fertigen Ergebnisses und wird nicht zum Zurückziehen fertiger Snapshots erweitert. Keine neue anonyme Besitz- oder Recovery-Infrastruktur.
 
-`COMPLETED` bedeutet künftig ausschließlich `Capture complete`; die Oberfläche darf daraus keine Publikation ableiten. Das Formular zeigt nach Abschluss `Capture complete. Publication requires approval.` und bei berechtigt gewählter Direktpublikation `Publication will proceed if your permission is still active.` Ein öffentlicher Viewer-Link erscheint erst, wenn der öffentliche Detailendpunkt tatsächlich einen genehmigten Snapshot liefert.
+### 6.3 Prüfung des bestehenden Frontend-Content-Proxys
 
-Der bisherige Metadatenabruf aus `archive-submission.ts`/`loadMetadata` über den öffentlichen Detailendpunkt wird angepasst: während der Einreichung stammen Titel und Quelle aus dem lokalen Entwurf; nach Wiederaufruf erhalten nur angemeldete Eigentümer eigene Metadaten über den privaten Eigentümerendpunkt. Anonyme Besucher sehen bei Wiederaufruf nur die technische Bestätigung. Die Liste bleibt vollständig geschützt.
+**Entscheidung: Der vorhandene öffentliche Proxy bleibt für den derzeitigen Aufbau erforderlich. Die zusätzlich geplante private Proxy-Strecke entfällt.** Dies bewertet den konkreten Code; ein Content-Proxy ist keine grundsätzliche Voraussetzung jedes Archivsystems.
 
-Der bestehende technische Cancel-Workflow endet weiterhin vor dem Speichern eines fertigen Ergebnisses. Er wird nicht zum Zurückziehen von `PENDING`- oder `APPROVED`-Snapshots erweitert. Eine zusätzliche anonyme Eigentums- oder Recovery-Token-Infrastruktur gehört nicht zu diesem Auftrag.
+| Befund                                                                                                           | Bedeutung                                                                     |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Viewer setzt contentHref auf relativen `/api/snapshots/.../content/index.html`-Pfad                              | Lädt heute ausdrücklich die SvelteKit-Route                                   |
+| API liefert `frame-ancestors 'self'`                                                                             | Direkter API-iframe im anders-originären Frontend ist damit nicht freigegeben |
+| Development nutzt Ports 5173 und 5200; Produktionsvorlage trennt archive.example.com und api.archive.example.com | Identische Origins können nicht vorausgesetzt werden                          |
+| Gespeichertes HTML/CSS enthält root-relative Content-Pfade                                                       | Startseite und Assets müssen konsistent vom richtigen Origin kommen           |
+| Proxy setzt CSP auf Frontend-Origin und erlaubt opaque-origin Font-Anfragen                                      | Übernimmt konkrete Auslieferungsaufgaben                                      |
+| Proxy ergänzt `/archived-scrollbar.css`                                                                          | Ersatzloses Löschen verändert auch bestehende Darstellung                     |
 
-## 7. Geplante API-Verträge
+Der Proxy prüft keine eigene Moderationsfreigabe; er darf nur den Backend-Endpunkt verwenden, der IsPublic durchsetzt. Keine Session-abhängige Öffnung dieses öffentlichen Pfads. Sandbox, CSP und nosniff bleiben erhalten.
 
-Alle folgenden Pfade und DTO-Namen sind **Vorschläge**, keine bereits vorhandenen Verträge. GUIDs und vorhandene JSON-/ProblemDetails-Konventionen werden beibehalten.
+Direktbezug vom API-Origin müsste Viewer, erlaubte Frame-Ancestors, Ressourcen, Fonts und Scrollbar-Einbindung gemeinsam ändern. Für diese Erweiterung ergibt das keinen geringeren notwendigen Änderungsumfang; deshalb wird der verwendete öffentliche Proxy nicht ersatzlos entfernt.
+
+Die Moderation verwendet stattdessen **vorhandene Screenshots plus Metadaten und Historie**. URL-Capture und Offline-Import schreiben bereits screenshot.png. Dafür sind kein privater HTML-iframe, keine Umschreibung gespeicherter URLs und kein neuer SvelteKit-Content-Proxy nötig. Der geschützte Screenshot wird aus dem angemeldeten Hauptdokument mit Credentials abgerufen und als kurzlebige Blob-URL angezeigt; beim Wechsel wird diese freigegeben. Fehlende Vorschau erhält einen klaren Leerzustand bei weiterhin lesbaren Metadaten. Vollständiger privater HTML-Inhalt wird hier nicht zusätzlich ausgeliefert.
+
+## 7. Vorgeschlagene API-Verträge
+
+Die Pfade/DTOs sind Planung. GUIDs, JSON-Namen und ProblemDetails-Konventionen bleiben wie im Projekt. Keine Vergleichsnummern oder Parallelitäts-Header.
 
 ### 7.1 Eigene Übermittlungen
 
-| Methode / Pfad                             | Schutz                                 | Inhalt                                                                        |
-| ------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/user/submissions`                | Anmeldung + vollständige Registrierung | Ausschließlich `CreatedByUserId == currentUser.Id`, paginiert                 |
-| `GET /api/user/submissions/{id}`           | Derselbe Eigentümer                    | Eigene Metadaten, Verarbeitung, Moderation, Version, Runde, erlaubte Aktionen |
-| `GET /api/user/submissions/{id}/history`   | Derselbe Eigentümer                    | Stabile, paginierte Historie                                                  |
-| `POST /api/user/submissions/{id}/resubmit` | Derselbe Eigentümer                    | `{ expectedVersion }`; nur aus REJECTED und bei fertigem Ergebnis             |
+| Methode / Pfad                             | Schutz                                   | Inhalt                                                         |
+| ------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------- |
+| `GET /api/user/submissions`                | Anmeldung und vollständige Registrierung | Nur CreatedByUserId des aktuellen Benutzers, paginiert         |
+| `GET /api/user/submissions/{id}`           | Derselbe Eigentümer                      | Metadaten, Verarbeitung, Moderation, erlaubte Aktionen         |
+| `GET /api/user/submissions/{id}/history`   | Derselbe Eigentümer                      | Stabile paginierte Historie                                    |
+| `POST /api/user/submissions/{id}/resubmit` | Derselbe Eigentümer                      | Kein zusätzlicher Body; nur aus REJECTED mit fertigem Ergebnis |
 
-Die Benutzer-ID stammt ausschließlich aus der Session. Kein frei wählbarer `userId`-Parameter. Fremde IDs ergeben `404`; ein Admin erhält über diese Pfade ebenfalls nur eigene Daten.
+Kein auswählbarer Benutzer-ID-Parameter. Fremde IDs ergeben 404, auch bei einem Admin über den Eigentümerpfad.
 
-`SubmissionResponse` enthält `id`, `title`, `sourceUrl`, `sourceType`, `createdAt`, `lastSubmittedAt`, `processingStatus`, `moderationStatus`, `submissionNumber`, `version`, `latestRejectionReason`, `canResubmit` und ein nur bei Freigabe gesetztes `publicSnapshotUrl`. Keine privaten Inhalts-URLs für normale Benutzer.
+SubmissionResponse enthält id, title, sourceUrl, sourceType, createdAt, aus der Historie abgeleitetes lastSubmittedAt, processingStatus, moderationStatus, latestRejectionReason, canResubmit und nur bei Freigabe publicSnapshotUrl. processingStatus ist nullable, wenn für einen Bestandseintrag kein verlässlicher Ausgang mehr vorliegt. Keine erfundenen Zustände oder privaten Inhalts-URLs für normale Benutzer.
 
-Listenfilter: Text, Moderationsstatus; Verarbeitung als gesondertes Feld/optional eigener Filter. Standard `lastSubmittedAt desc, id desc`, Seitengröße 20, maximal 100. Ein lesbarer Leerzustand ersetzt keine fehlgeschlagene Anfrage.
+Filter: Text und Moderationsstatus; technische Verarbeitung separat anzeigen. Sortierung lastSubmittedAt desc, id desc, Standard 20/maximal 100 Einträge. Ein Dienstfehler ist keine leere Liste.
 
 ### 7.2 Moderation
 
-| Methode / Pfad                                      | Schutz             | Inhalt                                                                          |
-| --------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------- |
-| `GET /api/moderation/snapshots`                     | `snapshots.review` | Alle prüfbaren Übermittlungen, einschließlich anonymer; Statusfilter            |
-| `GET /api/moderation/snapshots/{id}`                | `snapshots.review` | Metadaten, technische Qualität, Version, Runde und erlaubte Aktionen            |
-| `GET /api/moderation/snapshots/{id}/history`        | `snapshots.review` | Vollständige Entscheidungsfolge, paginiert                                      |
-| `GET /api/moderation/snapshots/{id}/content/{path}` | `snapshots.review` | Geschützte gespeicherte Ressourcen mit bestehender CSP/Sandbox/Range-Behandlung |
-| `GET /api/moderation/snapshots/{id}/screenshot`     | `snapshots.review` | Geschütztes Bild                                                                |
-| `POST /api/moderation/snapshots/{id}/approve`       | `snapshots.review` | `{ expectedVersion }`                                                           |
-| `POST /api/moderation/snapshots/{id}/reject`        | `snapshots.review` | `{ expectedVersion, reason? }`                                                  |
+| Methode / Pfad                                  | Schutz           | Inhalt                                              |
+| ----------------------------------------------- | ---------------- | --------------------------------------------------- |
+| `GET /api/moderation/snapshots`                 | snapshots.review | Einreichungen inkl. anonymer Einträge, Statusfilter |
+| `GET /api/moderation/snapshots/{id}`            | snapshots.review | Metadaten, Qualität, erlaubte Aktionen              |
+| `GET /api/moderation/snapshots/{id}/history`    | snapshots.review | Historie                                            |
+| `GET /api/moderation/snapshots/{id}/screenshot` | snapshots.review | Geschütztes Bild; private, no-store                 |
+| `POST /api/moderation/snapshots/{id}/approve`   | snapshots.review | Kein zusätzlicher Body                              |
+| `POST /api/moderation/snapshots/{id}/reject`    | snapshots.review | `{ reason? }`                                       |
 
-Standardreihenfolge der Queue: `lastSubmittedAt asc, id asc`, damit alte und erneut eingereichte Übermittlungen nachvollziehbar abgearbeitet werden. Bereits entschiedene Einträge sind über Filter lesbar. Die eigentliche Änderung erfolgt nur über die beiden klaren Commands; kein universelles `PATCH status`.
+Queue: lastSubmittedAt asc, id asc; Entscheidungen über Filter lesbar. Kein universeller Status-Patch, zusätzlicher privater Content-Endpunkt oder Frontend-Content-Proxy. Screenshots ohne Session/Recht scheitern auch bei bekannter URL; die öffentliche Route bleibt vor Freigabe geschlossen.
 
-Private HTML-Vorschau und Ressourcen laufen über explizite gleichursprüngliche SvelteKit-Proxy-Endpunkte unter `/api/moderation/snapshots/...`, die die Session ausschließlich an den konfigurierten Backend-Origin weiterreichen. Alle Ressourcen im gespeicherten HTML/CSS müssen den privaten Prefix verwenden; die im Worker gespeicherten Verweise dürfen nicht auf öffentliche Content-Pfade zurückfallen. Bestehende absolut gespeicherte öffentliche Content-URLs müssen im privaten Auslieferungspfad auf den privaten Prefix abgebildet werden, einschließlich CSS-URLs und eingebetteter Frames. Dies benötigt eine gezielte Prüfung der Normalisierung und gespeicherter Beispiele, keinen frei konfigurierbaren Netzwerkproxy. Wenn eine Asset-Art nicht sicher abgebildet werden kann, wird sie weggelassen; es wird kein öffentlicher Zugang geöffnet.
+### 7.3 Benutzerverwaltung
 
-Die Sandbox blockiert weiterhin Skripte und Formularaktionen. Die Vorschau erhält dieselbe restriktive CSP wie öffentliche Archivseiten. Für Fonts im opaque-origin iframe darf der private Ressourcenproxy die notwendige Asset-CORS-Antwort liefern, aber erst nach eigener Session- und Rechteprüfung. Direkte Backend- und Proxy-Requests müssen ohne Berechtigung scheitern.
+| Methode / Pfad                                   | Schutz                                    | Inhalt                                                    |
+| ------------------------------------------------ | ----------------------------------------- | --------------------------------------------------------- |
+| `GET /api/admin/users`                           | Admin und mindestens ein Verwaltungsrecht | Suche nach Handle/Name, minimale paginierte Daten         |
+| `GET /api/admin/users/{id}/access`               | Wie oben                                  | Rollen, Ausnahmen, wirksame Rechte, bearbeitbare Bereiche |
+| `GET /api/admin/permissions`                     | Wie oben                                  | Katalog und Rollen-Defaults                               |
+| `PUT /api/admin/users/{id}/roles/admin`          | Admin und users.assign_roles              | `{ assigned }`                                            |
+| `PUT /api/admin/users/{id}/permissions/{key}`    | Admin und users.assign_permissions        | `{ effect }`, Allow oder Deny                             |
+| `DELETE /api/admin/users/{id}/permissions/{key}` | Admin und users.assign_permissions        | Persönliche Ausnahme entfernen                            |
 
-### 7.3 Rollen und individuelle Rechte
+User-Grundrolle und unbekannte Schlüssel sind nicht bearbeitbar. Nur ein Verwaltungsrecht erlaubt nur den entsprechenden Bereich. Jede kleine Aktion verändert exakt eine Rolle/Ausnahme und liefert den aktuellen Stand. Kein ersetzendes Speichern des gesamten Rechtebestands. Session-Daten erhalten Rollen und effektive Rechte; Core-Modelle werden über Mapper auf DTOs abgebildet. History-DTOs enthalten gemeinsame Metadaten und dokumentierte JSON-Datenvarianten.
 
-| Methode / Pfad                                                       | Schutz                                                | Inhalt                                                                    |
-| -------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------- |
-| `GET /api/admin/users`                                               | Admin + mindestens eines der beiden Verwaltungsrechte | Suche nach Handle/Anzeigename; paginierte minimale Benutzerdaten          |
-| `GET /api/admin/users/{id}/access`                                   | Wie oben                                              | Rollen, Ausnahmen, effektive Rechte, AccessVersion, bearbeitbare Bereiche |
-| `GET /api/admin/permissions`                                         | Wie oben                                              | Fester Katalog, UI-Namen und Rollen-Defaults                              |
-| `PUT /api/admin/users/{id}/roles/admin`                              | Admin + `users.assign_roles`                          | `{ assigned, expectedVersion }`                                           |
-| `PUT /api/admin/users/{id}/permissions/{key}`                        | Admin + `users.assign_permissions`                    | `{ effect: Allow                                                          | Deny, expectedVersion }` |
-| `DELETE /api/admin/users/{id}/permissions/{key}?expectedVersion=...` | Admin + `users.assign_permissions`                    | Ausnahme entfernen, wieder erben                                          |
+### 7.4 Fehler und Nebenläufigkeit ohne Versionsinfrastruktur
 
-Kein Bearbeiten von User-Grundrolle, unbekannten Rollen oder unbekannten Schlüsseln. Nutzer mit nur einem Verwaltungsrecht sehen den jeweils anderen Bereich lesend. Die UI speichert Rollen und persönliche Ausnahmen über getrennte, klar bezeichnete Aktionen; jede Antwort liefert den neuen Access-Stand. Änderungen an mehreren Ausnahmen werden im Mockup einzeln gespeichert, damit Fehler nicht als vollständig gespeicherter Satz erscheinen.
+- 401: keine gültige Anmeldung.
+- 403: fehlendes Recht, erforderliche Admin-Rolle oder Registrierung.
+- 404: fremder eigener Snapshot, fehlende oder nicht öffentliche Ressource.
+- 409: aktuell unzulässiger Übergang oder Schutz des letzten handlungsfähigen Admins.
+- 400: ungültige Eingabe oder zu lange Begründung.
+- 503: benötigte Datenquelle nicht erreichbar.
 
-`AuthenticationSessionResponse` wird um Rollen und effektiv erlaubte Berechtigungsschlüssel ergänzt. Neue DTOs werden über Mapper aus Core-Modellen erstellt; Persistenzentitäten werden nicht als API-Antworten serialisiert. History-DTOs verwenden einen dokumentierten Discriminator und konkrete Varianten entsprechend der abstrakten Entität.
+Snapshot-Mutationen verwenden vorhandene Zeilensperren: aktuellen Status und Voraussetzungen innerhalb der Transaktion lesen, prüfen, ändern, Historie hinzufügen, committen. Bei unmittelbar konkurrierenden Entscheidungen aus einem offenen Zustand setzt sich eine durch; die nächste erkennt den entschiedenen Zustand und liefert 409. Doppelte unmittelbare Wiedervorlage erzeugt keinen weiteren Eintrag. Worker behalten Snapshot → Processing als Sperrreihenfolge.
 
-### 7.4 Fehler und Nebenläufigkeit
+**Grenze der Vereinfachung:** Ohne Vergleichstoken gibt es keine allgemeine Erkennung veralteter Browseransichten. Ist ein Snapshot nach zwischenzeitlicher Ablehnung/Wiedervorlage wieder prüfbar, gilt ein zulässiger Request für seinen aktuellen Zustand. Kein versteckter Timestamp-, Historien-ID- oder ETag-Vergleich. Die UI lädt bei Auswahl und nach Aktionen neu, verspricht damit aber keinen atomaren Altansichtsvergleich.
 
-- `401`: keine gültige Session.
-- `403`: fehlendes Recht oder notwendige Admin-Rolle; unvollständige Registrierung mit konkretem Hinweis.
-- `404`: fremder eigener Snapshot, fehlende Ressource oder nicht öffentlicher Snapshot über öffentliche Pfade.
-- `409`: veraltete Version, unzulässiger Übergang oder Schutz des letzten voll handlungsfähigen Admins.
-- `400`: ungültiger Filter, unbekannter Rechtewert oder zu lange Begründung.
-- `503`: erforderliche Datenquelle vorübergehend nicht verfügbar.
+Bei zwei Änderungen derselben Ausnahme gilt die zuletzt erfolgreich gespeicherte zulässige Änderung. Unabhängige Änderungen überschreiben einander nicht, weil jede Anfrage nur ihren Eintrag betrifft. Der letzte handlungsfähige Admin wird gemeinsam mit der Mutation in einer serialisierten Zugriffstransaktion geprüft.
 
-Mutationen sperren die betroffene Snapshot-Zeile und vergleichen `expectedVersion`. Keine verlorenen Entscheidungen: Bei zwei parallelen Genehmigungen/Ablehnungen gewinnt genau eine. Der andere Client lädt nach `409` den aktuellen Stand. Nur eine erfolgreiche Mutation erzeugt Historie.
+PublishAsync, SnapshotPublication und ProcessingCompletion.Published werden auf ihre Bedeutung als gespeichertes Capture-Ergebnis geprüft, etwa CompleteCaptureAsync/ResultStored. Fertige private Ergebnisobjekte dürfen nicht von der Worker-Fehlerbereinigung gelöscht werden. API-Beschreibungen wie Quality: null until publication werden auf technische Fertigstellung korrigiert.
 
-Der Worker verwendet bei Zugriff auf beide Tabellen weiterhin die vorhandene Sperrreihenfolge Snapshot → Processing. Wiederholte Fertigstellung darf keine zweite Freigabe und keine doppelten Historieneinträge erzeugen. Ein terminaler Verarbeitungsstatus ist nach Cleanup aus dem Snapshot lesbar.
+## 8. Frontend-Seiten und Mockups
 
-Die bisherigen internen Bezeichnungen `PublishAsync`, `SnapshotPublication` und `ProcessingCompletion.Published` meinen heute überwiegend das gespeicherte Capture-Ergebnis. Bei der Umsetzung werden ihre Namen/Kommentare und alle Aufrufer gezielt auf diese Bedeutung abgestimmt, beispielsweise `CompleteCaptureAsync` und `ResultStored`. Insbesondere darf die Worker-Fehlerbereinigung fertig gespeicherte, aber noch nicht genehmigte Ergebnisobjekte nicht löschen. Bestehende API-Beschreibungen wie `Quality: null until publication` werden auf technische Fertigstellung korrigiert; die öffentlichen Ressourcen-URLs bleiben von der tatsächlichen Freigabe abhängig.
+Genau drei neue Seiten:
 
-## 8. Frontend-Routen und Mockups
+| Route                  | Titel           | Zugang                                             | Mockup                                                       |
+| ---------------------- | --------------- | -------------------------------------------------- | ------------------------------------------------------------ |
+| `/account/submissions` | My submissions  | Angemeldeter, vollständig registrierter Eigentümer | [account-submissions.html](mockups/account-submissions.html) |
+| `/admin/snapshots`     | Snapshot review | Effektives Review-Recht                            | [snapshot-review.html](mockups/snapshot-review.html)         |
+| `/admin/users`         | User access     | Admin und mindestens ein Verwaltungsrecht          | [user-access.html](mockups/user-access.html)                 |
 
-Es sind genau **drei neue Frontend-Seiten** vorgesehen:
-
-| Route              | Titel           | Zugang                                           | HTML-Mockup                                          |
-| ------------------ | --------------- | ------------------------------------------------ | ---------------------------------------------------- |
-| `/submissions`     | My submissions  | Angemeldeter, vollständig registrierter Benutzer | [submissions.html](mockups/submissions.html)         |
-| `/admin/snapshots` | Snapshot review | Effektives `snapshots.review`                    | [snapshot-review.html](mockups/snapshot-review.html) |
-| `/admin/users`     | User access     | Admin + mindestens ein Verwaltungsrecht          | [user-access.html](mockups/user-access.html)         |
-
-Die Seiten werden im bestehenden `(site)`-Layout angelegt. Details/Historie stehen aufklappbar innerhalb der Liste; Prüfvorschau und Benutzereditor liegen auf derselben Seite. Keine weiteren Detailseiten, Dashboard-Landingpage oder zusätzlichen Routen. Filter und Auswahl können über Queryparameter erhalten bleiben.
+Implementierungsorte: `(site)/account/submissions`, `(site)/admin/snapshots`, `(site)/admin/users`. Kein weiterer Account-Index. `/account/complete` bleibt bestehen. Der ursprünglich vorgeschlagene Top-Level-Pfad wird nicht eingeführt und braucht keine Weiterleitung.
 
 ### 8.1 My submissions
 
-- Nur eigene Einträge, mit Titel, vollständiger kopierbarer Quell-URL, Einreichungszeit, technischem Status, Moderation und Runde.
-- Filter `All`, `Pending`, `Approved`, `Rejected`, `Resubmitted`.
-- Aufklappbare `History` mit Zeitpunkt, Aktion und optionalem Ablehnungsgrund.
-- `View snapshot` nur bei öffentlicher Freigabe.
-- `Resubmit for review` nur bei abgelehntem, fertig verarbeitetem eigenen Snapshot; Bestätigung nennt die erneute Prüfung desselben unveränderten Inhalts.
-- Bei Wiedervorlage aktualisieren sich Status, Runde, Zeitpunkt und Historie. Der bisherige Ablehnungsgrund bleibt als historische Entscheidung sichtbar, wird nicht als aktuelle Ablehnung der neuen Runde dargestellt.
-- Kein Besitzanspruch auf anonyme Einreichungen nach späterer Anmeldung.
+- Eigene Einträge mit Titel, vollständiger kopierbarer URL, letzter Einreichung, Verarbeitung und Moderation.
+- All/Pending/Approved/Rejected/Resubmitted als Filter.
+- Aufklappbare History mit Ereignis, Zeit und optionalem Grund; keine Rundennummern.
+- View snapshot nur bei Freigabe.
+- Resubmit for review nur für fertige abgelehnte eigene Snapshots; Bestätigung nennt unveränderte Inhalte.
+- Nach Wiedervorlage Status/Zeitpunkt aktualisieren, Historie ergänzen und aktuellen Ablehnungsgrund ausblenden. Alte Entscheidungen bleiben sichtbar.
+- Kein nachträglicher Besitzanspruch auf anonyme Einreichungen.
 
 ### 8.2 Snapshot review
 
-- Registerliste mit `Pending`, `Resubmitted`, `Rejected`, `Approved` und Auswahl eines Eintrags.
-- Bei Auswahl Metadaten, Qualität, geschützte Vorschau und Entscheidungsfolge.
-- `Approve` als primäre Aktion; `Reject` öffnet einen begrenzten Bereich mit `Reason (optional)` und eindeutiger Bestätigung.
-- Abgelehnte Einträge erläutern `Only the submitter can resubmit this snapshot.`; keine direkte Freigabeaktion.
-- Beim Abschluss wandert der Eintrag aus der offenen Queue; Erfolgsmeldung und Fokus folgen dem Ergebnis.
-- Selbstprüfung ist im Vorschlag erlaubt, weil kein Vier-Augen-Prinzip beauftragt wurde. Sie wird wie jede andere manuelle Entscheidung protokolliert.
+- Queue mit Filtern für offene und entschiedene Einträge.
+- Metadaten, Qualität, vorhandener Screenshot und Historie auf derselben Seite.
+- Approve als primäre Aktion; Reject öffnet Reason (optional) mit expliziter Bestätigung.
+- Bei Rejected: Only the submitter can resubmit this snapshot. Kein Approve-/Resubmit-Weg.
+- Nach Entscheidung Queue/Status/Historie aktualisieren; Fokus und Meldung folgen dem Ergebnis.
+- Selbstprüfung erlaubt, da kein Vier-Augen-Prinzip beauftragt wurde.
 
 ### 8.3 User access
 
-- Benutzerliste mit Suche; Auswahl öffnet Rollen und Berechtigungen im selben Dokument.
-- `User` als Grundrolle und `Admin` als zuweisbare Rolle.
-- Jede Berechtigung zeigt Default, Auswahl `Inherit / Allow / Deny`, wirksamen Zugang und eine eigene `Save`-Aktion.
-- `Inherit` entfernt einen persönlichen Eintrag. Entzug einer ererbten Berechtigung erfolgt über `Deny`; das Entfernen eines Allow alleine reicht dafür nicht.
-- Änderungen sind erst nach explizitem Speichern wirksam; bei Fehlern bleiben Eingaben und Serverstatus unterscheidbar.
-- Schutz vor dem Entzug des letzten voll handlungsfähigen Admins erscheint als konkrete Validierungsnachricht.
+- Benutzerliste und Editor im selben Dokument.
+- User als Grundrolle; Admin zuweisbar/entziehbar.
+- Default, Inherit/Allow/Deny, wirksamer Zugang und eigene Save-Aktion je Recht.
+- Erst Speichern wirkt; Fehler erhalten Eingaben und kennzeichnen den ungespeicherten Stand.
+- Schutz des letzten Admins als konkrete Validierung; kein Versionskonflikt-Dialog.
 
-### 8.4 Vorhandene Seiten
+### 8.4 Vorhandene Seiten und Gestaltung
 
-`/archive/new` erhält die oben beschriebene Direktpublikationsoption und korrekte Abschlussmeldungen. Navigation/Account-Menü verlinken `My submissions`, `Snapshot review` und `User access` ausschließlich bei passenden Voraussetzungen. `/snapshots/{id}` bleibt ein öffentlicher Viewer. Bestehende Login-/Registrierungsweiterleitungen werden wiederverwendet; kein neuer Login-Screen.
+/archive/new erhält Direktpublikationsoption und korrekte Abschlussmeldungen. Das Account-Menü führt zu /account/submissions; Review und User access erscheinen nur bei passenden Voraussetzungen. /snapshots/{id} bleibt der öffentliche Viewer mit vorhandenem Proxy. Server-Loads/APIs prüfen Zugang; Navigation ersetzt keine Autorisierung.
 
-Die Server-Loads prüfen Zugang und Eigentümerschaft; das Verstecken von Links ist kein Zugriffsschutz. API-Fehler werden auch nach dem initialen Laden behandelt, insbesondere nach einem Rechteentzug.
+Editorial-Design bleibt maßgeblich: Newsreader, Source Sans 3, IBM Plex Mono, ruhige Register, Regeln und Metadaten. Status hat Symbol und Text, Fokus eine 3px-Outline; Hauptaktionen sind mindestens 44px hoch. URLs bleiben vollständig zugänglich. Mobile Listen fließen um. Light/Dark verändern keine archivierten Originalfarben.
 
-### 8.5 Gestaltungs- und Zustandsvorgaben
+Zustände: Laden, leere Liste, kein Treffer, Fehler/Retry, Rechteentzug, fachlich nicht mehr mögliche Aktion, laufende Mutation, gespeichert. UI bleibt Englisch.
 
-Die Mockups übernehmen Palette, Schriftfamilien, Markenform, flachen Header und Registerstruktur des produktiven Designs. `Newsreader` für Überschriften, `Source Sans 3` für Bedienung, `IBM Plex Mono` für URLs und Zeiten. Keine KPI-Kacheln oder dekorativen Effekte.
+HTML-Dateien sind isolierte Prototypen mit Beispieldaten und lokalen DOM-Aktionen. [preview.html](mockups/preview.html) ist eine Prüfhilfe für Seite, Breite, Theme und Vergrößerung, keine vierte Seite. Screenshots werden statisch illustriert; der sichere Bildabruf wird erst später implementiert.
 
-- Light/Dark mit semantisch gleichwertigen Tokens; archivierte Originalinhalte bleiben unverändert.
-- Status mit Symbol und Klartext; aktive Navigation zusätzlich mit Linie/Gewicht.
-- Sichtbare Labels, Fokus mit 3px-Outline, mindestens 44px hohe Hauptbedienelemente, URLs umbrechen und kopierbar halten.
-- Desktop: strukturierte Zeilen; mobil: dieselben Datensätze untereinander, keine horizontal abgeschnittene Tabelle.
-- Zustände: initiales Laden, leere Liste, kein Filtertreffer, Servicefehler mit Retry, fehlende Berechtigung, Konflikt bei Mutation, Mutation läuft, gespeichert.
-- UI-Sprache durchgehend Englisch. Keine unnötigen technischen Hinweise in produktiven Nutzerflüssen.
+## 9. Migration, Cleanup und Auslieferung
 
-Die HTML-Dateien sind isolierte Designprototypen mit Beispieldaten. Ihre Buttons ändern ausschließlich lokalen Demo-Zustand. Es existiert keine Backend-Verbindung und keine produktive Svelte-Route. [preview.html](mockups/preview.html) ist eine reine Prüfoberfläche für feste iframe-Breiten, **keine geplante Frontend-Route**. Gemeinsam genutzte CSS-/JS-Dateien gehören nur zu den Mockups.
+### 9.1 Migration
 
-## 9. Migration, Initialisierung und Auslieferung
+1. Rollen-/Override-Tabellen und eine Historientabelle mit JSONB anlegen. Am Snapshot nur Moderationsstatus ergänzen.
+2. Konten User zuordnen, keine automatische Admin-Auswahl.
+3. Bereits öffentliche fertige Snapshots auf APPROVED setzen; Capture-Zeiten erhalten.
+4. Je Bestandssnapshot einen System-Freigabeeintrag mit LegacyMigration zum Übernahmezeitpunkt schreiben. Keine menschliche Altentscheidung oder Einreichungsabsicht erfinden. Vorhandene Ergebnisfelder belegen den Erfolg.
+5. Vorhandene unfertige Einträge auf PENDING setzen. Terminale Processing-Daten einmalig in ProcessingFinished-Einträge übernehmen; bei laufenden Vorgängen nichts Terminales erfinden.
+6. Worker/Cleanup umstellen. Alte API/Worker während Migration und Wechsel anhalten; kein gemischter Betrieb mit bisheriger Freigabe oder Löschung erfolgloser Einträge.
 
-### 9.1 Geordnete Migration
+Fehlende Altdaten werden ohne belastbare Grundlage nicht rekonstruiert. Gelöschte Übermittlungen bleiben nicht wiederherstellbar. Migrationsprobe auf einer Datenbankkopie mit anonymen, registrierten, fertigen, fehlgeschlagenen und laufenden Einträgen. Alte Migrationen/History-Konfiguration nicht umschreiben.
 
-1. Neue Rollen-/Override-Tabellen, Historie und Snapshot-Felder ergänzen; Constraints und Indizes anlegen.
-2. Bestehenden Konten `User` zuordnen. Niemand wird allein durch Reihenfolge, Namen oder erste Anmeldung Admin.
-3. Bisher öffentlich verfügbare fertige Snapshots mit Ergebnisdaten auf `APPROVED` setzen. `ProcessingOutcome = COMPLETED`; `ApprovedAt` ist der dokumentierte Übernahmezeitpunkt, nicht ein erfundener historischer Prüfzeitpunkt.
-4. Pro Bestandssnapshot einen System-Übernahmeeintrag mit `LegacyMigration` anlegen. Wo ein initialer Submitted-Eintrag aus `CreatedAt` rekonstruiert wird, die Rekonstruktion ausdrücklich kennzeichnen; keine vermeintliche menschliche Altentscheidung erfinden. Einfacher Vorschlag: nur den belegten Übernahmeeintrag schreiben, Runde 1.
-5. Nicht fertige vorhandene Einreichungen auf `PENDING` setzen. Noch vorhandene terminale Processing-Ergebnisse übernehmen. Bereits vom alten Cleanup gelöschte Übermittlungen können nicht rekonstruiert werden.
-6. Vor Aktivierung die neue Worker-/Cleanup-Semantik zusammen mit der API ausrollen. Während Migration und Wechsel alte API/Worker anhalten; kein gemischter Betrieb, der private Datensätze öffentlich ausliefert oder erfolglose Übermittlungen weiter löscht.
+### 9.2 Erster Admin
 
-Migrationsschritte werden auf einer Kopie mit anonymen, registrierten, fertigen, fehlgeschlagenen und laufenden Datensätzen überprüft. Neue Enum-Werte/-Mappings in `Injection` und `DataContextFactory` konsistent halten. Bestehende Migrationen und die Migrationshistorienkonfiguration werden nicht umgeschrieben.
+Ein vorhandenes vollständig registriertes Konto wird anhand seiner lokalen UUID bewusst als erster Admin benannt. Begrenzte einmalige Initialisierung nur ohne bestehenden Admin, danach deaktivieren. Keine öffentliche Bootstrap-Route oder Zuweisung anhand frei eingegebener Handles.
 
-### 9.2 Erster Admin und Handlungsfähigkeit
+Änderungen dürfen nicht den letzten vollständig registrierten Admin entfernen, der beide Verwaltungsrechte effektiv besitzt. Prüfung und Mutation geschehen in derselben kurzen serialisierten Zugriffstransaktion, auch bei gleichzeitigen Änderungen/Selbständerungen. Keine neuen Benutzer-Kontrollspalten.
 
-Vor Inbetriebnahme wird ein vorhandener, vollständig registrierter Benutzer anhand seiner **lokalen UUID** bewusst als erster Admin benannt. Ein eng begrenzter einmaliger Initialisierungsschritt fügt die Rolle nur hinzu, wenn noch kein Admin existiert, und wird danach entfernt/deaktiviert. Keine öffentliche Bootstrap-Route und keine Berechtigung über einen frei eingegebenen Handle. Die konkrete UUID wird erst zur Umsetzung/Auslieferung benötigt und nicht in diesen Plan geschrieben.
+### 9.3 Cleanup und Rücknahme
 
-Rollen-/Override-Mutationen prüfen innerhalb einer serialisierten Transaktion, dass mindestens ein vollständig registrierter Admin beide Benutzerverwaltungsrechte effektiv behält. Dafür genügt eine kleine globale Transaktionssperre für Zugriffsänderungen, die auch die finale Direktpublikationsprüfung koordiniert; manuelle Snapshot-Moderation benötigt sie nicht. So verhindern auch gleichzeitige Demotionen bzw. Deny-Änderungen einen vollständigen administrativen Ausschluss. Dies betrifft auch Selbständerungen.
+Worker, Cancel und Wiederherstellung sichern terminale Daten atomar in der Historie. Erst danach darf Cleanup abgelaufene Processing-Zeilen und temporäre Uploadobjekte entfernen; niemals Snapshot/Historie. Vorhandene terminale Zeilen ohne Historie werden vor Entfernung einmalig gesichert. Wartende/laufende Vorgänge bleiben unberührt.
 
-### 9.3 Cleanup und Rollback
+Fertige Ergebnisdateien bleiben bei Pending und Rejected erhalten, damit spätere Genehmigung derselben Inhalte möglich bleibt. Keine automatische Löschung abgelehnter Inhalte.
 
-Cleanup entfernt weiterhin abgelaufene Processing-Zeilen und temporäre Uploadobjekte. Vorher wird ein fehlendes terminales Ergebnis dauerhaft gesichert. Snapshot-Metadaten, Historie und fertig gespeicherte Inhalte bleiben auch nach Ablehnung erhalten. Wartende oder laufende Vorgänge werden nicht bereinigt. Speicherbedarf abgelehnter Inhalte ist bewusst Teil der geforderten späteren Genehmigbarkeit; automatische Löschung ist hier nicht vorgesehen.
+Die alte API interpretiert Quality != null als Publikation. Bei Rücknahme zuerst öffentliche Auslieferung sperren und Datenbank/Backup abgestimmt wiederherstellen; kein öffentlich weiterlaufendes blindes Downgrade.
 
-Ein Code-Rollback auf die alte API wäre nach Einführung der Moderation unsicher, weil sie `Quality != null` wieder als öffentliche Freigabe behandeln würde. Bei Rücknahme zuerst öffentliche Auslieferung sperren und Datenbankstand/Backup abgestimmt wiederherstellen; kein blindes Downgrade bei weiter öffentlich erreichbarem alten Code. Datenmigration und Sicherung sind Teil der späteren Auslieferung, nicht dieses Planungscommits.
+## 10. Umsetzung nach Freigabe
 
-## 10. Umsetzungspakete nach Freigabe
+| Reihenfolge | Paket             | Ergebnis                                                                |
+| ----------- | ----------------- | ----------------------------------------------------------------------- |
+| 1           | Domain/Migration  | Rollen, Overrides, Moderationsstatus, JSONB-Historie, Bestandsübernahme |
+| 2           | Rechte            | Resolver, Policies, Session-Rechte, erster/letzter Admin                |
+| 3           | Verarbeitung      | Atomare Historie, Wiedervorlage, Direktpublikation, Cleanup             |
+| 4           | Öffentliche Daten | Freigaberegel für Suche, Zahlen, Details, Content, Screenshot           |
+| 5           | Private API       | Eigentümerdaten, Review-Bilder/Entscheidungen, Benutzerverwaltung       |
+| 6           | OpenAPI           | Laufendes Backend, Live-Spezifikation, generierte Typen prüfen          |
+| 7           | Frontend          | Drei Seiten, Account-Navigation, Formular, Screenshot-Vorschau          |
+| 8           | Abnahme           | Integrationstests, Browser, Migrationsprobe                             |
 
-| Reihenfolge | Paket                  | Konkretes Ergebnis                                                                                      |
-| ----------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
-| 1           | Domain und Migration   | Fester Rollen-/Rechtekatalog, Overrides, Moderationsfelder, abstrakte Historie, kontrollierter Backfill |
-| 2           | Rechteauflösung        | Resolver, API-Policies, aktuelle Session-Rechte, erster Admin und Schutz letzter Admin                  |
-| 3           | Speicherung und Worker | Atomare Übergänge/Historie, dauerhaftes Processing-Ergebnis, Direktpublikation, sicherer Cleanup        |
-| 4           | Öffentliche Lesewege   | Gemeinsame IsPublic-Regel auf Suche, Zahlen, Details, Content und Screenshot                            |
-| 5           | Private API            | Eigentümerliste, Wiedervorlage, Review-Commands/-Vorschau, Benutzerverwaltung und Konflikte             |
-| 6           | OpenAPI/Frontend-Typen | Backend starten, Live-Spezifikation prüfen, Generator ausführen und Änderungen sichten                  |
-| 7           | Frontend               | Drei Seiten auf bestehenden UI-Mustern; private Vorschau; bestehendes Formular/Navigation anpassen      |
-| 8           | Verifikation           | Fachliche Integrationschecks, Browserprüfung, Migrationsprobe und dokumentierte Abnahme                 |
+Bestehende Repositories, Result-Modelle und Mapper verwenden. Kein generisches Repository, MediatR, CQRS-Framework oder Eventbus. `///`, `//` und `/* ... */` dokumentieren insbesondere Deny-Priorität, JSONB-Varianten, Übergänge, Sperrreihenfolge und Cleanup.
 
-Bestehende Repository-Result-Modelle, Mapper und partielle Repositories fortführen. Zusätzliche Dateien nur dort, wo sie klare fachliche Verantwortung abbilden. Kein generisches Repository, MediatR, CQRS-Framework oder neuer Eventbus.
-
-Neuer C#-Code erhält aussagekräftige `///`-Dokumentation für Verträge und fachliche Regeln. `//`/`/* ... */` erläutern insbesondere Deny-Priorität, Transaktionsgrenzen, Sperrreihenfolge, Freigabe und Cleanup. Im Frontend werden Zustandsübergänge und nicht offensichtliche Accessibility-/Proxy-Details kommentiert. Kommentare erklären Zweck und Invarianten, nicht jede triviale Zuweisung.
-
-### Verbindlicher Generatorablauf bei späteren Vertragsänderungen
-
-Aus dem Backend-Verzeichnis die API mit der vorhandenen Development-Konfiguration starten, beispielsweise `dotnet run --project Archive.Api`, sodass `http://localhost:5200/openapi/v1.json` verfügbar ist. Anschließend im Frontend-Verzeichnis:
+Nach späteren API-Änderungen die API mit bestehender Development-Konfiguration auf localhost:5200 starten und im Frontend ausführen:
 
 ```sh
 bun --bun run generate:api
@@ -436,47 +462,48 @@ bun --bun run check
 bun --bun run build
 ```
 
-`@hey-api/openapi-ts` und `openapi-ts.config.ts` behalten ihren bisherigen Zugriff auf die laufende OpenAPI-URL. Keine Dateispezifikation als Ersatz, keine Fetch-Umgehung und keine manuellen Änderungen an generierten Typen. Bestehende Transformer nur fachlich ergänzen, wenn die neuen Varianten es benötigen.
+Der Zugriff von @hey-api/openapi-ts auf http://localhost:5200/openapi/v1.json bleibt unverändert. Keine Dateispezifikation oder manuell geänderten generierten Typen. Jetzt ändern sich keine Verträge, daher weder Backend-Start noch API-Generierung für diese Planung.
 
-In diesem Planungsstand werden keine API-Verträge verändert. Deshalb werden weder Backend noch Generator für Vertragsgenerierung gestartet.
+## 11. Abnahme und spätere Prüfungen
 
-## 11. Abnahmekriterien und spätere Prüfungen
+| Nr. | Szenario                                | Erwartung                                                             |
+| --- | --------------------------------------- | --------------------------------------------------------------------- |
+| A1  | Gast übermittelt URL/Datei              | Verarbeitung möglich, ohne Freigabe privat                            |
+| A2  | Gast ruft Account-Liste/private API auf | Anmeldung erforderlich, keine privaten Daten                          |
+| A3  | Eigene/fremde IDs lesen                 | Nur eigene Daten; fremde IDs 404                                      |
+| A4  | Anmeldung nach anonymer Übermittlung    | Keine Zuordnung oder Wiedervorlage                                    |
+| A5  | Fertiger PENDING-Snapshot               | Fehlt in öffentlichen Daten und Proxy                                 |
+| A6  | Genehmigung                             | APPROVED plus Historie, öffentliche Auslieferung                      |
+| A7  | Ablehnung mit/ohne Grund                | REJECTED, optionaler Grund sichtbar                                   |
+| A8  | Eigene Wiedervorlage                    | Gleiche ID/Inhalte, RESUBMITTED, Verlauf erhalten                     |
+| A9  | Genehmigung direkt aus REJECTED         | 409, keine Freigabehistorie                                           |
+| A10 | Fremde Wiedervorlage                    | Nicht erlaubt                                                         |
+| A11 | Entscheidung nach Wiedervorlage         | Neue Entscheidung, frühere Ereignisse erhalten                        |
+| A12 | User-Allow/Admin-Deny                   | Persönliche Ausnahme wirkt in beide Richtungen                        |
+| A13 | Ausnahme entfernen                      | Rollenregel beim nächsten Request                                     |
+| A14 | Berechtigter Direktwunsch               | Initiale JSONB-Absicht, später APPROVED mit PermissionBypass          |
+| A15 | Direktrecht vor Ende entzogen           | Ergebnis gespeichert, PENDING                                         |
+| A16 | Unberechtigter Direktwunsch             | 403                                                                   |
+| A17 | Unmittelbar parallele Entscheidungen    | Status verhindert doppelte Mutation/Historie                          |
+| A18 | Cleanup nach Erfolg/Fehler/Ablehnung    | Snapshot/Historie/technischer Ausgang erhalten                        |
+| A19 | Rechteentzug bei aktiver Session        | Nächster geschützter Request scheitert                                |
+| A20 | Letzte Admin-Rechte parallel entziehen  | Handlungsfähiger Admin bleibt                                         |
+| A21 | Bestand                                 | Genehmigt, Systemherkunft erkennbar                                   |
+| A22 | Privater Screenshot direkt ohne Recht   | Zugriff verweigert, keine öffentliche Ersatz-URL                      |
+| A23 | Konto erstellen/Admin entziehen         | Grundrolle bleibt                                                     |
+| A24 | Ohne Ergebnis genehmigen                | 409                                                                   |
+| A25 | JSONB-Varianten speichern/lesen         | Typisierte Daten auch nach Schlüsselumsortierung korrekt              |
+| A26 | Gleiches Recht parallel ändern          | Zuletzt gespeicherte zulässige Änderung gilt, andere Rechte unberührt |
+| A27 | Alte Ansicht nach mehreren Übergängen   | Aktueller Zustand entscheidet; kein behaupteter Versionsschutz        |
 
-| Nr. | Szenario                                                  | Erwartetes Ergebnis                                                                 |
-| --- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| A1  | Gast übermittelt URL oder Datei                           | Angenommen, technisch verarbeitet, ohne Freigabe nicht öffentlich                   |
-| A2  | Gast ruft `/submissions` oder private API auf             | Anmeldung erforderlich; keine Liste/Gründe/Inhalte                                  |
-| A3  | Benutzer A ruft eigene und fremde IDs auf                 | Nur eigene Liste/Details/Historie; fremde IDs liefern 404                           |
-| A4  | Anonyme Einreichung, danach Anmeldung                     | Keine nachträgliche Zuordnung und keine Wiedervorlage dieses Eintrags               |
-| A5  | Fertiger PENDING-Snapshot                                 | Fehlt in Suche, Summen, Verteilung, Details, Screenshot, Content und Frontend-Proxy |
-| A6  | Admin genehmigt                                           | APPROVED plus Historie; alle öffentlichen Pfade liefern das fertige Ergebnis        |
-| A7  | Admin lehnt mit/ohne Grund ab                             | REJECTED; Grund optional; Eigentümer sieht die Entscheidung                         |
-| A8  | Eigentümer legt abgelehnten Snapshot erneut vor           | RESUBMITTED, gleiche ID/Inhalte, nächste Runde, frühere Ablehnung bleibt            |
-| A9  | Prüfer versucht direkte Freigabe eines REJECTED-Snapshots | 409; kein neuer Historieneintrag                                                    |
-| A10 | Fremder Benutzer/Prüfer versucht Wiedervorlage            | Nicht erlaubt, auch mit Review-Recht                                                |
-| A11 | RESUBMITTED wird genehmigt/erneut abgelehnt               | Neue Entscheidung gilt; frühere Runden bleiben nachvollziehbar                      |
-| A12 | User mit Review-Allow / Admin mit Review-Deny             | Erster darf prüfen; zweiter nicht, auch bei direktem API-Aufruf                     |
-| A13 | Allow/Deny wird entfernt                                  | Rollenregel gilt sofort wieder, ohne Neuanmeldung                                   |
-| A14 | Berechtigter wählt Direktpublikation                      | Nach erfolgreichem Capture APPROVED mit PermissionBypass-Historie                   |
-| A15 | Direktrecht wird vor Capture-Ende entzogen                | Technisch fertig, PENDING und privat                                                |
-| A16 | Unberechtigter sendet Direktflag manuell                  | 403, keine autorisierte Direktpublikation                                           |
-| A17 | Zwei Entscheidungen oder zwei Wiedervorlagen parallel     | Genau eine Änderung, andere 409, keine doppelte Historie                            |
-| A18 | Cleanup nach Erfolg/Fehler/Ablehnung                      | Flüchtige Daten weg, eigene Übermittlung/Historie/Outcome weiter verfügbar          |
-| A19 | Rechte werden bei aktiver Session entzogen                | Nächster geschützter Request und neue Vorschauressourcen scheitern                  |
-| A20 | Letzte Admin-Rechte parallel entziehen                    | Mindestens ein administrativ handlungsfähiger Admin bleibt                          |
-| A21 | Bestandsmigration                                         | Zuvor öffentliche fertige Snapshots genehmigt, Systemherkunft erkennbar             |
-| A22 | Prüfvorschau direkt ohne Recht oder über Asset-URL        | Zugriff verweigert, auch ohne Navigation und auch über den Proxy                    |
-| A23 | Neues Konto oder Entzug von Admin                         | User-Grundrolle bleibt erhalten                                                     |
-| A24 | Capturing/Fehler ohne Ergebnis wird genehmigt             | 409; keine öffentliche Freigabe                                                     |
+PostgreSQL-Integrationstests prüfen Eigentümerfilter, Freigabefilter, JSONB-Roundtrip, Deny-Priorität, atomare Historie und Sperren. In-Memory ersetzt dies nicht. Tests erst bei Implementierung im dann vorhandenen Projektstil.
 
-Diese Regeln benötigen gezielte Backend-/Datenbank-Integrationstests, insbesondere Eigentümerfilter, öffentliche Queryfilter, Deny-Priorität und konkurrierende Transaktionen. Dafür PostgreSQL mit realem EF-Mapping nutzen; ein In-Memory-Provider beweist weder Sperren noch SQL-Verhalten. Neue Tests werden erst im Implementierungsschritt ergänzt, im vorhandenen Projektstil oder einem kleinen passenden Testprojekt nach Sichtung der dann vorhandenen Infrastruktur.
+Frontend: check/build und integrierter Browser für Desktop/768/390/320px, Light/Dark, Vergrößerung, Tastatur, lange URLs, Leer-/Fehlerzustände und Aktionen. Öffentlichen Proxy inklusive Fonts, Originaldateien, Range, CSS und Frames auf Regression prüfen. Private Bildvorschau darf keine HTML-Auslieferung öffnen.
 
-Frontend prüfen mit `check` und `build`, danach im integrierten Browser: Desktop, 768px, 390px und 320px, Light/Dark, 200% Textvergrößerung, Tastaturfokus, lange URLs, Filter-/Leer-/Fehlerzustände sowie konkrete Freigabe-, Ablehnungs-, Wiedervorlage- und Rechteänderungsabläufe. Archived content darf durch Dark Mode nicht verfärbt werden.
+## 12. Planungsprüfung
 
-## 12. Verifikation dieses Planungsstands
-
-- `git fetch origin` erfolgreich; lokaler `master` und `origin/master` identisch, jeweils `0abec2f`. Kein Pull erforderlich.
-- Separater Branch direkt von `master` erstellt.
-- Umfang ausschließlich dieses Dokument und zugehörige isolierte Mockups; keine produktiven Quellen, Verträge, Migrationen oder Konfigurationen geändert.
-- Browserprüfungen und verbleibende Einschränkungen werden nach Sichtung der HTML-Prototypen im zugehörigen [Prüfprotokoll](verification.md) festgehalten.
-- Die Freigabe dieses Plans ist Voraussetzung für den Beginn der Implementierung. Die fachlichen Entscheidungen aus Abschnitt 1 sind durch das Interview bereits geklärt; eine erneute Nachfrage dazu ist nicht vorgesehen.
+- Ursprünglicher Fetch: master und origin/master identisch auf 0abec2f; separater Branch erstellt.
+- Überarbeitung auf demselben Branch, ohne Produktivänderungen.
+- API, Migration, Nebenläufigkeit und Tests ohne Versionsfelder, Rundenzähler oder Snapshot-Duplikate für Historienwerte.
+- Mockups und [Prüfprotokoll](verification.md) spiegeln Account-Route und vereinfachte Historie wider.
+- Implementierung wartet auf ausdrückliche Freigabe.

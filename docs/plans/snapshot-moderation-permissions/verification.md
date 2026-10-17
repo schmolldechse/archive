@@ -13,11 +13,11 @@ Stand: 2026-10-17. Dieses Protokoll bewertet ausschließlich die Planungsartefak
 
 ## HTML-Mockups
 
-| Geplante Route     | Mockup                                          |
-| ------------------ | ----------------------------------------------- |
-| `/submissions`     | [My submissions](mockups/submissions.html)      |
-| `/admin/snapshots` | [Snapshot review](mockups/snapshot-review.html) |
-| `/admin/users`     | [User access](mockups/user-access.html)         |
+| Geplante Route         | Mockup                                             |
+| ---------------------- | -------------------------------------------------- |
+| `/account/submissions` | [My submissions](mockups/account-submissions.html) |
+| `/admin/snapshots`     | [Snapshot review](mockups/snapshot-review.html)    |
+| `/admin/users`         | [User access](mockups/user-access.html)            |
 
 [preview.html](mockups/preview.html) bietet eine gemeinsame Vorschau mit auswählbarer Seite, Breite, Theme und Inhaltsvergrößerung. Diese Hilfsdatei ist keine zusätzliche Produktseite. Die Mockups laden vorhandene lokale Schriftdateien aus `frontend/node_modules`; ohne installierte Frontend-Abhängigkeiten greifen die definierten Systemschriften. Keine externen Fonts oder Bilddienste.
 
@@ -46,7 +46,7 @@ Visuell kontrolliert:
 
 ## Geprüfte Demo-Abläufe
 
-1. **Eigene Wiedervorlage:** Filter `Rejected`, Bestätigung öffnen, `Confirm resubmission`, anschließend Filter `Resubmitted`. Ergebnis: gleiche Beispielübermittlung, Runde 2, Status Resubmitted, neue Einreichung in der Historie; die ursprüngliche Ablehnung samt Grund bleibt erhalten. Die neue Runde zeigt keinen aktuellen Ablehnungsgrund.
+1. **Eigene Wiedervorlage:** Filter `Rejected`, Bestätigung öffnen, `Confirm resubmission`, anschließend Filter `Resubmitted`. Ergebnis: gleiche Beispielübermittlung, Status Resubmitted, neue Einreichung in der Historie; die ursprüngliche Ablehnung samt Grund bleibt erhalten. Der aktuelle Eintrag zeigt keinen aktuellen Ablehnungsgrund und keine Rundennummer.
 2. **Ablehnung:** `Reject`, optionalen Grund eingeben, bestätigen. Ergebnis: Rejected und Entscheidung in der lokalen Historie; kein direkter Genehmigungsbutton mehr.
 3. **Genehmigung:** anonyme Beispielübermittlung auswählen, `Approve`. Ergebnis: Approved und Publikationsbestätigung; Anonymität verhindert die Moderation nicht.
 4. **Persönliche Einschränkung:** Sam besitzt Admin, aber `Publish without approval = Deny`. Ergebnis: `Denied · Individual setting`.
@@ -63,6 +63,19 @@ Diese Abläufe ändern ausschließlich den lokalen DOM-Zustand. Ein Reload setzt
 - Lokale Markdown-Verweise und lokale CSS-/JS-/Font-Verweise auf vorhandene Ziele kontrolliert.
 - Der integrierte Browser protokollierte bei Frame-Wechseln zwei `MutationObserver.observe`-Fehler ohne Zuordnung zu einer Mockup-Datei. Die eigenen Mockup-Skripte verwenden keinen MutationObserver; Ursache nicht abschließend geklärt. Die oben beschriebenen Abläufe und Darstellungsprüfungen konnten ausgeführt werden.
 - Links zu bestehenden Produktseiten (`Browse`, `Archive a page`, beispielhafter öffentlicher Viewer) zeigen deren vorgesehene Zielpfade. Der isolierte Vorschau-Server stellt diese Produktseiten nicht bereit.
-- Die statische Beispielvorschau ersetzt noch keinen echten archivierten iframe-Inhalt. Private Ressourcen, CSP, Cookie-Weiterleitung und Rechteentzug sind später an der implementierten Anwendung zu prüfen.
-- Die Rechteanzeige ist eine lokale Vorschau auf die gewählte Kombination; Speichern zeigt nur eine Demo-Bestätigung. Versionierung, Schutz des letzten Admins und getrennte Serverbestätigungen sind im Plan beschrieben.
+- Die statische Beispielvorschau illustriert einen bereits aufgenommenen Screenshot. Der geschützte Bildabruf und Rechteentzug sind später an der implementierten Anwendung zu prüfen. Es ist kein zusätzlicher privater HTML-iframe oder Content-Proxy mehr geplant.
+- Die Rechteanzeige ist eine lokale Vorschau auf die gewählte Kombination; Speichern zeigt nur eine Demo-Bestätigung. Fachliche Zustandsprüfung, Schutz des letzten Admins und getrennte Serverbestätigungen sind im Plan beschrieben.
 - Keine Backend-Tests, kein API-Generator und kein produktiver Frontend-Build: Produktivcode und API-Verträge wurden nicht geändert.
+
+## Überarbeitung nach Rückmeldung
+
+- Die Suche im Repository umfasst weitere Markdown-Dateien sowie alle Dateien dieses Planungsverzeichnisses. Außer dem vorliegenden Plan und seinem Prüfprotokoll wurden keine weiteren Pläne mit den verworfenen Feldern gefunden.
+- Versionsspalten und Versionsparameter sind auch aus API-Beschreibung, Migration, Nebenläufigkeit und Abnahmekriterien entfernt. Keine versteckten Zeitstempel-, ETag- oder Historien-ID-Vergleiche als Ersatz.
+- Am Snapshot ist nur der Moderationsstatus neu. Auch Freigabezeit und letzte Einreichung werden aus der Historie gelesen. Es gibt keinen Rundenzähler; der vorhandene technische Queue-Zähler bleibt fachlich unberührt.
+- Der konkrete Modellvorschlag ist eine JSONB-Spalte mit abstrakten, explizit registrierten Datenvarianten. Gemeinsame Metadaten stehen an einer einzelnen konkreten Persistenzentität. Keine TPH-/TPT-Hierarchie und keine doppelte Typspalte.
+- Terminale Verarbeitungsergebnisse und Direktpublikationsabsicht werden als passende Historieneinträge erhalten. Sie werden nicht zusätzlich an Snapshot gespiegelt.
+- Der vorhandene öffentliche Content-Proxy wurde anhand von Viewer, API-CSP, gespeicherten URL-Pfaden und Deployment-Vorlage geprüft. Im aktuellen Aufbau bleibt er erforderlich; Abschnitt 6.3 nennt die konkreten Abhängigkeiten. Die zuvor vorgeschlagene zusätzliche private Proxy-Strecke entfällt zugunsten vorhandener Screenshots.
+- Die Route ist `/account/submissions`; Mockup-Datei und sämtliche Verknüpfungen wurden in `account-submissions.html` umbenannt. Die Account-Einordnung erscheint im Breadcrumb. Der produktive Router wurde nicht verändert.
+- Die 24 Breiten-/Theme-Kombinationen wurden nach der Überarbeitung erneut im integrierten Browser gemessen: kein horizontaler Überlauf.
+- Wiedervorlage ohne Rundennummern sowie Genehmigung und Ablehnung im Demo-Zustand erneut geprüft. Frühere Entscheidungen bleiben erhalten; der aktuelle Ablehnungsgrund entfällt bei Wiedervorlage.
+- Die Grenze ohne allgemeinen Schutz vor veralteten Ansichten und das Verhalten konkurrierender Einzeländerungen sind in Abschnitt 7.4 bewusst beschrieben. Die Prototypen prüfen diese Datenbankeigenschaften nicht.

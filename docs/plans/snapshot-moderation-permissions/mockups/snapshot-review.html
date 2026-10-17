@@ -12,7 +12,10 @@
     <a class="skip-link" href="#main-content">Skip to snapshot review</a>
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="submissions.html" aria-label="archive — Home"
+        <a
+          class="brand"
+          href="account-submissions.html"
+          aria-label="archive — Home"
           ><svg viewBox="0 0 64 64" aria-hidden="true">
             <path
               fill="currentColor"
@@ -62,7 +65,7 @@
         </div>
       </div>
       <nav class="section-nav" aria-label="Account and administration">
-        <a href="submissions.html">My submissions</a
+        <a href="account-submissions.html">My submissions</a
         ><a href="snapshot-review.html" aria-current="page">Snapshot review</a
         ><a href="user-access.html">User access</a>
       </nav>
@@ -105,7 +108,7 @@
               <span class="status resubmitted">↻ Resubmitted</span
               ><strong>Open access to local history</strong
               ><span class="record-value">example.org/history/open-access</span
-              ><span class="hint">Round 2 · Jamie Park</span>
+              ><span class="hint">Jamie Park</span>
             </button>
             <button
               class="queue-item"
@@ -117,7 +120,7 @@
               <span class="status pending">◷ Pending</span
               ><strong>A field guide to urban trees</strong
               ><span class="record-value">example.org/journal/urban-trees</span
-              ><span class="hint">Round 1 · Alex Morgan</span>
+              ><span class="hint">Alex Morgan</span>
             </button>
             <button
               class="queue-item"
@@ -129,7 +132,7 @@
               <span class="status pending">◷ Pending</span
               ><strong>Public garden catalogue</strong
               ><span class="record-value">example.org/gardens/catalogue</span
-              ><span class="hint">Round 1 · Anonymous</span>
+              ><span class="hint">Anonymous</span>
             </button>
             <button
               class="queue-item"
@@ -143,7 +146,7 @@
               ><strong>The changing coastline</strong
               ><span class="record-value"
                 >example.org/research/the-changing-coastline</span
-              ><span class="hint">Round 1 · Alex Morgan</span>
+              ><span class="hint">Alex Morgan</span>
             </button>
             <button
               class="queue-item"
@@ -156,7 +159,7 @@
               <span class="status approved">✓ Approved</span
               ><strong>Notes from the public library</strong
               ><span class="record-value">example.org/library/notes</span
-              ><span class="hint">Round 2 · Alex Morgan</span>
+              ><span class="hint">Alex Morgan</span>
             </button>
           </div>
           <div class="empty" data-no-results hidden>
@@ -169,7 +172,7 @@
           <div class="actions">
             <span class="status resubmitted" data-review-status
               >↻ Resubmitted</span
-            ><span class="eyebrow" data-review-round>Review round 2</span>
+            >
           </div>
           <h2 data-review-title>Open access to local history</h2>
           <div class="source-line">
@@ -210,9 +213,13 @@
           </dl>
           <div class="preview">
             <div class="preview-bar">
-              <strong>Archived page preview</strong><span>Not public</span>
+              <strong>Capture screenshot</strong><span>Not public</span>
             </div>
-            <div class="archived-page">
+            <div
+              class="archived-page"
+              role="img"
+              aria-label="Capture screenshot of selected snapshot"
+            >
               <div class="original-name">COMMUNITY RECORD · RESEARCH NOTES</div>
               <h3 data-preview-title>Open access to local history</h3>
               <p>
@@ -258,21 +265,21 @@
             <summary>History</summary>
             <ol class="history" data-review-history>
               <li>
-                <strong>Resubmitted · Round 2</strong
+                <strong>Resubmitted</strong
                 ><time datetime="2026-10-16T09:15:00+02:00"
                   >2026-10-16 · 09:15 +02:00</time
                 >
                 <p>Submitted again by Jamie Park.</p>
               </li>
               <li>
-                <strong>Rejected · Round 1</strong
+                <strong>Rejected</strong
                 ><time datetime="2026-10-15T14:30:00+02:00"
                   >2026-10-15 · 14:30 +02:00</time
                 >
                 <p>Sam Lee: Please review the source attribution.</p>
               </li>
               <li>
-                <strong>Submitted · Round 1</strong
+                <strong>Submitted</strong
                 ><time datetime="2026-10-15T10:05:00+02:00"
                   >2026-10-15 · 10:05 +02:00</time
                 >
