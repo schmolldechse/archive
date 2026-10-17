@@ -15,7 +15,7 @@
 	);
 </script>
 
-<svelte:head><title>{title} · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Page unavailable · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <main id="main-content" class="site-error">
 	<Breadcrumb
 		><BreadcrumbList

@@ -134,7 +134,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.state.query ? `Search: ${data.state.query} — ARCHIV` : "ARCHIV — Public web record"}</title>
+	<title>Browse snapshots · Archive</title>
 	<meta
 		name="description"
 		content="Search immutable, time-stamped captures of the public web with their source, context, and provenance intact."

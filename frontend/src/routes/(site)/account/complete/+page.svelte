@@ -46,7 +46,7 @@
 </script>
 
 <svelte:head>
-	<title>Set up your profile — ARCHIV</title>
+	<title>Set up your profile · Archive</title>
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 

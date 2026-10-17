@@ -1,0 +1,32 @@
+{
+	"id": "/",
+	"name": "Archive",
+	"short_name": "Archive",
+	"description": "Search and preserve snapshots of the public web.",
+	"lang": "en",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#f7f4ec",
+	"theme_color": "#f7f4ec",
+	"icons": [
+		{
+			"src": "/icons/app-192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/app-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/app-maskable-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
+		}
+	]
+}

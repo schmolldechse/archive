@@ -12,9 +12,7 @@
 	let { data }: PageProps = $props();
 </script>
 
-<svelte:head
-	><title>{data.access.displayName} · Users · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head
->
+<svelte:head><title>@{data.access.handle} · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class="admin-detail-path">
 	<Breadcrumb
 		><BreadcrumbList

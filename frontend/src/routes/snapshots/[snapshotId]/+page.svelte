@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.snapshot.title} — ARCHIV</title>
+	<title>Snapshot: {data.snapshot.title} · Archive</title>
 	<meta name="description" content={`Archived page captured by ARCHIV: ${data.snapshot.title}`} />
 </svelte:head>
 

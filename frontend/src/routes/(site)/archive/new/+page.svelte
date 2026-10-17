@@ -328,7 +328,7 @@
 </script>
 
 <svelte:head>
-	<title>Archive a page — ARCHIV</title>
+	<title>{archive ? heading : restoring ? "Capture status" : "Archive a page"} · Archive</title>
 	<meta name="description" content="Preserve a public web page or a saved page file, and follow its capture progress." />
 </svelte:head>
 
