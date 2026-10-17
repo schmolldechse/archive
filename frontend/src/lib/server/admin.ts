@@ -1,6 +1,6 @@
 import { error, redirect, type RequestEvent } from "@sveltejs/kit";
 import { adminAccess } from "$lib/admin/access";
-import { completeHref, loginHref } from "$lib/auth/return-url";
+import { loginHref } from "$lib/auth/return-url";
 import { backendUrl } from "$lib/server/api";
 
 /** Each protected load checks independently; layout loads may run in parallel or be reused. */
@@ -10,11 +10,10 @@ export function requireAdmin(
 ) {
 	event.depends("app:auth");
 	const session = event.locals.session;
-	const destination = event.url.pathname + event.url.search;
 	if (!session) error(503, "Your account could not be loaded. Please try again.");
-	if (!session.isAuthenticated || !session.user) redirect(303, loginHref(destination));
-	if (!session.user.isRegistrationComplete) redirect(303, completeHref(destination));
 	const access = adminAccess(session);
+	// Visitors without portal access return to the public archive before any section data is loaded.
+	if (!access.portal) redirect(303, "/");
 	if (!access[section]) error(403, "You do not have access to this administration area.");
 	return access;
 }
