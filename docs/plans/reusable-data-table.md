@@ -1,10 +1,10 @@
 # Wiederverwendbare Tabellenkomponenten: Lösungsplan
 
-**Status:** Vorschlag zur Genehmigung. Die Implementierung beginnt erst nach ausdrücklicher Freigabe.
+**Status:** Am 17. Oktober 2026 genehmigt und umgesetzt. Die Abschnitte 1–14 enthalten den genehmigten Lösungsplan; Abschnitt 15 dokumentiert die Umsetzung.
 
 **Stand:** 17. Oktober 2026 · Repository-Ausgangsstand: `e38dac2`.
 
-Diese Änderung enthält ausschließlich diesen Plan. Komponenten, Stories, Abhängigkeiten, bestehende Oberflächen und Tests werden in dieser Phase nicht verändert.
+Die ursprüngliche Planungsänderung wurde mit `c3ac000` separat committed. Die anschließend genehmigte Implementierung ergänzt Komponenten und Dokumentations-Stories ohne neue Abhängigkeiten oder Änderungen an bestehenden Feature-Seiten.
 
 ## 1. Ziel und vereinbarter Umfang
 
@@ -413,3 +413,25 @@ Nicht vorgesehen sind Mehrspaltensortierung, Auswahl aller gefilterten Seiten, v
 Lokale Filterung bearbeitet den vollständigen Bestand, Sortierung typischerweise eine gefilterte Menge mit O(n log n); gerendert wird nur die aktuelle Seite. Es wird keine ungemessene Obergrenze oder Leistungszusage für große Datensätze gemacht. Sollte ein späterer Verbraucher große oder ausschließlich serverseitig verfügbare Bestände benötigen, ist dafür ein eigener genehmigter Verarbeitungsvertrag erforderlich.
 
 Mit der Genehmigung dieses Plans beginnt die beschriebene lokale Implementierung einschließlich Storybook und Browserprüfung. Bis dahin bleibt die Änderung auf dieses Dokument beschränkt.
+
+## 15. Umsetzungsstand nach Genehmigung
+
+Die Familie unter `frontend/src/lib/components/ui/table/` enthält die nativen Tabellenbausteine, die generische `DataTable<T>`, die interne native Checkbox sowie das reine lokale Datenmodell. Die API entspricht dem genehmigten Umfang: globale Suche, Text- und Auswahlfilter, stabile Einzelspaltensortierung, Pagination und Mehrfachauswahl auf der sichtbaren Seite. Zustand kann als vollständiges Objekt gebunden werden.
+
+Die Galerien `Components/Table` und `Components/DataTable` dokumentieren die Fähigkeiten. Ein zusätzliches Defaults-Beispiel zeigt die interne Zustandsverwaltung ohne Bindung und ohne Auswahlspalte. [Die Verbraucherdokumentation](../../frontend/src/stories/table/README.md) enthält ein vollständiges Einstiegsbeispiel und erläutert Zustand, Spalten, Snippets und native Attribute.
+
+Die visuelle Prüfung im integrierten Browser hat zu zwei gezielten Anpassungen geführt: Sortierbuttons besitzen eine lesbare Mindestbreite, und der Tabellen-Viewport begrenzt auch positionierte Inhalte durch einen eigenen Positionierungskontext. Das Beispiel für lange URLs gibt seiner eigenen Wertedarstellung eine sinnvolle Mindestbreite. Diese Inhaltsbreite wird nicht pauschal auf alle Tabellenzellen übertragen.
+
+Durchgeführte Prüfung:
+
+- `bun run check`: keine Svelte-/TypeScript-Fehler oder Warnungen.
+- `bun run build:storybook`: erfolgreicher Build; allgemeine Hinweise des Bundlers zu Chunkgrößen.
+- Integrierter Browser: Light und Dark, 320px und 390px Mobile, 768px Tablet, 1280px Desktop sowie 200 Prozent Storybook-Vorschauvergrößerung.
+- Manuelle Bedienung: Sortierzyklus einschließlich fehlender Werte und stabiler Gleichstände, kombinierte globale/Spaltenfilter, Seitengrößen, Seitenwechsel, einzelne und gemischte Seitenauswahl, ausgeschlossene Zeilen, externer Reset und Callback-Anzahl.
+- Datenwechsel: entfernte und erneut vorhandene IDs, geänderte Auswahlberechtigung und begrenzte effektive Seite bei schrumpfendem Datenbestand.
+- Rückmeldungen: Laden, Fehler, leerer Datenbestand und keine Treffer; zugängliche Namen und native Checkbox-Zustände anhand der Browserinformationen.
+- Tastatur: Enter für Sortierung, Space für Checkboxen und Pfeiltasten zum horizontalen Scrollen mit sichtbarem Fokus.
+
+Die vorhandenen globalen Regeln für reduzierte Bewegung werden weiterverwendet; neue Animationen wurden nicht eingeführt. Eine separate Systemumschaltung für reduzierte Bewegung und ein Screenreader-Durchlauf wurden nicht durchgeführt. Die Vergrößerungsprüfung erfolgte über Storybook, nicht über eine Betriebssystem-Textskalierung.
+
+Es wurden keine Tests angelegt, ausgeführt, verändert oder gelöscht. Die Implementierung enthält keine neue externe Bibliothek, keinen serverseitigen Verarbeitungsmodus und keine Migration der bestehenden Benutzerverwaltung.
