@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { ArchiveCreatorResponse } from "$api";
+	import type { PublicUserResponse } from "$api";
 	import Avatar from "$lib/components/ui/Avatar.svelte";
 
-	let { creator }: { creator: ArchiveCreatorResponse | null | undefined } = $props();
+	let { creator }: { creator: PublicUserResponse | null | undefined } = $props();
 	const initials = $derived(
 		creator?.displayName
 			.trim()

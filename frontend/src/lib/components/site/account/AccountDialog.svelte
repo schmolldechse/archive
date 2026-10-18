@@ -2,7 +2,9 @@
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import LogOut from "@lucide/svelte/icons/log-out";
 	import X from "@lucide/svelte/icons/x";
-	import type { UserProfileResponse } from "$api";
+	import type { UserProfileResponse, SnapshotSubmissionListResponse } from "$api";
+	import SnapshotModerationStatus from "$lib/components/submissions/SnapshotModerationStatus.svelte";
+	import { processingLabel } from "$lib/submission-status";
 	import { page } from "$app/state";
 	import { apiUrl } from "$lib/api-url";
 	import { completeHref } from "$lib/auth/return-url";
@@ -24,6 +26,25 @@
 	}: { user: UserProfileResponse; onopen?: () => void; canOpenAdminPortal?: boolean } = $props();
 	let open = $state(false);
 	let closeButton = $state<HTMLButtonElement | null>(null);
+	let submissions = $state<SnapshotSubmissionListResponse | null>(null);
+	let loadingSubmissions = $state(false);
+	let submissionsFailed = $state(false);
+
+	/** Loads a small private preview on demand instead of expanding the global session request. */
+	async function loadSubmissions() {
+		if (loadingSubmissions) return;
+		loadingSubmissions = true;
+		submissionsFailed = false;
+		try {
+			const response = await fetch(apiUrl("/api/users/snapshots?pageSize=3"), { credentials: "include", cache: "no-store" });
+			if (!response.ok) throw new Error("Submissions unavailable");
+			submissions = await response.json();
+		} catch {
+			submissionsFailed = true;
+		} finally {
+			loadingSubmissions = false;
+		}
+	}
 </script>
 
 <div
@@ -35,7 +56,10 @@
 		bind:open
 		modal={false}
 		onOpenChange={(value) => {
-			if (value) onopen?.();
+			if (value) {
+				onopen?.();
+				void loadSubmissions();
+			}
 		}}
 	>
 		<DialogTrigger
@@ -86,6 +110,28 @@
 				</div>
 			{/if}
 
+			<section class="account-submissions" aria-labelledby="account-submissions-title">
+				<h3 id="account-submissions-title">My submissions</h3>
+				{#if loadingSubmissions}<p role="status">Loading submissions…</p>
+				{:else if submissionsFailed}<p>Submissions could not be loaded.</p>
+					<Button variant="text" onclick={loadSubmissions}>Retry submissions</Button>
+				{:else if submissions?.items.length}<ul>
+						{#each submissions.items as item (item.id)}<li>
+								<a href={`/account/submissions/${item.id}`} onclick={() => (open = false)}
+									><span class="account-submission-title">{item.title}</span><SnapshotModerationStatus
+										status={item.moderationStatus}
+									/>{#if item.processingStatus !== "COMPLETED"}<span class="account-capture-state"
+											>{processingLabel(item.processingStatus)}</span
+										>{/if}</a
+								>
+							</li>{/each}
+					</ul>
+				{:else}<p>No submissions yet.</p>{/if}
+				<Button href="/account/submissions" variant="text" onclick={() => (open = false)}
+					>View all submissions<ArrowRight aria-hidden="true" /></Button
+				>
+			</section>
+
 			{#if canOpenAdminPortal}
 				<div class="account-admin">
 					<Button href="/admin" variant="text" onclick={() => (open = false)}
@@ -102,6 +148,53 @@
 </div>
 
 <style>
+	.account-submissions {
+		border-top: 1px solid var(--border-trace);
+		padding: 1rem;
+	}
+	.account-submissions h3 {
+		margin: 0 0 0.75rem;
+		font: 600 0.875rem/1.4 var(--font-interface);
+	}
+	.account-submissions > p {
+		margin: 0 0 0.75rem;
+		color: var(--marginal-note);
+		font-size: 0.875rem;
+	}
+	.account-submissions ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.account-submissions li + li {
+		border-top: 1px solid color-mix(in srgb, var(--border-trace) 45%, transparent);
+	}
+	.account-submissions li a {
+		display: grid;
+		gap: 0.375rem;
+		padding-block: 0.75rem;
+		min-height: 2.75rem;
+		text-decoration: none;
+		color: var(--reading-ink);
+	}
+	.account-submission-title {
+		font-size: 0.9375rem;
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+	.account-capture-state {
+		color: var(--marginal-note);
+		font-size: 0.8125rem;
+	}
+	.account-submissions li a:hover .account-submission-title {
+		text-decoration: underline;
+	}
+	.account-submissions > :global(.button) {
+		width: 100%;
+		justify-content: space-between;
+		padding-inline: 0;
+		font-size: 0.875rem;
+	}
 	.site-account {
 		display: flex;
 	}

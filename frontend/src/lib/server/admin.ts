@@ -6,7 +6,7 @@ import { backendUrl } from "$lib/server/api";
 /** Each protected load checks independently; layout loads may run in parallel or be reused. */
 export function requireAdmin(
 	event: Pick<RequestEvent, "locals" | "url"> & { depends: (...dependencies: string[]) => void },
-	section: "portal" | "users" = "portal"
+	section: "portal" | "users" | "snapshots" = "portal"
 ) {
 	event.depends("app:auth");
 	const session = event.locals.session;

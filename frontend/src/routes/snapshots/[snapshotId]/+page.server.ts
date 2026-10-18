@@ -1,4 +1,4 @@
-import { error, redirect } from "@sveltejs/kit";
+import { error } from "@sveltejs/kit";
 import { backendOrigin } from "$lib/server/api";
 import type { SnapshotResponse } from "$api";
 import type { PageServerLoad } from "./$types";
@@ -19,7 +19,6 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	if (!response.ok) error(502, "The archived page is temporarily unavailable.");
 
 	const snapshot = (await response.json()) as SnapshotResponse;
-	if (snapshot.quality === null) redirect(303, `/archive/new?snapshot=${encodeURIComponent(snapshot.id)}`);
 	const requestedReturn = url.searchParams.get("from")?.split("#", 1)[0];
 	const returnHref =
 		requestedReturn?.startsWith("/") &&

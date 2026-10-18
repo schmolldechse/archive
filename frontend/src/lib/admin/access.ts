@@ -6,5 +6,11 @@ export function adminAccess(session: AuthenticationSessionResponse | null) {
 		session?.isAuthenticated === true && session.user?.isRegistrationComplete === true && session.permissions.includes(key);
 	const portal = has("admin.access");
 	const users = portal && has("admin.users.access");
-	return { portal, users, roles: users && has("users.assign_roles"), permissions: users && has("users.assign_permissions") };
+	return {
+		portal,
+		users,
+		snapshots: portal && has("admin.snapshots.access"),
+		roles: users && has("users.assign_roles"),
+		permissions: users && has("users.assign_permissions")
+	};
 }

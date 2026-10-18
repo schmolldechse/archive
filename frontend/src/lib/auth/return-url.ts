@@ -9,7 +9,8 @@ export function safeReturnUrl(value: string | null | undefined): string {
 			url.origin !== "https://archive.invalid" ||
 			/[\\%\p{Cc}]/u.test(path) ||
 			/%2f/i.test(url.pathname) ||
-			/^\/(?:login|account|api)(?:\/|$)/i.test(path)
+			/^\/(?:login|api)(?:\/|$)/i.test(path) ||
+			(/^\/account(?:\/|$)/i.test(path) && !/^\/account\/submissions(?:\/|$)/.test(path))
 		)
 			return "/";
 		return url.pathname + url.search;
