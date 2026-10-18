@@ -2,7 +2,11 @@
 	import type { PublicUserResponse } from "$api";
 	import Avatar from "$lib/components/ui/Avatar.svelte";
 
-	let { creator }: { creator: PublicUserResponse | null | undefined } = $props();
+	let {
+		creator,
+		layout = "default",
+		label = "Submitted by"
+	}: { creator: PublicUserResponse | null | undefined; layout?: "default" | "compact"; label?: string | null } = $props();
 	const initials = $derived(
 		creator?.displayName
 			.trim()
@@ -14,8 +18,13 @@
 	);
 </script>
 
-<div class="archive-attribution" data-component="archive-attribution" data-state={creator ? "attributed" : "unattributed"}>
-	<p class="archive-attribution__label">Submitted by</p>
+<div
+	class="archive-attribution"
+	data-component="archive-attribution"
+	data-state={creator ? "attributed" : "anonymous"}
+	data-layout={layout}
+>
+	{#if label}<p class="archive-attribution__label">{label}</p>{/if}
 	{#if creator}
 		<div class="archive-attribution__identity">
 			<Avatar src={creator.profileImageUrl} {initials} decorative />
@@ -25,7 +34,13 @@
 			</div>
 		</div>
 	{:else}
-		<p class="archive-attribution__unknown">No submitter recorded</p>
+		<div class="archive-attribution__identity">
+			<Avatar decorative size={layout === "compact" ? "compact" : "default"} />
+			<div class="archive-attribution__text">
+				<p class="archive-attribution__name">Anonymous</p>
+				<p class="archive-attribution__handle">No account attached</p>
+			</div>
+		</div>
 	{/if}
 </div>
 
@@ -68,12 +83,19 @@
 		font-size: 0.8125rem;
 		line-height: 1.25rem;
 	}
-	.archive-attribution__unknown {
-		display: flex;
-		min-height: 2.75rem;
-		align-items: center;
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-		line-height: 1.25rem;
+	.archive-attribution[data-layout="compact"] .archive-attribution__label {
+		margin-bottom: 0.25rem;
+	}
+	.archive-attribution[data-layout="compact"] .archive-attribution__identity {
+		min-height: 2rem;
+		gap: 0.625rem;
+	}
+	.archive-attribution[data-layout="compact"] .archive-attribution__name {
+		font-size: 0.9375rem;
+		line-height: 1.125rem;
+	}
+	.archive-attribution[data-layout="compact"] .archive-attribution__handle {
+		font-size: 0.75rem;
+		line-height: 1rem;
 	}
 </style>

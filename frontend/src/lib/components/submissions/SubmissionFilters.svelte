@@ -19,8 +19,8 @@
 	let { filters, review, resetHref }: { filters: { q: string; status: string }; review: boolean; resetHref: string } = $props();
 
 	const statuses = $derived([
-		{ value: "", label: review ? "Awaiting review" : "All statuses" },
-		{ value: "PENDING", label: "Pending review" },
+		{ value: "", label: review ? "All review requests" : "All statuses" },
+		{ value: "PENDING", label: review ? "Pending first review" : "Pending review" },
 		{ value: "RESUBMITTED", label: "Resubmitted" },
 		{ value: "APPROVED", label: "Approved" },
 		{ value: "REJECTED", label: "Rejected" }

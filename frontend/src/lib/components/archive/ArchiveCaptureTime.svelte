@@ -1,9 +1,9 @@
 <script lang="ts">
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
-	let { value }: { value: string } = $props();
+	let { value, layout = "default" }: { value: string; layout?: "default" | "compact" } = $props();
 </script>
 
-<div class="capture-time" data-component="archive-capture-time">
+<div class="capture-time" data-component="archive-capture-time" data-layout={layout}>
 	<p class="capture-time__label">Captured</p>
 	<div class="capture-time__reading">
 		<div class="capture-time__date">
@@ -50,5 +50,18 @@
 		color: var(--marginal-note);
 		font-size: 0.8125rem;
 		line-height: 1.25rem;
+	}
+	.capture-time[data-layout="compact"] .capture-time__label {
+		margin-bottom: 0.25rem;
+	}
+	.capture-time[data-layout="compact"] .capture-time__reading {
+		min-height: 0;
+		grid-template-columns: auto auto;
+		align-items: baseline;
+		justify-content: start;
+		gap: 0.625rem;
+	}
+	.capture-time[data-layout="compact"] .capture-time__date {
+		font-size: 0.9375rem;
 	}
 </style>

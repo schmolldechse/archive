@@ -1,8 +1,9 @@
 <script lang="ts">
+	import ArrowRight from "@lucide/svelte/icons/arrow-right";
+	import Image from "@lucide/svelte/icons/image";
 	import type { SnapshotResponse } from "$api";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
-	import Button from "$lib/components/ui/Button.svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
 	import CopySourceButton from "./CopySourceButton.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
@@ -19,6 +20,8 @@
 
 	const source = $derived(snapshot.sourceUrl);
 	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
+	let failedScreenshot = $state<string | null>(null);
+	const screenshot = $derived(snapshot.screenshotUrl !== failedScreenshot ? snapshot.screenshotUrl : null);
 
 	const handleInspect: NonNullable<HTMLButtonAttributes["onclick"]> = (event) => {
 		onInspect(snapshot, event.currentTarget);
@@ -27,14 +30,17 @@
 
 <article class="archive-record" data-component="archive-record" data-state={selected ? "selected" : "idle"}>
 	<div class="archive-record__provenance">
-		<ArchiveCaptureTime value={snapshot.createdAt} />
-		<div class="archive-record__attribution">
-			<ArchiveAttribution creator={snapshot.createdBy} />
-		</div>
+		<ArchiveCaptureTime value={snapshot.createdAt} layout="compact" />
+		<ArchiveAttribution creator={snapshot.createdBy} layout="compact" />
 	</div>
 
 	<div class="archive-record__main">
-		<h3>{snapshot.title}</h3>
+		<div class="archive-record__title">
+			<h3>{snapshot.title}</h3>
+			<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact">
+				{qualityLabel}
+			</Badge>
+		</div>
 
 		{#if source}
 			<div class="archive-record__source">
@@ -53,16 +59,33 @@
 		{/if}
 	</div>
 
-	<div class="archive-record__side">
+	<button
+		type="button"
+		class="archive-record__preview"
+		aria-label={`Inspect ${snapshot.title}`}
+		aria-haspopup="dialog"
+		aria-controls={previewExpanded ? "snapshot-preview" : undefined}
+		aria-expanded={previewExpanded ?? selected}
+		onclick={handleInspect}
+	>
+		{#if screenshot}
+			<img
+				src={screenshot}
+				alt=""
+				loading="lazy"
+				decoding="async"
+				onerror={() => {
+					failedScreenshot = screenshot;
+				}}
+			/>
+		{:else}
+			<span class="archive-record__preview-empty"><Image aria-hidden="true" />Preview unavailable</span>
+		{/if}
+		<span class="archive-record__preview-action">Inspect capture <ArrowRight aria-hidden="true" /></span>
+	</button>
+
+	<footer class="archive-record__footer">
 		<dl class="archive-record__meta">
-			<div>
-				<dt>Quality</dt>
-				<dd>
-					<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact">
-						{qualityLabel}
-					</Badge>
-				</dd>
-			</div>
 			<div>
 				<dt>Resources</dt>
 				<dd>{String(snapshot.resourceCount).padStart(3, "0")}</dd>
@@ -72,29 +95,21 @@
 				<dd>{formatBytes(Number(snapshot.storageBytes))}</dd>
 			</div>
 		</dl>
-		<div class="archive-record__actions">
-			<Button
-				variant="secondary"
-				class="archive-record__action"
-				aria-haspopup="dialog"
-				aria-controls={previewExpanded ? "snapshot-preview" : undefined}
-				aria-expanded={previewExpanded ?? selected}
-				onclick={handleInspect}
-			>
-				Inspect snapshot <span aria-hidden="true">→</span>
-			</Button>
-		</div>
-	</div>
+	</footer>
 </article>
 
 <style>
 	.archive-record {
 		position: relative;
 		display: grid;
-		grid-template-columns: 13rem minmax(0, 1fr) 10.5rem;
-		gap: 2rem;
-		border-bottom: 1px solid var(--border-trace);
-		padding: 2rem 1rem;
+		grid-template-columns: minmax(0, 1fr) 13rem;
+		grid-template-areas:
+			"provenance preview"
+			"main preview"
+			"footer footer";
+		column-gap: 2.5rem;
+		border-block: 1px solid var(--border-trace);
+		padding: 1rem 1rem 1.5rem;
 		transition: background-color 150ms ease;
 	}
 
@@ -102,16 +117,18 @@
 	.archive-record[data-state="selected"] {
 		background: color-mix(in srgb, var(--archive-layer) 55%, transparent);
 	}
-
 	.archive-record__provenance {
+		grid-area: provenance;
+		display: grid;
+		grid-template-columns: minmax(10rem, auto) minmax(12rem, 1fr);
+		gap: 2rem;
 		min-width: 0;
-		border-left: 2px solid var(--time-marker);
-		padding-left: 1rem;
-		align-self: start;
 	}
 
 	.archive-record__main {
+		grid-area: main;
 		min-width: 0;
+		padding-top: 1.5rem;
 	}
 
 	.archive-record__main h3 {
@@ -121,6 +138,18 @@
 		font-size: clamp(1.35rem, 2.5vw, 1.75rem);
 		font-weight: 500;
 		line-height: 1.18;
+	}
+
+	.archive-record__title {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.archive-record__title :global(.badge) {
+		flex: none;
+		margin-top: 0.1875rem;
 	}
 
 	.archive-record__source {
@@ -154,21 +183,6 @@
 		line-height: 1.55;
 	}
 
-	.archive-record__side {
-		display: flex;
-		min-width: 0;
-		flex-direction: column;
-		justify-content: space-between;
-		gap: 1.5rem;
-	}
-	.archive-record__attribution {
-		margin-top: 1.125rem;
-		border-top: 1px solid var(--border-trace);
-		padding-top: 1rem;
-	}
-	.archive-record__actions {
-		display: flex;
-	}
 	.archive-record__tags {
 		list-style: none;
 		display: flex;
@@ -186,23 +200,86 @@
 		color: var(--register-mark);
 	}
 
-	.archive-record__actions :global(.archive-record__action) {
+	.archive-record__preview {
+		grid-area: preview;
+		position: relative;
+		align-self: start;
+		min-width: 0;
+		margin-top: 1rem;
+		border: 1px solid var(--border-trace);
+		border-radius: var(--radius-control);
+		padding: 0;
+		aspect-ratio: 16 / 10;
+		overflow: hidden;
+		background: var(--archive-layer);
+		color: var(--reading-ink);
+		cursor: pointer;
+	}
+	.archive-record__preview:hover {
+		border-color: var(--reading-ink);
+	}
+	.archive-record__preview img {
+		display: block;
 		width: 100%;
-		white-space: nowrap;
+		height: 100%;
+		object-fit: cover;
+		object-position: top;
+	}
+	.archive-record__preview-empty {
+		display: grid;
+		place-items: center;
+		align-content: center;
+		gap: 0.5rem;
+		height: 100%;
+		color: var(--marginal-note);
+		font-size: 0.75rem;
+	}
+	.archive-record__preview-empty :global(svg) {
+		width: 1.5rem;
+		height: 1.5rem;
+		stroke-width: 1.5;
+	}
+	.archive-record__preview-action {
+		position: absolute;
+		inset-inline: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.5rem 0.625rem;
+		border-top: 1px solid var(--border-trace);
+		background: var(--reading-room);
+		font-family: var(--font-interface);
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	.archive-record__preview-action :global(svg) {
+		width: 1rem;
+		height: 1rem;
+	}
+	.archive-record__footer {
+		grid-area: footer;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1.5rem;
+		margin-top: 1.5rem;
+		border-top: 1px solid color-mix(in srgb, var(--border-trace) 55%, transparent);
+		padding-top: 1rem;
 	}
 
 	.archive-record__meta {
-		display: grid;
-		align-content: start;
-		gap: 0.75rem;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem 2rem;
 		margin: 0;
 	}
 
 	.archive-record__meta > div {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		align-items: center;
-		gap: 0.75rem;
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
 	}
 
 	.archive-record__meta dt,
@@ -218,73 +295,40 @@
 	.archive-record__meta dd {
 		font-family: var(--font-record);
 		font-variant-numeric: tabular-nums;
-		text-align: right;
+		text-align: left;
 	}
 
-	@media (max-width: 64rem) {
+	@media (max-width: 56rem) {
 		.archive-record {
-			grid-template-columns: 12.5rem minmax(0, 1fr);
-		}
-
-		.archive-record__side {
-			grid-column: 2;
-			flex-direction: row;
-			align-items: end;
-			flex-wrap: wrap;
-			gap: 1rem;
-		}
-
-		.archive-record__meta {
-			display: grid;
-			flex: 1 1 24rem;
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-			gap: 0.75rem;
-		}
-
-		.archive-record__actions {
-			flex: 0 0 auto;
-		}
-
-		.archive-record__meta > div {
-			justify-content: start;
-		}
-
-		.archive-record__meta dd {
-			text-align: left;
+			grid-template-columns: minmax(0, 1fr) 11rem;
+			column-gap: 1.5rem;
 		}
 	}
 
 	@media (max-width: 48rem) {
 		.archive-record {
 			grid-template-columns: 1fr;
-			gap: 1.125rem;
-			padding: 1.75rem 1rem;
+			grid-template-areas:
+				"preview"
+				"provenance"
+				"main"
+				"footer";
+			padding: 0 0 1.5rem;
 		}
-
 		.archive-record__provenance {
-			display: grid;
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 			gap: 1rem;
+			padding-inline: 1rem;
 		}
-		.archive-record__attribution {
+		.archive-record__main,
+		.archive-record__footer {
+			margin-inline: 1rem;
+		}
+		.archive-record__preview {
 			margin: 0;
-			border-top: 0;
-			border-left: 1px solid var(--border-trace);
-			padding: 0 0 0 1rem;
-		}
-
-		.archive-record__side {
-			grid-column: auto;
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.archive-record__meta {
-			flex: none;
-		}
-
-		.archive-record__actions {
-			flex: none;
+			border-inline: 0;
+			border-radius: 0;
+			aspect-ratio: 2 / 1;
 		}
 	}
 
@@ -292,24 +336,17 @@
 		.archive-record__provenance {
 			grid-template-columns: 1fr;
 		}
-		.archive-record__attribution {
-			border-left: 0;
-			padding-left: 0;
+		.archive-record__footer {
+			align-items: stretch;
+			flex-direction: column;
 		}
 		.archive-record__meta {
-			grid-template-columns: 1fr;
-			gap: 0;
-		}
-
-		.archive-record__meta > div {
-			display: flex;
 			justify-content: space-between;
-			border-top: 1px solid color-mix(in srgb, var(--border-trace) 55%, transparent);
-			padding-block: 0.5rem;
 		}
-
-		.archive-record__meta dd {
-			text-align: right;
+		.archive-record__title {
+			align-items: flex-start;
+			flex-direction: column;
+			gap: 0.75rem;
 		}
 	}
 

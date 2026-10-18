@@ -8,6 +8,7 @@
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
 	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import SubmissionFilters from "./SubmissionFilters.svelte";
+	import AdminSnapshotTable from "./AdminSnapshotTable.svelte";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import { pageHref } from "$lib/admin/navigation";
 	let {
@@ -37,7 +38,7 @@
 	{/if}
 	<SubmissionFilters {filters} {review} resetHref={base} />
 	<div class="register-caption">
-		<h2>{review && !filters.status ? "Awaiting review" : "Submissions"}</h2>
+		<h2>{review && !filters.status ? "Review requests" : "Submissions"}</h2>
 		<p role="status">{total.toLocaleString()} {total === 1 ? "submission" : "submissions"}</p>
 	</div>
 	{#if !submissions.items.length}
@@ -52,6 +53,17 @@
 						: "Your submitted snapshots and their review status will appear here."}
 			</p>
 			{#if !review && !filters.q && !filters.status}<Button href="/archive/new">Archive a page</Button>{/if}
+		</div>
+	{:else if review}
+		<AdminSnapshotTable items={submissions.items} {base} />
+		<div class="register-pagination">
+			<AdminPagination
+				{total}
+				pageSize={Number(submissions.pageSize)}
+				currentPage={Number(submissions.page)}
+				href={(value) => pageHref(page.url, "page", value)}
+				label="Submission pages"
+			/>
 		</div>
 	{:else}
 		<ol class="submission-list">
