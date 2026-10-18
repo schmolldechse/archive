@@ -1,3 +1,4 @@
+using Archive.Api.Authentication;
 using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Mapping;
@@ -17,13 +18,15 @@ public sealed partial class SnapshotsController(
     ISnapshotRepository snapshotRepository,
     SnapshotMapper mapper,
     ArchiveApiOptions options,
+    ArchiveAuthenticationOptions authenticationOptions,
     ISnapshotProcessingRepository processing) : ControllerBase
 {
-    private static string ArchivedContentPolicy(string origin) =>
+    // Allow the configured viewer to embed archived documents without relaxing their sandbox.
+    private string ArchivedContentPolicy(string origin) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
         $"font-src {origin} data:; media-src {origin} data:; frame-src {origin}; " +
         "script-src 'none'; connect-src 'none'; object-src 'none'; " +
-        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self'; sandbox";
+        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self' {authenticationOptions.FrontendOrigin.TrimEnd('/')}; sandbox";
 
     private string ArchivedContentOrigin()
     {

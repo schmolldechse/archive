@@ -6,7 +6,6 @@
 	import type { PageProps } from "./$types";
 
 	let { data }: PageProps = $props();
-	const contentHref = $derived(`/api/snapshots/${data.snapshot.id}/content/index.html`);
 </script>
 
 <svelte:head>
@@ -28,7 +27,12 @@
 		<div class="archived-page__information">
 			<SnapshotInformationDialog snapshot={data.snapshot} />
 		</div>
-		<iframe src={contentHref} title={`Archived page: ${data.snapshot.title}`} sandbox="" referrerpolicy="no-referrer"></iframe>
+		<iframe
+			src={data.snapshot.contentUrl ?? undefined}
+			title={`Archived page: ${data.snapshot.title}`}
+			sandbox=""
+			referrerpolicy="no-referrer"
+		></iframe>
 	</main>
 </div>
 

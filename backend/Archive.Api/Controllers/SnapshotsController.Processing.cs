@@ -17,7 +17,8 @@ public sealed partial class SnapshotsController
     private JsonSerializerOptions EventJsonOptions =>
         HttpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.JsonSerializerOptions;
 
-    [HttpPost, Consumes("application/json")]
+    // Both POST actions share a CORS policy; prefer this one for preflights without a Content-Type.
+    [HttpPost(Order = -1), Consumes("application/json")]
     [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CreateSnapshotFromUrl"), EndpointSummary("Submits a URL for capture.")]
     [ProducesResponseType<SnapshotCreationResponse>(StatusCodes.Status202Accepted, "application/json")]
