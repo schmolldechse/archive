@@ -103,7 +103,7 @@ public sealed partial class SnapshotsController
     }
 
     [HttpPost("{snapshotId:guid}/cancel")]
-    [EndpointName("CancelSnapshot"), EndpointSummary("Requests cancellation before publication.")]
+    [EndpointName("CancelSnapshot"), EndpointSummary("Requests cancellation before capture storage completes.")]
     [ProducesResponseType<SnapshotProcessingResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
@@ -115,7 +115,7 @@ public sealed partial class SnapshotsController
         {
             CancellationOutcome.Accepted => Ok(mapper.ToResponse(result.State!)),
             CancellationOutcome.Missing => NotFound(),
-            _ => Problem(statusCode: 409, title: "Snapshot cannot be cancelled", detail: "Publication has started or processing has ended.")
+            _ => Problem(statusCode: 409, title: "Snapshot cannot be cancelled", detail: "Capture storage has completed or processing has ended.")
         };
     }
 
@@ -131,11 +131,14 @@ public sealed partial class SnapshotsController
                 return Accepted(statusUrl, new SnapshotCreationResponse
                 {
                     Id = created.Id,
+                    ModerationStatus = created.ModerationStatus,
                     StatusUrl = statusUrl,
                     SnapshotUrl = snapshotUrl
                 });
             case SnapshotCreationResult.UploadTooLarge:
                 return Problem(statusCode: 413, title: "File too large", detail: "The uploaded file exceeds the system limit.");
+            case SnapshotCreationResult.AccountUnavailable:
+                return Unauthorized();
             case SnapshotCreationResult.Invalid invalid:
                 ModelState.AddErrors(invalid.Errors);
                 return ValidationProblem(ModelState);

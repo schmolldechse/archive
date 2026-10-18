@@ -3,11 +3,12 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Archive.Core.Entities;
 using Archive.Core.Models.Snapshots;
+using Archive.Api.Contracts.Users;
 
 namespace Archive.Api.Contracts.Snapshots;
 
 [Description("Snapshot metadata and resource URLs.")]
-public sealed record SnapshotResponse
+public sealed class SnapshotResponse
 {
     [JsonPropertyName("id")]
     [Description("Snapshot identifier.")]
@@ -34,7 +35,7 @@ public sealed record SnapshotResponse
     public required SourceType SourceType { get; init; }
 
     [JsonPropertyName("quality")]
-    [Description("Completeness of the archived result. Null until publication.")]
+    [Description("Completeness of the archived result. Null until capture storage has completed in private submission views.")]
     public required SnapshotQuality? Quality { get; init; }
 
     [JsonPropertyName("createdAt")]
@@ -42,17 +43,17 @@ public sealed record SnapshotResponse
     public required DateTimeOffset CreatedAt { get; init; }
 
     [JsonPropertyName("durationMilliseconds")]
-    [Description("Processing duration in milliseconds. Null until publication.")]
+    [Description("Processing duration in milliseconds. Null until capture storage has completed.")]
     [Range(0, long.MaxValue)]
     public required long? DurationMilliseconds { get; init; }
 
     [JsonPropertyName("storageBytes")]
-    [Description("Snapshot storage size in bytes. Null until publication.")]
+    [Description("Snapshot storage size in bytes. Null until capture storage has completed.")]
     [Range(0, long.MaxValue)]
     public required long? StorageBytes { get; init; }
 
     [JsonPropertyName("resourceCount")]
-    [Description("Number of archived resources. Null until publication.")]
+    [Description("Number of archived resources. Null until capture storage has completed.")]
     [Range(0, int.MaxValue)]
     public required int? ResourceCount { get; init; }
 
@@ -61,18 +62,18 @@ public sealed record SnapshotResponse
     public required IReadOnlyList<string> Tags { get; init; }
 
     [JsonPropertyName("screenshotUrl")]
-    [Description("Screenshot URL. Null until the snapshot is published.")]
+    [Description("Screenshot URL. Null until capture storage has completed.")]
     [Url]
     public required string? ScreenshotUrl { get; init; }
 
     [JsonPropertyName("contentUrl")]
-    [Description("Archived start page URL. Null until the snapshot is published.")]
+    [Description("Archived start page URL. Null until capture storage has completed.")]
     [Url]
     public required string? ContentUrl { get; init; }
 
     [JsonPropertyName("createdBy")]
     [Description("Public profile of the submitting user. Null when no registered creator is available.")]
-    public required ArchiveCreatorResponse? CreatedBy { get; init; }
+    public required PublicUserResponse? CreatedBy { get; init; }
 
     [JsonPropertyName("captureStartedAt")]
     [Description("Processing start time, including the UTC offset. Null before processing starts.")]

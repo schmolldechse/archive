@@ -42,9 +42,9 @@ public sealed class UsersController(IUserRepository users, UserAccessMapper mapp
     }
 
     /// <summary>Reads access settings and a strong ETag for a registered account's current handle.</summary>
-    [HttpGet("{handle}/access")]
-    [EndpointName("GetUserAccess")]
-    [EndpointSummary("Returns saved user access settings.")]
+    [HttpGet("{handle}/permissions")]
+    [EndpointName("GetUserPermissions")]
+    [EndpointSummary("Returns saved user permissions.")]
     [EndpointDescription("Requires admin.access and admin.users.access. Returns the saved role and every supported permission with its role default, personal override, and effective result. Includes a strong ETag for conditional updates.")]
     [ProducesResponseType<UserAccessResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -57,9 +57,9 @@ public sealed class UsersController(IUserRepository users, UserAccessMapper mapp
     }
 
     /// <summary>Atomically changes requested fields. Requires their respective write permissions.</summary>
-    [HttpPatch("{handle}/access")]
+    [HttpPatch("{handle}/permissions")]
     [Consumes("application/json")]
-    [EndpointName("UpdateUserAccess")]
+    [EndpointName("UpdateUserPermissions")]
     [EndpointSummary("Updates a user's role and personal permission overrides.")]
     [EndpointDescription("Requires admin.access and admin.users.access. Role changes require users.assign_roles; override changes require users.assign_permissions. Send exactly one strong If-Match ETag from GET on this resource and the configured frontend Origin. Self changes and removal of the last fully authorized Admin are rejected. No partial updates are saved.")]
     [ProducesResponseType<UserAccessResponse>(StatusCodes.Status200OK, "application/json")]

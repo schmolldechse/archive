@@ -9,5 +9,5 @@ internal static partial class SnapshotProcessingModelMapper
 {
     [MapProperty(nameof(SnapshotProcessing.SnapshotId), nameof(SnapshotProcessingState.Id))]
     internal static partial SnapshotProcessingState ToState(SnapshotProcessing processing,
-        int? queuePosition, bool canCancel, Entities.SnapshotModerationStatus moderationStatus, bool isPublic);
+        int? queuePosition, bool canCancel, Entities.SnapshotModerationStatus moderationStatus);
 }

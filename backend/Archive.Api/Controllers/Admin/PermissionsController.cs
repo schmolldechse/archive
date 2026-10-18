@@ -15,6 +15,7 @@ namespace Archive.Api.Controllers.Admin;
 [Route("api/admin/permissions")]
 [Tags("Admin Permissions")]
 [Description("Supported permissions available to user administration.")]
+[Authorize(Policy = ArchiveAuthorizationPolicies.Admin)]
 [Authorize(Policy = ArchiveAuthorizationPolicies.UserAccessRead)]
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

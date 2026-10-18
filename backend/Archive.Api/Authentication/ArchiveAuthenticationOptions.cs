@@ -38,7 +38,8 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
         if (decodedPath.Contains('\\') || decodedPath.Contains('%') || decodedPath.Any(char.IsControl) ||
             parsed.AbsolutePath.Contains("%2f", StringComparison.OrdinalIgnoreCase)) return "/";
         var route = decodedPath.Split('/')[1].ToLowerInvariant();
-        if (route is "login" or "account" or "api") return "/";
+        if (route is "login" or "api" || route == "account" &&
+            decodedPath != "/account/submissions" && !decodedPath.StartsWith("/account/submissions/", StringComparison.Ordinal)) return "/";
         return parsed.PathAndQuery;
     }
 

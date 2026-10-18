@@ -36,16 +36,9 @@ internal sealed partial class SnapshotRepository(
                 && snapshot.Quality != null)
             .Select(snapshot => new { snapshot.ContentPrefix, snapshot.SourceType })
             .SingleOrDefaultAsync(cancellationToken);
-        if (snapshot is null) return new SnapshotContentResult.NotFound();
+        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
 
-        var safePath = string.IsNullOrWhiteSpace(path) ? "index.html" : path.Replace('\\', '/').TrimStart('/');
-        if (safePath.Contains("..", StringComparison.Ordinal)) return new SnapshotContentResult.InvalidPath();
-
-        var stored = await objectStore.GetAsync($"{snapshot.ContentPrefix}/{safePath}", cancellationToken);
-        return stored is null 
-            ? new SnapshotContentResult.NotFound()
-            : new SnapshotContentResult.Found(new(stored.Content, stored.ContentType,
-                snapshot.SourceType != SourceType.Url && safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase)));
+        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, cancellationToken);
     }
 
     public async Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default)

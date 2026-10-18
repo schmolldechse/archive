@@ -17,6 +17,14 @@ public sealed class SnapshotSchemaTransformer : IOpenApiSchemaTransformer
             schema.Properties?.TryGetValue("tags", out var tags) == true && tags.Items is OpenApiSchema item)
             item.MaxLength = SnapshotValidation.MaxTagLength;
 
+        if (context.JsonTypeInfo.Type == typeof(SnapshotHistoryContent)
+            && schema.Properties?.TryGetValue("data", out var data) == true && data is OpenApiSchema payload)
+        {
+            payload.Type = JsonSchemaType.Object;
+            payload.AdditionalPropertiesAllowed = true;
+            payload.AdditionalProperties = new OpenApiSchema();
+        }
+
         var isTagProperty = context.JsonPropertyInfo is { Name: "tags", AttributeProvider: PropertyInfo property } &&
             IsSnapshotContract(property.DeclaringType);
         var isTagParameter = context.ParameterDescription is { Name: "tags" } parameter &&

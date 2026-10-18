@@ -98,7 +98,7 @@
 		if (dirty && !window.confirm("Discard your draft and load the latest access settings?")) return;
 		reloading = true;
 		try {
-			const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(saved.handle)}/access`), {
+			const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(saved.handle)}/permissions`), {
 				credentials: "include",
 				cache: "no-store",
 				redirect: "error",
@@ -125,7 +125,7 @@
 		if (changes.length)
 			body.permissionOverrides = changes.map((item) => ({ permission: item.key, effect: overrides[item.key] ?? null }));
 		try {
-			const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(saved.handle)}/access`), {
+			const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(saved.handle)}/permissions`), {
 				method: "PATCH",
 				credentials: "include",
 				redirect: "error",

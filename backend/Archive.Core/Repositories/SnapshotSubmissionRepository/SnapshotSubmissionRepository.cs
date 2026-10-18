@@ -4,6 +4,7 @@ using Archive.Core.Entities.Processing;
 using Archive.Core.Mapping;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Snapshots.History;
+using Archive.Core.Models.Users;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Serialization;
 using Archive.Core.Storage;
@@ -61,10 +62,11 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
             new SnapshotSubmissionSummary(row.Snapshot.Id, row.Snapshot.Title, row.Snapshot.OriginUrl,
                 row.Snapshot.SourceType, row.Snapshot.CreatedAt, row.UpdatedAt, row.Snapshot.ModerationStatus,
                 row.ProcessingStatus, row.Snapshot.Quality,
-                row.Snapshot.CreatedBy == null ? "Anonymous" : row.Snapshot.CreatedBy.Handle == null
-                    ? "Registration incomplete" : "@" + row.Snapshot.CreatedBy.Handle,
-                row.Snapshot.ModerationStatus == SnapshotModerationStatus.Approved
-                    && row.Snapshot.Quality != null)).ToArrayAsync(token);
+                row.Snapshot.CreatedBy == null || row.Snapshot.CreatedBy.Handle == null || row.Snapshot.CreatedBy.DisplayName == null
+                    ? null
+                    : new PublicUser(row.Snapshot.CreatedBy.Handle, row.Snapshot.CreatedBy.DisplayName,
+                        row.Snapshot.CreatedBy.ProfileImage != null && row.Snapshot.CreatedBy.ProfileImage.Length > 0,
+                        row.Snapshot.CreatedBy.Role))).ToArrayAsync(token);
         return new(items, total, page, pageSize);
     }
 
@@ -96,12 +98,8 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         var reason = decision is { } content
             ? SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(content).Reason
             : null;
-        return new(SnapshotModelMapper.MapDetails(snapshot), snapshot.ModerationStatus,
-            moderationUpdatedAt,
-            captureStatus, reason,
-            ownerId is null && snapshot.Quality is not null && snapshot.ModerationStatus is SnapshotModerationStatus.Pending or SnapshotModerationStatus.Resubmitted,
-            ownerId is not null && snapshot.Quality is not null && snapshot.ModerationStatus == SnapshotModerationStatus.Rejected,
-            snapshot.ModerationStatus == SnapshotModerationStatus.Approved && snapshot.Quality is not null,
+        return new(SnapshotModelMapper.MapDetails(snapshot),
+            new(snapshot.ModerationStatus, moderationUpdatedAt, reason), captureStatus,
             Tag(snapshot, sequence, ownerId is null));
     }
 
@@ -116,6 +114,21 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         var prefix = await Scope(ownerId).Where(snapshot => snapshot.Id == id && snapshot.Quality != null)
             .Select(snapshot => snapshot.ContentPrefix).SingleOrDefaultAsync(token);
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", token);
+    }
+
+    public Task<SnapshotContentResult> OpenContentOwnAsync(Guid userId, Guid id, string? path, CancellationToken token) =>
+        OpenContentAsync(id, userId, path, token);
+
+    public Task<SnapshotContentResult> OpenContentForReviewAsync(Guid id, string? path, CancellationToken token) =>
+        OpenContentAsync(id, null, path, token);
+
+    private async Task<SnapshotContentResult> OpenContentAsync(Guid id, Guid? ownerId, string? path, CancellationToken token)
+    {
+        var snapshot = await Scope(ownerId).Where(item => item.Id == id && item.Quality != null)
+            .Select(item => new { item.ContentPrefix, item.SourceType }).SingleOrDefaultAsync(token);
+        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
+
+        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, token);
     }
 
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>
@@ -138,10 +151,18 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                  entry.Content.GetProperty("type").GetString() == "snapshot.processing_finished"));
         var total = await query.CountAsync(token);
         var rows = await query.OrderByDescending(entry => entry.Sequence).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(entry => new { entry.Id, entry.Sequence, entry.CreatedAt, entry.Content,
-                Actor = ownerId == null && entry.Actor != null ? entry.Actor.Handle : null }).ToArrayAsync(token);
-        var items = rows.Select(row => new SnapshotHistoryItem(row.Id, row.Sequence, row.CreatedAt,
-            row.Actor is null ? null : "@" + row.Actor, SnapshotHistorySerializer.Deserialize(row.Content))).ToArray();
+            .Select(entry => new
+            {
+                entry.Sequence,
+                entry.CreatedAt,
+                entry.Content,
+                Actor = ownerId == null && entry.Actor != null && entry.Actor.Handle != null && entry.Actor.DisplayName != null
+                    ? new PublicUser(entry.Actor.Handle, entry.Actor.DisplayName,
+                        entry.Actor.ProfileImage != null && entry.Actor.ProfileImage.Length > 0, entry.Actor.Role)
+                    : null
+            }).ToArrayAsync(token);
+        var items = rows.Select(row => new SnapshotHistoryItem(row.Sequence, row.CreatedAt,
+            row.Actor, SnapshotHistorySerializer.Deserialize(row.Content))).ToArray();
         return new(items, total, page, pageSize);
     }
 

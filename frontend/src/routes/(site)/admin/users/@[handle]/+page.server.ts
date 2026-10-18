@@ -12,7 +12,7 @@ export const load: PageServerLoad = async (event) => {
 	if (permissionQ.length > 128 || !/^[1-9]\d*$/.test(pageValue) || Number(pageValue) > 10000)
 		error(400, "Use a valid permission search and page number.");
 	const [access, catalog] = await Promise.all([
-		readAdmin<UserAccessResponse>(event, `/api/admin/users/${encodeURIComponent(event.params.handle)}/access`),
+		readAdmin<UserAccessResponse>(event, `/api/admin/users/${encodeURIComponent(event.params.handle)}/permissions`),
 		readAdmin<PermissionCatalogResponse>(event, "/api/admin/permissions")
 	]);
 	if (!access.etag) error(503, "Access settings could not be validated. Please try again.");

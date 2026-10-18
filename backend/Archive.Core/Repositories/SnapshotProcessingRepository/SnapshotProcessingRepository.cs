@@ -112,12 +112,11 @@ internal sealed partial class SnapshotProcessingRepository(
     private static SnapshotProcessingState ToState(SnapshotProcessing item, Snapshot snapshot, int? position = null) =>
         SnapshotProcessingModelMapper.ToState(item, position,
             item.Status is ProcessingStatus.Queued or ProcessingStatus.Running && !item.CancelRequested,
-            snapshot.ModerationStatus,
-            snapshot.Quality is not null && snapshot.ModerationStatus == SnapshotModerationStatus.Approved);
+            snapshot.ModerationStatus);
 
     private static SnapshotProcessingState Completed(Snapshot snapshot) =>
         new(snapshot.Id, ProcessingStatus.Completed, ProgressStep.Finished, null, false, false,
-            snapshot.CaptureStartedAt, snapshot.ModerationStatus, snapshot.ModerationStatus == SnapshotModerationStatus.Approved);
+            snapshot.CaptureStartedAt, snapshot.ModerationStatus);
 
     // Every operation locking both tables follows this order, including recovery and cleanup.
     private static async Task<(Snapshot? Snapshot, SnapshotProcessing? Processing)> LockAsync(

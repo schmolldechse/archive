@@ -4,24 +4,6 @@ export type ClientOptions = {
 	baseUrl: "http://localhost:5200/" | (string & {});
 };
 
-/**
- * Public profile of the user who submitted the snapshot.
- */
-export type ArchiveCreatorResponse = {
-	/**
-	 * Current lowercase handle of the submitting user.
-	 */
-	handle: string;
-	/**
-	 * Current display name of the submitting user.
-	 */
-	displayName: string;
-	/**
-	 * Public profile image URL. Null when no image is stored.
-	 */
-	profileImageUrl: null | string;
-};
-
 export enum ArchivePermissionEffect {
 	ALLOW = "ALLOW",
 	DENY = "DENY"
@@ -131,6 +113,8 @@ export type HealthResponse = {
 
 export type IFormFile = Blob | File;
 
+export type JsonElement = unknown;
+
 /**
  * Supported permission definitions in stable catalog order.
  */
@@ -203,9 +187,46 @@ export enum ProgressStep {
 }
 
 /**
+ * Public account information suitable for snapshot and history attribution.
+ */
+export type PublicUserResponse = {
+	/**
+	 * Current lowercase handle of the user.
+	 */
+	handle: string;
+	/**
+	 * Current display name of the user.
+	 */
+	displayName: string;
+	/**
+	 * Public profile image URL. Null when no image is stored.
+	 */
+	profileImageUrl: null | string;
+	/**
+	 * Current account role.
+	 */
+	role: ArchiveRole;
+};
+
+export type ReviewSnapshotRequest = {
+	/**
+	 * Only APPROVED and REJECTED are accepted.
+	 */
+	decision: SnapshotModerationStatus;
+	/**
+	 * Optional plain-text reason, visible to the owner and moderators.
+	 */
+	reason?: null | string;
+};
+
+/**
  * An accepted snapshot submission.
  */
 export type SnapshotCreationResponse = {
+	/**
+	 * Initial review state. Public metadata remains unavailable until capture and approval are complete.
+	 */
+	moderationStatus: SnapshotModerationStatus;
 	/**
 	 * Identifier of the submitted snapshot.
 	 */
@@ -215,9 +236,68 @@ export type SnapshotCreationResponse = {
 	 */
 	statusUrl: string;
 	/**
-	 * Relative URL of the snapshot metadata endpoint.
+	 * Relative public metadata URL. Returns 404 until capture storage and approval are complete.
 	 */
 	snapshotUrl: string;
+};
+
+/**
+ * Stable envelope around an extensible history payload.
+ */
+export type SnapshotHistoryContentResponse = {
+	/**
+	 * Open event type identifier. Clients must tolerate unknown values.
+	 */
+	type: string;
+	/**
+	 * Positive schema version scoped to the event type.
+	 */
+	version: number | string;
+	/**
+	 * Event-specific JSON object. Clients must tolerate additional fields.
+	 */
+	data: JsonElement;
+};
+
+/**
+ * One ordered snapshot lifecycle event.
+ */
+export type SnapshotHistoryItemResponse = {
+	/**
+	 * Snapshot-local event sequence.
+	 */
+	sequence: number | string;
+	/**
+	 * Event creation time, including the UTC offset.
+	 */
+	createdAt: string;
+	actor: null | PublicUserResponse;
+	/**
+	 * Open, versioned event envelope.
+	 */
+	content: SnapshotHistoryContentResponse;
+};
+
+/**
+ * A page of general versioned snapshot history.
+ */
+export type SnapshotHistoryResponse = {
+	/**
+	 * History entries ordered from newest to oldest.
+	 */
+	items: Array<SnapshotHistoryItemResponse>;
+	/**
+	 * Total number of history entries visible to the current reader.
+	 */
+	total: number | string;
+	/**
+	 * Requested one-based page number.
+	 */
+	page: number | string;
+	/**
+	 * Maximum number of entries in this page.
+	 */
+	pageSize: number | string;
 };
 
 /**
@@ -255,9 +335,41 @@ export type SnapshotListResponse = {
 };
 
 /**
+ * Current moderation state and latest decision context.
+ */
+export type SnapshotModerationResponse = {
+	/**
+	 * Current moderation status.
+	 */
+	status: SnapshotModerationStatus;
+	/**
+	 * Time of the latest moderation lifecycle change.
+	 */
+	updatedAt: string;
+	/**
+	 * Optional reason supplied with the latest moderation decision.
+	 */
+	lastDecisionReason: null | string;
+};
+
+/**
+ * Review state of a submitted snapshot.
+ */
+export enum SnapshotModerationStatus {
+	PENDING = "PENDING",
+	APPROVED = "APPROVED",
+	REJECTED = "REJECTED",
+	RESUBMITTED = "RESUBMITTED"
+}
+
+/**
  * Processing status of a snapshot.
  */
 export type SnapshotProcessingResponse = {
+	/**
+	 * Review state; capture completion does not imply approval.
+	 */
+	moderationStatus: SnapshotModerationStatus;
 	/**
 	 * Snapshot identifier.
 	 */
@@ -326,15 +438,15 @@ export type SnapshotResponse = {
 	 */
 	createdAt: string;
 	/**
-	 * Processing duration in milliseconds. Null until publication.
+	 * Processing duration in milliseconds. Null until capture storage has completed.
 	 */
 	durationMilliseconds: null | number | string;
 	/**
-	 * Snapshot storage size in bytes. Null until publication.
+	 * Snapshot storage size in bytes. Null until capture storage has completed.
 	 */
 	storageBytes: null | number | string;
 	/**
-	 * Number of archived resources. Null until publication.
+	 * Number of archived resources. Null until capture storage has completed.
 	 */
 	resourceCount: null | number | string;
 	/**
@@ -342,14 +454,14 @@ export type SnapshotResponse = {
 	 */
 	tags: Array<string>;
 	/**
-	 * Screenshot URL. Null until the snapshot is published.
+	 * Screenshot URL. Null until capture storage has completed.
 	 */
 	screenshotUrl: null | string;
 	/**
-	 * Archived start page URL. Null until the snapshot is published.
+	 * Archived start page URL. Null until capture storage has completed.
 	 */
 	contentUrl: null | string;
-	createdBy: null | ArchiveCreatorResponse;
+	createdBy: null | PublicUserResponse;
 	/**
 	 * Processing start time, including the UTC offset. Null before processing starts.
 	 */
@@ -367,6 +479,86 @@ export enum SnapshotSortOrder {
 	DESC = "desc",
 	ASC = "asc"
 }
+
+/**
+ * Private snapshot metadata and lifecycle state for its owner or a moderator.
+ */
+export type SnapshotSubmissionDetailResponse = {
+	/**
+	 * Snapshot metadata with resource URLs scoped to the current private endpoint.
+	 */
+	snapshot: SnapshotResponse;
+	/**
+	 * Current moderation state and latest decision context.
+	 */
+	moderation: SnapshotModerationResponse;
+	/**
+	 * Current or final processing status.
+	 */
+	processingStatus: ProcessingStatus;
+};
+
+/**
+ * A bounded page of private snapshot submissions.
+ */
+export type SnapshotSubmissionListResponse = {
+	/**
+	 * Submissions in the requested page.
+	 */
+	items: Array<SnapshotSubmissionSummaryResponse>;
+	/**
+	 * Total number of matching submissions.
+	 */
+	total: number | string;
+	/**
+	 * Requested one-based page number.
+	 */
+	page: number | string;
+	/**
+	 * Maximum number of submissions in this page.
+	 */
+	pageSize: number | string;
+};
+
+/**
+ * Private summary of one snapshot submission and its current states.
+ */
+export type SnapshotSubmissionSummaryResponse = {
+	/**
+	 * Snapshot identifier.
+	 */
+	id: string;
+	/**
+	 * Snapshot title.
+	 */
+	title: string;
+	/**
+	 * Original source URL. Null when unavailable.
+	 */
+	sourceUrl: null | string;
+	/**
+	 * Source used to create the snapshot.
+	 */
+	sourceType: SourceType;
+	/**
+	 * Submission time, including the UTC offset.
+	 */
+	createdAt: string;
+	/**
+	 * Time of the latest moderation lifecycle change.
+	 */
+	moderationUpdatedAt: string;
+	/**
+	 * Current moderation status.
+	 */
+	moderationStatus: SnapshotModerationStatus;
+	/**
+	 * Current or final processing status.
+	 */
+	processingStatus: ProcessingStatus;
+	quality: null | SnapshotQuality;
+	createdBy: null | PublicUserResponse;
+};
 
 /**
  * Source used to create a snapshot.
@@ -1002,6 +1194,248 @@ export type GetUserProfileImageResponses = {
 
 export type GetUserProfileImageResponse = GetUserProfileImageResponses[keyof GetUserProfileImageResponses];
 
+export type ListOwnSnapshotsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/users/snapshots";
+};
+
+export type ListOwnSnapshotsErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+};
+
+export type ListOwnSnapshotsError = ListOwnSnapshotsErrors[keyof ListOwnSnapshotsErrors];
+
+export type ListOwnSnapshotsResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionListResponse;
+};
+
+export type ListOwnSnapshotsResponse = ListOwnSnapshotsResponses[keyof ListOwnSnapshotsResponses];
+
+export type GetOwnSnapshotData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}";
+};
+
+export type GetOwnSnapshotErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetOwnSnapshotError = GetOwnSnapshotErrors[keyof GetOwnSnapshotErrors];
+
+export type GetOwnSnapshotResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type GetOwnSnapshotResponse = GetOwnSnapshotResponses[keyof GetOwnSnapshotResponses];
+
+export type GetOwnSnapshotHistoryData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/users/snapshots/{id}/history";
+};
+
+export type GetOwnSnapshotHistoryErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetOwnSnapshotHistoryError = GetOwnSnapshotHistoryErrors[keyof GetOwnSnapshotHistoryErrors];
+
+export type GetOwnSnapshotHistoryResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotHistoryResponse;
+};
+
+export type GetOwnSnapshotHistoryResponse = GetOwnSnapshotHistoryResponses[keyof GetOwnSnapshotHistoryResponses];
+
+export type GetOwnSnapshotScreenshotData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}/screenshot";
+};
+
+export type GetOwnSnapshotScreenshotErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetOwnSnapshotScreenshotError = GetOwnSnapshotScreenshotErrors[keyof GetOwnSnapshotScreenshotErrors];
+
+export type GetOwnSnapshotScreenshotResponses = {
+	/**
+	 * OK
+	 */
+	200: Stream;
+};
+
+export type GetOwnSnapshotScreenshotResponse = GetOwnSnapshotScreenshotResponses[keyof GetOwnSnapshotScreenshotResponses];
+
+export type GetOwnSnapshotContentData = {
+	body?: never;
+	path: {
+		id: string;
+		path: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}/content/{path}";
+};
+
+export type GetOwnSnapshotContentErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetOwnSnapshotContentError = GetOwnSnapshotContentErrors[keyof GetOwnSnapshotContentErrors];
+
+export type GetOwnSnapshotContentResponses = {
+	/**
+	 * OK
+	 */
+	200: Stream;
+	/**
+	 * Partial Content
+	 */
+	206: Stream;
+};
+
+export type GetOwnSnapshotContentResponse = GetOwnSnapshotContentResponses[keyof GetOwnSnapshotContentResponses];
+
+export type ResubmitSnapshotData = {
+	body?: never;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}/resubmit";
+};
+
+export type ResubmitSnapshotErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type ResubmitSnapshotError = ResubmitSnapshotErrors[keyof ResubmitSnapshotErrors];
+
+export type ResubmitSnapshotResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type ResubmitSnapshotResponse = ResubmitSnapshotResponses[keyof ResubmitSnapshotResponses];
+
 export type GetCurrentUserData = {
 	body?: never;
 	path?: never;
@@ -1093,6 +1527,272 @@ export type ListPermissionsResponses = {
 
 export type ListPermissionsResponse = ListPermissionsResponses[keyof ListPermissionsResponses];
 
+export type ListSnapshotsForReviewData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/admin/snapshots";
+};
+
+export type ListSnapshotsForReviewErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+};
+
+export type ListSnapshotsForReviewError = ListSnapshotsForReviewErrors[keyof ListSnapshotsForReviewErrors];
+
+export type ListSnapshotsForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionListResponse;
+};
+
+export type ListSnapshotsForReviewResponse = ListSnapshotsForReviewResponses[keyof ListSnapshotsForReviewResponses];
+
+export type GetSnapshotForReviewData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}";
+};
+
+export type GetSnapshotForReviewErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotForReviewError = GetSnapshotForReviewErrors[keyof GetSnapshotForReviewErrors];
+
+export type GetSnapshotForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type GetSnapshotForReviewResponse = GetSnapshotForReviewResponses[keyof GetSnapshotForReviewResponses];
+
+export type GetSnapshotHistoryForReviewData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/admin/snapshots/{id}/history";
+};
+
+export type GetSnapshotHistoryForReviewErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotHistoryForReviewError = GetSnapshotHistoryForReviewErrors[keyof GetSnapshotHistoryForReviewErrors];
+
+export type GetSnapshotHistoryForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotHistoryResponse;
+};
+
+export type GetSnapshotHistoryForReviewResponse =
+	GetSnapshotHistoryForReviewResponses[keyof GetSnapshotHistoryForReviewResponses];
+
+export type GetSnapshotScreenshotForReviewData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}/screenshot";
+};
+
+export type GetSnapshotScreenshotForReviewErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotScreenshotForReviewError =
+	GetSnapshotScreenshotForReviewErrors[keyof GetSnapshotScreenshotForReviewErrors];
+
+export type GetSnapshotScreenshotForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: Stream;
+};
+
+export type GetSnapshotScreenshotForReviewResponse =
+	GetSnapshotScreenshotForReviewResponses[keyof GetSnapshotScreenshotForReviewResponses];
+
+export type GetSnapshotContentForReviewData = {
+	body?: never;
+	path: {
+		id: string;
+		path: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}/content/{path}";
+};
+
+export type GetSnapshotContentForReviewErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotContentForReviewError = GetSnapshotContentForReviewErrors[keyof GetSnapshotContentForReviewErrors];
+
+export type GetSnapshotContentForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: Stream;
+	/**
+	 * Partial Content
+	 */
+	206: Stream;
+};
+
+export type GetSnapshotContentForReviewResponse =
+	GetSnapshotContentForReviewResponses[keyof GetSnapshotContentForReviewResponses];
+
+export type ReviewSnapshotData = {
+	body: ReviewSnapshotRequest;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}/review";
+};
+
+export type ReviewSnapshotErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type ReviewSnapshotError = ReviewSnapshotErrors[keyof ReviewSnapshotErrors];
+
+export type ReviewSnapshotResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type ReviewSnapshotResponse = ReviewSnapshotResponses[keyof ReviewSnapshotResponses];
+
 export type ListUsersData = {
 	body?: never;
 	path?: never;
@@ -1147,16 +1847,16 @@ export type ListUsersResponses = {
 
 export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
 
-export type GetUserAccessData = {
+export type GetUserPermissionsData = {
 	body?: never;
 	path: {
 		handle: string;
 	};
 	query?: never;
-	url: "/api/admin/users/{handle}/access";
+	url: "/api/admin/users/{handle}/permissions";
 };
 
-export type GetUserAccessErrors = {
+export type GetUserPermissionsErrors = {
 	/**
 	 * Unauthorized
 	 */
@@ -1175,18 +1875,18 @@ export type GetUserAccessErrors = {
 	503: ProblemDetails;
 };
 
-export type GetUserAccessError = GetUserAccessErrors[keyof GetUserAccessErrors];
+export type GetUserPermissionsError = GetUserPermissionsErrors[keyof GetUserPermissionsErrors];
 
-export type GetUserAccessResponses = {
+export type GetUserPermissionsResponses = {
 	/**
 	 * OK
 	 */
 	200: UserAccessResponse;
 };
 
-export type GetUserAccessResponse = GetUserAccessResponses[keyof GetUserAccessResponses];
+export type GetUserPermissionsResponse = GetUserPermissionsResponses[keyof GetUserPermissionsResponses];
 
-export type UpdateUserAccessData = {
+export type UpdateUserPermissionsData = {
 	body: UpdateUserAccessRequest;
 	headers: {
 		/**
@@ -1198,10 +1898,10 @@ export type UpdateUserAccessData = {
 		handle: string;
 	};
 	query?: never;
-	url: "/api/admin/users/{handle}/access";
+	url: "/api/admin/users/{handle}/permissions";
 };
 
-export type UpdateUserAccessErrors = {
+export type UpdateUserPermissionsErrors = {
 	/**
 	 * Bad Request
 	 */
@@ -1240,13 +1940,13 @@ export type UpdateUserAccessErrors = {
 	503: ProblemDetails;
 };
 
-export type UpdateUserAccessError = UpdateUserAccessErrors[keyof UpdateUserAccessErrors];
+export type UpdateUserPermissionsError = UpdateUserPermissionsErrors[keyof UpdateUserPermissionsErrors];
 
-export type UpdateUserAccessResponses = {
+export type UpdateUserPermissionsResponses = {
 	/**
 	 * OK
 	 */
 	200: UserAccessResponse;
 };
 
-export type UpdateUserAccessResponse = UpdateUserAccessResponses[keyof UpdateUserAccessResponses];
+export type UpdateUserPermissionsResponse = UpdateUserPermissionsResponses[keyof UpdateUserPermissionsResponses];

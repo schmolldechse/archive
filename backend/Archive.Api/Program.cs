@@ -36,6 +36,7 @@ builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<SnapshotCreationOperationTransformer>();
     options.AddOperationTransformer<SnapshotEventsOperationTransformer>();
     options.AddOperationTransformer<UserAccessOperationTransformer>();
+    options.AddOperationTransformer<SnapshotSubmissionOperationTransformer>();
     options.AddSchemaTransformer<SnapshotSchemaTransformer>();
 });
 builder.Services
@@ -48,10 +49,12 @@ builder.Services.AddExceptionHandler<ArchiveExceptionHandler>();
 builder.Services.ConfigureHttpJsonOptions(options => ArchiveJson.Configure(options.SerializerOptions));
 
 builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true);
-builder.Services.AddSingleton<ArchiveCreatorMapper>();
+builder.Services.AddSingleton<PublicUserMapper>();
 builder.Services.AddSingleton<UserAccessMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
+builder.Services.AddSingleton<SnapshotSubmissionMapper>();
+builder.Services.AddScoped<ExistingArchiveUserFilter>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
@@ -75,7 +78,7 @@ app.UseCors("public");
 app.Use(async (context, next) =>
 {
     // Include authorization failures in the private cache policy for administration.
-    if (context.Request.Path.StartsWithSegments("/api/admin"))
+    if (context.Request.Path.StartsWithSegments("/api/admin") || context.Request.Path.StartsWithSegments("/api/users/snapshots"))
         context.Response.Headers.CacheControl = "private, no-store";
     await next(context);
 });

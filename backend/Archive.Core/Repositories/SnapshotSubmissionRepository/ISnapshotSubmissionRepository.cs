@@ -15,6 +15,8 @@ public interface ISnapshotSubmissionRepository
     Task<SnapshotHistoryPage?> HistoryForReviewAsync(Guid id, int page, int pageSize, CancellationToken token);
     Task<ArchiveObject?> ScreenshotOwnAsync(Guid userId, Guid id, CancellationToken token);
     Task<ArchiveObject?> ScreenshotForReviewAsync(Guid id, CancellationToken token);
+    Task<SnapshotContentResult> OpenContentOwnAsync(Guid userId, Guid id, string? path, CancellationToken token);
+    Task<SnapshotContentResult> OpenContentForReviewAsync(Guid id, string? path, CancellationToken token);
     Task<SnapshotReviewOutcome> ReviewAsync(Guid actorId, Guid id, string expectedTag, SnapshotModerationStatus decision, string? reason, CancellationToken token);
     Task<SnapshotReviewOutcome> ResubmitAsync(Guid userId, Guid id, string expectedTag, CancellationToken token);
 }

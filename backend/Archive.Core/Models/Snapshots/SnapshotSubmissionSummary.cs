@@ -1,5 +1,6 @@
 using Archive.Core.Entities;
 using Archive.Core.Entities.Processing;
+using Archive.Core.Models.Users;
 
 namespace Archive.Core.Models.Snapshots;
 
@@ -7,4 +8,4 @@ namespace Archive.Core.Models.Snapshots;
 public sealed record SnapshotSubmissionSummary(Guid Id, string Title, string? SourceUrl,
     SourceType SourceType, DateTimeOffset CreatedAt, DateTimeOffset ModerationUpdatedAt,
     SnapshotModerationStatus ModerationStatus, ProcessingStatus ProcessingStatus,
-    SnapshotQuality? Quality, string CreatorLabel, bool IsPublic);
+    SnapshotQuality? Quality, PublicUser? CreatedBy);

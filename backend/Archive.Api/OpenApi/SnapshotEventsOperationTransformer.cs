@@ -28,7 +28,7 @@ public sealed class SnapshotEventsOperationTransformer : IOpenApiOperationTransf
             ["status"] = new OpenApiExample
             {
                 Summary = "An unnamed processing status event",
-                Value = JsonValue.Create("data: {\"id\":\"e6c16b37-4e32-4ab4-93d5-642a88c7132f\",\"status\":\"COMPLETED\",\"progressStep\":\"FINISHED\",\"queuePosition\":null,\"canCancel\":false,\"cancelRequested\":false,\"startedAt\":null}\n\n")
+                Value = JsonValue.Create("data: {\"id\":\"e6c16b37-4e32-4ab4-93d5-642a88c7132f\",\"status\":\"COMPLETED\",\"progressStep\":\"FINISHED\",\"queuePosition\":null,\"canCancel\":false,\"cancelRequested\":false,\"startedAt\":null,\"moderationStatus\":\"PENDING\"}\n\n")
             },
             ["error"] = new OpenApiExample
             {

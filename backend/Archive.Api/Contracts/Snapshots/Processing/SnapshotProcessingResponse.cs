@@ -2,12 +2,17 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Archive.Core.Entities.Processing;
+using Archive.Core.Entities;
 
 namespace Archive.Api.Contracts.Snapshots.Processing;
 
 [Description("Processing status of a snapshot.")]
-public sealed record SnapshotProcessingResponse
+public sealed class SnapshotProcessingResponse
 {
+    [JsonPropertyName("moderationStatus")]
+    [Description("Review state; capture completion does not imply approval.")]
+    public required SnapshotModerationStatus ModerationStatus { get; init; }
+
     [JsonPropertyName("id")]
     [Description("Snapshot identifier.")]
     public required Guid Id { get; init; }
