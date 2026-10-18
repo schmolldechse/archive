@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head><title>Users · Administration · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<AdminSectionHeading title="Users" description="Manage roles and individual permissions." section="users" />
+<AdminSectionHeading title="Users" description="Manage roles and individual permissions." />
 
 {#key page.url.search}<UserSearch filters={data.filters} />{/key}
 <UserTable
