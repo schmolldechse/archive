@@ -15,20 +15,21 @@ Die folgenden Entscheidungen wurden im Interview bestätigt:
 3. Die Moderationsseite einschließlich Genehmigen und Ablehnen erfordert **`admin.access` und die neue Berechtigung `admin.snapshots.access`**. `snapshots.review` entfällt.
 4. Die vorhandene Berechtigung **`snapshots.publish_without_approval`** bleibt für Einreichungen ohne manuelle Erstprüfung zuständig.
 5. Texte der Benutzeroberfläche bleiben Englisch; dieses Planungsdokument ist Deutsch.
+6. Die Historie ist eine **allgemeine Snapshot-Historie** für Einreichung, Verarbeitung und Moderation. Ereignisspezifische Inhalte werden erweiterbar und versioniert in einer **JSONB-Spalte** gespeichert.
 
 ### Abdeckung der Anforderungen
 
-| Anforderung                                      | Vorgeschlagene Umsetzung                                                                    |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `PENDING`, `APPROVED`, `REJECTED`, `RESUBMITTED` | Eigenes dauerhaftes Enum am Snapshot, getrennt vom technischen Verarbeitungsstatus          |
-| Nur genehmigte Snapshots öffentlich              | Gemeinsame Sichtbarkeitsbedingung für Suche, Statistiken, Details, Inhalte und Screenshots  |
-| Ausstehende Snapshots im Admin-Portal genehmigen | Neuer Bereich `/admin/snapshots` mit Warteliste und eigener Detailseite                     |
-| Optionale Begründung                             | Optionales Klartextfeld für beide Entscheidungen; Speicherung in der Moderationshistorie    |
-| Geschützte Entscheidungen                        | Beide Berechtigungen serverseitig prüfen, einschließlich erneuter Prüfung beim Schreiben    |
-| Bestehende Einreichungen automatisch genehmigt   | Expliziter Daten-Backfill für alle zum Migrationszeitpunkt vorhandenen Snapshots            |
-| Privilegierte Einreichung ohne Prüfung           | Effektive Berechtigung bei der Erstellung aus der Datenbank auswerten                       |
-| Andere Einreichungen benötigen Genehmigung       | Initial `PENDING`, unabhängig davon, ob ein Konto vorhanden ist                             |
-| Eigene Einreichungen und Status                  | Geschützte eigene Übersicht und Detailseite, erreichbar über den erweiterten Account-Dialog |
+| Anforderung                                      | Vorgeschlagene Umsetzung                                                                           |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `PENDING`, `APPROVED`, `REJECTED`, `RESUBMITTED` | Eigenes dauerhaftes Enum am Snapshot, getrennt vom technischen Verarbeitungsstatus                 |
+| Nur genehmigte Snapshots öffentlich              | Gemeinsame Sichtbarkeitsbedingung für Suche, Statistiken, Details, Inhalte und Screenshots         |
+| Ausstehende Snapshots im Admin-Portal genehmigen | Neuer Bereich `/admin/snapshots` mit Warteliste und eigener Detailseite                            |
+| Optionale Begründung                             | Optionales Klartextfeld für beide Entscheidungen; Speicherung in der allgemeinen Snapshot-Historie |
+| Geschützte Entscheidungen                        | Beide Berechtigungen serverseitig prüfen, einschließlich erneuter Prüfung beim Schreiben           |
+| Bestehende Einreichungen automatisch genehmigt   | Expliziter Daten-Backfill für alle zum Migrationszeitpunkt vorhandenen Snapshots                   |
+| Privilegierte Einreichung ohne Prüfung           | Effektive Berechtigung bei der Erstellung aus der Datenbank auswerten                              |
+| Andere Einreichungen benötigen Genehmigung       | Initial `PENDING`, unabhängig davon, ob ein Konto vorhanden ist                                    |
+| Eigene Einreichungen und Status                  | Geschützte eigene Übersicht und Detailseite, erreichbar über den erweiterten Account-Dialog        |
 
 ## 2. Befunde im bestehenden Code
 
@@ -109,7 +110,7 @@ Bei `Approve` und `Reject` ist `Reason (optional)` ein optionales Klartextfeld m
 
 Begründungen sind für den Urheber und berechtigte Moderatoren sichtbar. Sie erscheinen weder in der öffentlichen Suche noch in öffentlichen Snapshot-Details oder der anonymen Fortschrittsanzeige. Die interne Identität des Moderators wird nur im Admin-Bereich angezeigt; der Urheber benötigt Status, Zeitpunkt und Begründung.
 
-Eine neue Entscheidung überschreibt keine alte Begründung. Die Historie enthält initiale Einreichung, automatische Freigaben, Entscheidungen und erneute Prüfaufträge in stabiler Reihenfolge. Nach `RESUBMITTED` ist die frühere Ablehnung weiterhin als vergangene Entscheidung erkennbar.
+Eine neue Entscheidung überschreibt keine alte Begründung. Die allgemeine Snapshot-Historie enthält initiale Einreichung, Speicherung des Captures, terminale Verarbeitungsergebnisse, automatische Freigaben, Entscheidungen und erneute Prüfaufträge in stabiler Reihenfolge. Moderationsbegründungen sind ein ereignisspezifischer Teil dieser Historie. Nach `RESUBMITTED` ist die frühere Ablehnung weiterhin als vergangene Entscheidung erkennbar.
 
 ## 4. Berechtigungen
 
@@ -143,12 +144,13 @@ Da der neue Schlüssel im geprüften Stand noch nicht existiert, sind regulär k
 
 ### 5.1 Snapshot-Erweiterungen
 
-| Feld                  | Typ / Zweck                                                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `ModerationStatus`    | Nicht-nullbares `SnapshotModerationStatus`, PostgreSQL-Enum `types.snapshot_moderation_status`                     |
-| `ModerationUpdatedAt` | `timestamptz`, Zeitpunkt des letzten Moderationsübergangs; Reihenfolge der Prüfwarteliste                          |
-| `Revision`            | Positiver `bigint`, Startwert 1; wird bei Snapshot-Änderungen erhöht und unterstützt konkurrierende Entscheidungen |
-| `CaptureOutcome`      | Nullable bestehendes `ProcessingStatus`-Enum; ausschließlich dauerhaft gespeicherte terminale Ergebnisse           |
+| Feld                  | Typ / Zweck                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `ModerationStatus`    | Nicht-nullbares `SnapshotModerationStatus`, PostgreSQL-Enum `types.snapshot_moderation_status`           |
+| `ModerationUpdatedAt` | `timestamptz`, Zeitpunkt des letzten Moderationsübergangs; Reihenfolge der Prüfwarteliste                |
+| `Revision`            | Positiver `bigint`, Startwert 1; fachliche Zustandsrevision für konkurrierende Entscheidungen            |
+| `HistorySequence`     | `bigint`, Startwert 0; zuletzt vergebene laufende Nummer der allgemeinen Snapshot-Historie               |
+| `CaptureOutcome`      | Nullable bestehendes `ProcessingStatus`-Enum; ausschließlich dauerhaft gespeicherte terminale Ergebnisse |
 
 `SnapshotModerationStatus` wird wie `SnapshotQuality` mit expliziten `PgName`- und `JsonStringEnumMemberName`-Werten definiert. Die Zuordnung muss in `Injection.cs` **und** `DataContextFactory.cs` registriert werden; EF-Migrationsmetadaten und `DataContextModelSnapshot.cs` werden mitgeführt.
 
@@ -156,43 +158,116 @@ Der sichere Standard für **neue** Datensätze ist `PENDING`, sowohl im CLR-Mode
 
 `CaptureOutcome` speichert nur `COMPLETED`, `FAILED`, `CANCELLED`, `DISCARDED` oder `ABORTED`; eine Check-Constraint schließt `QUEUED` und `RUNNING` aus. Aktive Fortschrittsdaten bleiben ausschließlich in `processing.snapshot_processing`. Beim terminalen Abschluss werden dessen tatsächlicher Startzeitpunkt und der Endzeitpunkt in die vorhandenen Snapshot-Felder `CaptureStartedAt` und `CaptureCompletedAt` übernommen. Vorher liefern die aktiven Processing-Daten den Startzeitpunkt. Dafür wird keine zusätzliche Snapshot-Schreibsperre im bestehenden Claim-Pfad benötigt. Auch erfolglose Verarbeitungen können dadurch nachvollziehbar angezeigt werden.
 
-### 5.2 Moderationshistorie
+### 5.2 Allgemeine Snapshot-Historie mit JSONB-Inhalt
 
-Eine kleine neue Entität `SnapshotModerationEvent` im Schema `archive` hält die Historie:
+Die neue Entität heißt `SnapshotHistoryEntry`, die Tabelle `archive.snapshot_history`. Sie beschreibt den Lebenslauf eines Snapshots und ist nicht an einen Moderationsstatuswechsel gebunden. Beispielsweise können Einreichung und automatische Genehmigung zwei Einträge derselben fachlichen Transaktion erzeugen; ein erfolgreicher Capture erzeugt einen weiteren Eintrag, ohne zwangsläufig den Moderationsstatus zu ändern.
 
-| Feld                        | Zweck                                                                                                                       |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Id`                        | UUID des Ereignisses                                                                                                        |
-| `SnapshotId`                | Fremdschlüssel zum Snapshot, Cascade bei endgültiger Snapshot-Löschung                                                      |
-| `Revision`                  | Snapshot-Revision, zu der das Ereignis entstand                                                                             |
-| `PreviousStatus` / `Status` | Vorheriger und neuer Moderationsstatus; vorheriger Status bei Erstellung `null`                                             |
-| `Kind`                      | Begrenzter, validierter Ereignistyp: `SUBMITTED`, `AUTO_APPROVED`, `APPROVED`, `REJECTED`, `RESUBMITTED`, `LEGACY_APPROVED` |
-| `Reason`                    | Optionale Begründung, maximal 2.048 Zeichen                                                                                 |
-| `ActorUserId`               | Nullable Fremdschlüssel, bei Kontolöschung `SET NULL`                                                                       |
-| `CreatedAt`                 | Serverseitiger UTC-Zeitpunkt                                                                                                |
+#### Stabile Metadaten und erweiterbarer Inhalt
 
-`Kind` kann als kurzer String mit Check-Constraint gespeichert werden; dafür ist kein zweites neues PostgreSQL-Enum nötig. Automatische Freigaben und Bestandsfreigaben werden als Systemereignisse mit `ActorUserId = null` gespeichert. Ein Prüfauftrag durch den Urheber verwendet dessen Benutzer-ID.
+| Feld          | Typ / Zweck                                                                            |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `Id`          | UUID des Historieneintrags                                                             |
+| `SnapshotId`  | Fremdschlüssel zum Snapshot, Cascade bei endgültiger Snapshot-Löschung                 |
+| `Sequence`    | Positiver `bigint`, monoton aufsteigend pro Snapshot; eindeutige fachliche Reihenfolge |
+| `ActorUserId` | Nullable Fremdschlüssel, bei Kontolöschung `SET NULL`                                  |
+| `CreatedAt`   | Serverseitiger UTC-Zeitpunkt des Ereignisses                                           |
+| `Content`     | Nicht-nullbare PostgreSQL-Spalte `jsonb` mit versioniertem Ereignisinhalt              |
 
-Die Kombination `(SnapshotId, Revision)` ist eindeutig. Statuswechsel und Ereignis werden in derselben Transaktion gespeichert. Die Historie wird nur angefügt; sie benötigt keine eigene allgemeine Audit-Infrastruktur. Begründungen werden aus den Ereignissen projiziert, ohne zusätzlich einen zweiten veränderlichen Begründungsstand am Snapshot zu pflegen.
+Es gibt keine festen Spalten für Moderationsstatus, Begründung, Capture-Qualität oder andere ereignisspezifische Inhalte. Sie stehen in `Content`. Zeitpunkt, Akteur und Zuordnung bleiben relational und werden im JSON nicht dupliziert. Automatische Genehmigungen, Worker-Ergebnisse und Bestandsfreigaben verwenden `ActorUserId = null`; menschliche Entscheidungen und erneute Prüfaufträge verwenden den tatsächlichen Akteur. Eine anonyme Einreichung hat ebenfalls keinen Benutzer als Akteur.
+
+`Content` besitzt einen kleinen stabilen Rahmen:
+
+| JSON-Feld | Vertrag                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `type`    | Stabiler englischer Ereignisschlüssel, beispielsweise `snapshot.moderated`; offener String statt Datenbank-Enum                   |
+| `version` | Positive ganzzahlige Version des Payload-Vertrags für diesen Ereignistyp; initial 1                                               |
+| `data`    | JSON-Objekt mit den für diesen Typ und diese Version definierten Daten; verschachtelte Objekte und Arrays sind bei Bedarf möglich |
+
+Beispiel einer manuellen Moderationsentscheidung; gespeichert wird dieses Objekt in `Content`:
+
+```json
+{
+  "type": "snapshot.moderated",
+  "version": 1,
+  "data": {
+    "previousStatus": "PENDING",
+    "status": "APPROVED",
+    "source": "MANUAL_REVIEW",
+    "reason": "The archived page and its source have been checked."
+  }
+}
+```
+
+Beispiel eines gespeicherten Captures:
+
+```json
+{
+  "type": "snapshot.stored",
+  "version": 1,
+  "data": {
+    "quality": "COMPLETE",
+    "durationMilliseconds": 12500,
+    "storageBytes": 7340032,
+    "resourceCount": 42
+  }
+}
+```
+
+Diese Beispiele beschreiben den geplanten Datenvertrag und sind keine Implementierung. Aus `snapshot.stored` folgt ausschließlich, dass das Capture-Ergebnis erfolgreich gespeichert wurde. Die öffentliche Sichtbarkeit wird weiterhin durch Abschnitt 3.1 bestimmt.
+
+#### Ereignisse der ersten Ausbaustufe
+
+| `type`                         | Auslöser                                                              | Inhalt von `data` in Version 1                                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `snapshot.submitted`           | Neue URL- oder Datei-Einreichung wurde angenommen                     | `sourceType`, initialer `moderationStatus`                                                                                          |
+| `snapshot.moderated`           | Manuelle Entscheidung, automatische Genehmigung oder Bestandsfreigabe | `previousStatus`, `status`, `source`, nullable `reason`; `source` ist `MANUAL_REVIEW`, `AUTOMATIC_APPROVAL` oder `LEGACY_MIGRATION` |
+| `snapshot.resubmitted`         | Eigentümer fordert ohne Änderungen eine weitere Prüfung an            | `previousStatus: REJECTED`, `status: RESUBMITTED`                                                                                   |
+| `snapshot.stored`              | Worker hat das Capture-Ergebnis dauerhaft bestätigt                   | `quality`, `durationMilliseconds`, `storageBytes`, `resourceCount`                                                                  |
+| `snapshot.processing_finished` | Verarbeitung endet ohne gespeicherten Capture                         | `status` mit `FAILED`, `CANCELLED`, `DISCARDED` oder `ABORTED`; optional ein definierter, unkritischer `failureCode`                |
+
+Automatische Genehmigung und Bestandsfreigabe sind durch `source` nachvollziehbar; dafür sind keine zusätzlichen Historientabellen nötig. Neue fachliche Ereignisse können später neue `type`-Werte und eigene Payloads ergänzen. Häufige Fortschrittsschritte und SSE-Heartbeats bleiben in den temporären Verarbeitungsdaten und erzeugen keine dauerhaften Historieneinträge.
+
+#### Abstraktion, Validierung und Versionierung
+
+Die Persistenz behandelt `Content` als JSON-Dokument. Vorgesehen ist ein `JsonElement` mit expliziter `jsonb`-Zuordnung. Beim Schreiben erzeugen kleine typisierte Payload-Records je bekanntem Ereignistyp und Version den Inhalt über `System.Text.Json`. Ein gemeinsamer Rahmen beziehungsweise eine Factory kapselt `type`, `version` und `data`. Das nutzt die vom Provider unterstützte [JSON-DOM-Zuordnung](https://www.npgsql.org/efcore/mapping/json.html#jsondocument-dom-mapping), die für wechselnde JSON-Strukturen geeignet ist. Falls ein temporäres `JsonDocument` verwendet wird, muss die Lebensdauer übernommener Elemente durch Klonen abgesichert werden.
+
+Die Datenbank verlangt einen JSON-Objektwurzelwert mit allen drei Pflichtschlüsseln, einem nicht leeren String `type`, einer positiven ganzzahligen `version` und einem Objekt `data`. Constraints müssen fehlende Schlüssel und JSON-`null` ausdrücklich ausschließen. Im Anwendungscode werden zusätzlich die bekannten Payloads validiert, einschließlich der Begrenzung von Begründungen auf 2.048 Zeichen. Der gemeinsame Writer begrenzt den serialisierten Inhalt zunächst auf 32 KiB UTF-8 pro Eintrag. Dateien und vollständige archivierte Dokumente bleiben im Object-Storage.
+
+Erweiterbarkeit bedeutet, dass neue fachliche Daten nicht für jede Ergänzung eine neue Spalte erfordern. Der Server erzeugt und prüft die Inhalte selbst; es gibt keinen API-Endpunkt, über den Benutzer beliebige Historien-JSONs schreiben dürfen. Ein kleiner Switch beziehungsweise eine zentrale Definition der bekannten Typ-/Versionskombinationen genügt. Eine Plugin-Infrastruktur oder dynamisches Laden von CLR-Typnamen ist nicht erforderlich.
+
+Kompatible optionale Felder können ergänzt werden. Änderungen an der Bedeutung oder Struktur vorhandener Pflichtfelder erhalten eine neue Version. Gespeicherte ältere Versionen bleiben unverändert und lesbar. `type` ist kein geschlossenes Enum, damit weitere Ereignisse keinen Enum-Umbau voraussetzen. Unbekannte Typen oder Versionen dürfen weder Lesen noch Rendering abbrechen; ihre Sichtbarkeit und Darstellung sind in Abschnitt 8.2 festgelegt.
+
+#### Reihenfolge, Transaktionen und Wiederholungen
+
+Die Kombination `(SnapshotId, Sequence)` ist eindeutig. Die bisher vorgeschlagene Kopplung an eine eindeutige Snapshot-Revision entfällt: Eine fachliche Revision kann mehrere Historieneinträge erzeugen. `HistorySequence` am Snapshot hält die zuletzt vergebene Sequenznummer; jeder angefügte Eintrag erhöht diesen Zähler innerhalb derselben Transaktion. Die fachliche `Revision` bleibt davon unabhängig und ändert sich bei den für Konkurrenzprüfungen relevanten Zustandsänderungen.
+
+Bei vorhandenen Snapshots erfolgt das Anhängen unter der bestehenden Snapshot-Zeilensperre; bei Neuerstellung existiert der Snapshot nur in der eigenen Transaktion. Ein kleiner gemeinsamer `SnapshotHistoryWriter` fügt Einträge zum bestehenden `DataContext` hinzu. Er führt keinen eigenen Commit aus und öffnet keine zweite Transaktion. Statusänderung beziehungsweise bestätigte Speicherung und zugehörige Historie werden zusammen committet. Ein Fehler beim Historieneintrag rollt den gesamten fachlichen Schreibvorgang zurück.
+
+Bei erfolgreichem Capture wird `snapshot.stored` im selben Datenbankvorgang wie `Quality`, `ContentPrefix` und `CaptureOutcome` geschrieben, nachdem die Objektablage erfolgreich war. Die bestehende Behandlung unklarer Commits bleibt maßgeblich: Ist der Capture bereits bestätigt, darf ein Wiederholungsaufruf keinen zweiten Speicher-Eintrag erzeugen. Fehlerabschluss, direkt in der Queue erfolgter Abbruch und Recovery prüfen den aktuellen terminalen Zustand ebenfalls unter Sperre, bevor sie einen Eintrag ergänzen. Ein wiederholtes Review oder Resubmit wird wie bisher über ETag und Zustandsprüfung abgefangen. Wiederherstellung bereits abgeschlossener Ergebnisse erzeugt keine nachträglichen Duplikate.
+
+Die Historie wird nach dem Schreiben nicht fachlich verändert; lediglich die beschriebenen Fremdschlüsselregeln für Konto- und Snapshot-Löschung greifen weiterhin. Aktuelle Moderations- und Verarbeitungszustände bleiben an ihren bisherigen Stellen gespeichert. Die Anwendung rekonstruiert sie nicht durch Abspielen der Historie. Die letzte Moderationsbegründung wird gezielt aus dem neuesten passenden `snapshot.moderated`-Eintrag gelesen, ohne zusätzlich einen zweiten veränderlichen Begründungsstand am Snapshot zu pflegen.
 
 ### 5.3 Indizes
 
 - Eigene Übersicht: `(CreatedByUserId, CreatedAt DESC, Id DESC)`.
 - Moderationswarteliste: `(ModerationStatus, ModerationUpdatedAt, Id)`, auf erfolgreich erfasste Snapshots begrenzt, falls der geprüfte Abfrageplan davon profitiert.
-- Historie: eindeutiger Index `(SnapshotId, Revision)`; die Historie wird damit zugleich pro Snapshot geordnet lesbar.
+- Historie: eindeutiger B-Tree-Index `(SnapshotId, Sequence)` für stabile Pagination und Reihenfolge, auch bei identischen Zeitstempeln.
+- Letzte Moderationsentscheidung: bei Bedarf ein partieller Index auf `(SnapshotId, Sequence DESC)` für `Content ->> 'type' = 'snapshot.moderated'`. Die JSON-Struktur wird weiterhin je Version ausgewertet. Ein flächiger GIN-Index auf allen Payloads wird ohne entsprechende Suchabfragen nicht angelegt; der Index soll zu den verwendeten Operatoren passen, wie in der [PostgreSQL-Dokumentation zur JSONB-Indexierung](https://www.postgresql.org/docs/current/datatype-json.html#JSON-INDEXING) beschrieben.
 - Bestehende Zeit- und URL-Indizes bleiben erhalten. Ob der öffentliche Zeitindex ein zusätzliches Prädikat für genehmigte Ergebnisse benötigt, wird anhand des tatsächlichen PostgreSQL-Abfrageplans entschieden.
 
 Der Status hat wenige unterschiedliche Werte. Ein zusätzlicher alleiniger Statusindex wird deshalb nicht vorsorglich angelegt. Die Warteliste verwendet eine explizite fachliche Sortierung und keine PostgreSQL-Enum-Reihenfolge.
 
 ### 5.4 Bestandsmigration
 
+Da die bisherige Moderationshistorie nur vorgeschlagen und noch nicht implementiert wurde, ist keine Umstellung einer bestehenden `SnapshotModerationEvent`-Tabelle erforderlich. Die erste Umsetzung legt direkt die allgemeine Tabelle `archive.snapshot_history` mit JSONB-Inhalten an.
+
 Die Migration wird bei gestoppten schreibenden API-/Worker-Instanzen ausgeführt:
 
 1. Neues Enum, Spalten und Historientabelle anlegen. Die Statusspalte zunächst nullable **ohne Default** anlegen, damit Altbestand explizit von neuen Datensätzen getrennt behandelt wird.
 2. Sämtliche vorhandenen Snapshots auf `APPROVED` setzen, auch zum Umstellungszeitpunkt wartende, laufende oder noch vorhandene erfolglose Einreichungen. Öffentliche Sichtbarkeit setzt trotzdem weiterhin ein gespeichertes Capture-Ergebnis voraus.
-3. Pro Bestands-Snapshot ein `LEGACY_APPROVED`-Ereignis mit Migrationszeitpunkt, Revision 1 und ohne erfundenen menschlichen Prüfer anlegen. Bestehende `CreatedAt`-/Capture-Zeiten nicht verändern.
+3. Pro Bestands-Snapshot einen allgemeinen Historieneintrag mit `Sequence = 1`, `type: snapshot.moderated`, `version: 1` und `data.source: LEGACY_MIGRATION` anlegen. `data.previousStatus` ist `null`, `data.status` ist `APPROVED`, `data.reason` ist `null`. Ereigniszeitpunkt ist der Migrationszeitpunkt; ein menschlicher Prüfer wird nicht erfunden. `HistorySequence` wird auf 1 und die fachliche Revision auf 1 gesetzt. Bestehende `CreatedAt`-/Capture-Zeiten bleiben unverändert. Es werden keine historischen Einreichungs- oder Speicher-Ereignisse mit lediglich vermuteten Abläufen nachgebildet.
 4. Für erfolgreiche Ergebnisse `CaptureOutcome = COMPLETED` setzen. Für andere noch vorhandene terminale Verarbeitungen das reale Ergebnis übernehmen. Laufende und wartende Verarbeitungen erhalten noch keinen terminalen Outcome.
-5. Status und Zeitstempel verpflichtend machen, finalen Datenbank-Default `PENDING` setzen, Revision und Constraints absichern und Indizes erstellen.
+5. Status und Zeitstempel verpflichtend machen, finalen Datenbank-Default `PENDING` setzen, Revision, Historiensequenz und JSONB-Constraints absichern und Indizes erstellen.
 6. Berechtigungs-Overrides gemäß Abschnitt 4.2 migrieren und den alten Schlüssel entfernen.
 7. Neue API und Worker mit denselben Enum-Zuordnungen starten; anschließend das passende Frontend bereitstellen.
 
@@ -208,7 +283,7 @@ URL-Erstellung und Dateiimport behalten ihren gemeinsamen Erstellungspfad. Bei a
 
 Das effektive Veröffentlichungsrecht wird weiterhin mit `PermissionEvaluator` geprüft und setzt vollständige Registrierung voraus. Ohne Anmeldung ist die Eigentümer-ID `null`; unvollständig registrierte Konten erhalten keinen Bypass. Die öffentliche Urheberprojektion bleibt bei ihrem bisherigen Schutz: Name und Handle erscheinen erst nach vollständiger Registrierung. Eine ungültige Session mit nicht mehr existierendem Benutzer wird nicht still als gültiges Eigentümerkonto übernommen.
 
-Mit `snapshots.publish_without_approval` entstehen Snapshot und `AUTO_APPROVED`-Ereignis mit Status `APPROVED`; andernfalls entstehen Status `PENDING` und ein `SUBMITTED`-Ereignis. Snapshot, initiales Ereignis und Queue-Eintrag werden atomar gespeichert. Die bisherige Upload-Validierung und Behandlung verwaister temporärer Uploads bleiben erhalten.
+Jede neue Einreichung erzeugt einen `snapshot.submitted`-Historieneintrag mit Quelltyp und initialem Moderationsstatus. Mit `snapshots.publish_without_approval` ist dieser Status `APPROVED`; zusätzlich erklärt ein `snapshot.moderated`-Eintrag mit `source: AUTOMATIC_APPROVAL`, `previousStatus: null` und `status: APPROVED` die automatische Freigabe. Ohne dieses Recht bleibt es zunächst bei `PENDING` und dem Einreichungseintrag. Snapshot, initiale Historieneinträge und Queue-Eintrag werden atomar gespeichert. Die bisherige Upload-Validierung und Behandlung verwaister temporärer Uploads bleiben erhalten.
 
 Die Berechtigungsentscheidung wird im abschließenden kurzen Datenbankvorgang getroffen, nach den potenziell langen Upload-/Formatprüfungen. Sie wird nicht erst vom Worker aus später möglicherweise veränderten Berechtigungen abgeleitet.
 
@@ -220,7 +295,7 @@ Der Worker verarbeitet genehmigte und ungeprüfte Einreichungen auf dieselbe Wei
 
 Alle zugehörigen Aufrufer, Fehlertexte, Recovery-Pfade und Kommentare werden zusammen angepasst. Besonders `SnapshotProcessor` muss ein gespeichertes `PENDING`-, `RESUBMITTED`- oder `REJECTED`-Ergebnis als dauerhaft erhalten behandeln. Eine pauschale Ersetzung seiner Speicherprüfung durch die neue öffentliche Sichtbarkeitsprüfung würde ungeprüfte Archivobjekte löschen und ist falsch.
 
-Beim terminalen Abschluss werden `CaptureOutcome`, vorhandene Start-/Endzeitpunkte und Revision atomar aktualisiert. Das gilt für erfolgreichen Abschluss, Fehler, Discard, Abbruch, Recovery nach Worker-Unterbrechung und direkt in der Queue abgebrochene Einreichungen.
+Beim terminalen Abschluss werden `CaptureOutcome`, vorhandene Start-/Endzeitpunkte und Revision atomar mit dem passenden allgemeinen Historieneintrag aktualisiert: `snapshot.stored` bei bestätigtem Ergebnis, sonst `snapshot.processing_finished`. Das gilt für erfolgreichen Abschluss, Fehler, Discard, Abbruch, Recovery nach Worker-Unterbrechung und direkt in der Queue abgebrochene Einreichungen. Auf bereits bestätigte Endzustände gerichtete Wiederholungsaufrufe erzeugen keine weiteren Abschlussereignisse.
 
 Die Bereinigung darf nach dem bisherigen kurzen Verarbeitungsfenster:
 
@@ -240,7 +315,7 @@ Für eine Entscheidung:
 2. Transaktion beginnen und den handelnden Benutzer samt effektiven Rechten erneut prüfen.
 3. Snapshot mit `FOR UPDATE` sperren und ETag/Revision gegen den gelesenen Stand prüfen.
 4. Erfolgreiches Capture sowie aktuellen Status `PENDING` oder `RESUBMITTED` prüfen.
-5. Status, `ModerationUpdatedAt` und Revision ändern; Entscheidung mit Begründung und Akteur anfügen.
+5. Status, `ModerationUpdatedAt` und Revision ändern; einen `snapshot.moderated`-Historieneintrag mit vorherigem/neuem Status, `source: MANUAL_REVIEW`, optionaler Begründung und relational zugeordnetem Akteur anfügen.
 6. Zusammen committen und den aktuellen Detailstand samt neuem ETag zurückgeben.
 
 Die bestehende Benutzerverwaltung verwendet bereits ETag/`If-Match` und eine transaktionale erneute Rechteprüfung. Dieses Muster wird fachlich wiederverwendet, ohne die Benutzerverwaltung durch einen allgemeinen Schreibrahmen umzubauen.
@@ -253,7 +328,7 @@ Ein Moderations-ETag ist ein opaker Fingerprint des relevanten Zustands einschli
 
 Der Server leitet die Benutzer-ID aus der Session ab und sucht den Snapshot mit `CreatedByUserId == currentUserId`. Er akzeptiert keine Eigentümer-ID aus dem Request. Bei unbekannter ID oder fremdem Snapshot wird gleichermaßen `404` zurückgegeben.
 
-Nur `REJECTED` mit vorhandenem Capture-Ergebnis darf nach `RESUBMITTED` wechseln. Der Request hat keinen Metadaten-Body. Nach ETag-Prüfung werden Status, Moderationszeitpunkt, Revision und ein `RESUBMITTED`-Ereignis atomar gespeichert. Die vorherige Entscheidung und ihre Begründung bleiben erhalten. Ein weiterer Capture oder eine neue Snapshot-ID entsteht nicht.
+Nur `REJECTED` mit vorhandenem Capture-Ergebnis darf nach `RESUBMITTED` wechseln. Der Request hat keinen Metadaten-Body. Nach ETag-Prüfung werden Status, Moderationszeitpunkt, Revision und ein `snapshot.resubmitted`-Historieneintrag atomar gespeichert. Die vorherige Entscheidung und ihre Begründung bleiben erhalten. Ein weiterer Capture oder eine neue Snapshot-ID entsteht nicht.
 
 Die Prüfwarteliste sortiert nach `ModerationUpdatedAt ASC, Id ASC`. Eine erneute Vorlage erhält somit ihren tatsächlichen neuen Wartezeitpunkt. Der ursprüngliche Einreichungszeitpunkt bleibt unverändert.
 
@@ -311,12 +386,12 @@ Die folgenden Verträge sind **Planungsentscheidungen**, noch keine Änderungen 
 | ------------------------------------------ | ---------------------------------------------------------- | -------------------------------------- |
 | `GET /api/admin/snapshots`                 | Paginierte Moderationsliste                                | Beide Moderationsberechtigungen        |
 | `GET /api/admin/snapshots/{id}`            | Moderationsdetail mit letzter Entscheidung und ETag        | Beide Moderationsberechtigungen        |
-| `GET /api/admin/snapshots/{id}/history`    | Paginierte Moderationshistorie                             | Beide Moderationsberechtigungen        |
+| `GET /api/admin/snapshots/{id}/history`    | Paginierte allgemeine Snapshot-Historie                    | Beide Moderationsberechtigungen        |
 | `GET /api/admin/snapshots/{id}/screenshot` | Geschütztes Vorschaubild                                   | Beide Moderationsberechtigungen        |
 | `POST /api/admin/snapshots/{id}/review`    | Genehmigen oder Ablehnen, mit `If-Match`                   | Beide Moderationsberechtigungen        |
 | `GET /api/users/snapshots`                 | Paginierte eigene Einreichungen                            | Authentifiziertes, existierendes Konto |
 | `GET /api/users/snapshots/{id}`            | Eigenes Detail mit letzter Entscheidung und ETag           | Eigentümer                             |
-| `GET /api/users/snapshots/{id}/history`    | Paginierte eigene Statushistorie                           | Eigentümer                             |
+| `GET /api/users/snapshots/{id}/history`    | Paginierte eigene Snapshot-Historie                        | Eigentümer                             |
 | `GET /api/users/snapshots/{id}/screenshot` | Eigene private Screenshot-Vorschau                         | Eigentümer                             |
 | `POST /api/users/snapshots/{id}/resubmit`  | Erneute Prüfung ohne Änderungen, ohne Body, mit `If-Match` | Eigentümer                             |
 
@@ -335,10 +410,15 @@ Vorgeschlagene neue Verträge:
 - `SnapshotSubmissionDetailResponse`: eigene Metadaten, technischer Status, Moderationsstatus, erlaubte Eigentümeraktionen und letzte Entscheidung ohne interne Prüferidentität.
 - `SnapshotModerationListResponse` / `SnapshotModerationSummaryResponse`: wartende bzw. gefilterte Ergebnisse einschließlich vorhandener Urheberzuordnung; `Anonymous` bei fehlendem Konto und `Registration incomplete` bei noch unvollständigem Profil.
 - `SnapshotModerationDetailResponse`: prüfbare Metadaten, Qualität und Capture-Daten, Moderationsstatus, verfügbare Aktionen und letzte Entscheidung einschließlich Prüferzuordnung.
-- `SnapshotModerationHistoryResponse` und eine Eigentümersicht ohne interne Prüferidentität: paginierte Ereignisse, geordnet nach Revision absteigend. Die jeweiligen `/history`-Endpunkte verwenden `page` und `pageSize` mit denselben Höchstgrenzen. Dadurch bleiben Detail-ETags unabhängig von der gerade betrachteten Historienseite.
+- `SnapshotHistoryResponse` / `SnapshotHistoryEntryResponse`: allgemeine paginierte Ereignisse mit `id`, `sequence`, `createdAt` und `content`. Die Admin-Projektion ergänzt die zulässige Akteurzuordnung; die Eigentümersicht liefert keine internen Prüferidentitäten. Die Reihenfolge ist `Sequence DESC`. Die jeweiligen `/history`-Endpunkte verwenden `page` und `pageSize` mit denselben Höchstgrenzen. Dadurch bleiben Detail-ETags unabhängig von der gerade betrachteten Historienseite.
+- `SnapshotHistoryContentResponse`: stabiler Rahmen mit `type: string`, `version: integer` und offenem JSON-Objekt `data`. Das OpenAPI-Schema beschreibt zusätzliche Eigenschaften von `data` als beliebige JSON-Werte. Ereignistypen werden als Beispiele dokumentiert; sie bilden kein geschlossenes generiertes Enum. Bekannte Payload-Records bleiben Schreib-/Projektionsdetails des Backends.
 - `ReviewSnapshotRequest`: `decision` mit ausschließlich `APPROVED` oder `REJECTED`, dazu nullable `reason`. `PENDING` und `RESUBMITTED` sind hier unzulässige Entscheidungen.
 
 Privat gelieferte Aktionsflags wie `canReview` oder `canResubmit` vereinfachen die Darstellung. Der Server prüft jede Aktion erneut. Eine Liste liefert keine öffentlichen Content-URLs für ungeprüfte Snapshots; ein `publicUrl` ist bis zur tatsächlichen Veröffentlichung `null`.
+
+Auch bei einer allgemeinen Historie wird die JSONB-Spalte nicht ungeprüft an jede Ansicht weitergereicht. Eine kleine Projektionsfunktion je bekanntem Typ und Version legt ausdrücklich fest, welche Daten Eigentümer sehen dürfen. Unbekannte Typen/Versionen sind dort zunächst nicht freigegeben; die Filterung erfolgt vor Pagination und Zählung. Moderationsberechtigte können die allgemeine Historie einschließlich neuer Ereignisse lesen. Die Fortschrittsanzeige und die öffentliche Archiv-API erhalten weiterhin keine Historien-Payloads. Tokens, Sessiondaten, Stacktraces, rohe Exceptions und interne Storage-Zugangsdaten werden schon beim Schreiben aus allen Ereignissen ausgeschlossen.
+
+Das Frontend rendert bekannte Typ-/Versionskombinationen über kleine Formatter mit englischen Texten. Bei einer für den Server bekannten, für das ältere Frontend aber neuen Kombination zeigt es einen neutralen Eintrag `Snapshot event` mit Zeitpunkt. Es interpretiert weder JSON als HTML noch gibt es unbekannte Payloads als technischen Rohtext aus. Fehlerhafte oder nicht unterstützte Details blockieren die übrige Historie nicht. Ein neuer Inhaltstyp erfordert so gezielte Backend-/Formatter-Ergänzungen, ohne das gemeinsame Historienmodell oder bestehende Daten umzubauen.
 
 Die privaten Vorschauen verwenden die oben genannten geschützten Screenshot-Endpunkte. Es wird kein vollständiger privater HTML-Viewer benötigt: Die Moderationsdetailseite zeigt Screenshot, vollständige Metadaten und Capture-Qualität. Das ist der vorgesehene Prüfumfang dieser ersten Version. Gespeichertes HTML wird erst nach Genehmigung über den vorhandenen öffentlichen Viewer verfügbar.
 
@@ -391,7 +471,7 @@ Auf schmalen Geräten werden dieselben Datensätze als vertikal geordnete Zeilen
 
 ### 9.2 Moderationsdetail `/admin/snapshots/[snapshotId]`
 
-Die Detailseite enthält Breadcrumb, Titel, vollständige kopierbare Quell-URL, Urheber, Capture-Zeiten, Qualität und Speicher-/Ressourcendaten. Ein geschützter Screenshot ergänzt diese Angaben. Darunter folgen nachvollziehbare Statushistorie und Entscheidungsbereich.
+Die Detailseite enthält Breadcrumb, Titel, vollständige kopierbare Quell-URL, Urheber, Capture-Zeiten, Qualität und Speicher-/Ressourcendaten. Ein geschützter Screenshot ergänzt diese Angaben. Darunter folgen die allgemeine `Snapshot history` und der Entscheidungsbereich. Die Historie zeigt unter anderem `Snapshot submitted`, `Snapshot stored`, `Snapshot approved`, `Snapshot rejected` und `Review requested again`; Zeitpunkt und gegebenenfalls zulässiger Akteur bleiben klar zugeordnet.
 
 Die Entscheidung ist bewusst eindeutig: eine beschriftete Auswahl `Decision` mit `Approve` oder `Reject`, `Reason (optional)` und genau eine primäre Aktion `Save decision`. Vor dem Speichern zeigt eine knappe Zusammenfassung, welche Wirkung die gewählte Entscheidung hat. Ein zusätzlicher Bestätigungsdialog ist für diesen Ablauf nicht erforderlich.
 
@@ -436,27 +516,29 @@ Vorhandene Bausteine für Button, Input/Textarea, Dialog, Tabs, Breadcrumb, Tabe
 
 Die folgende Liste beschreibt spätere Änderungen; diese Dateien werden im aktuellen Dokumentationsschritt nicht angepasst.
 
-| Bereich                           | Geplante Dateien / Änderungen                                                                                                                                                                                                    |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Persistenz                        | `backend/Archive.Core/Entities/Snapshot.cs`, neues Enum und Moderationsereignis, zugehörige Konfigurationen, `DataContext.cs`, `Injection.cs`, `DataContextFactory.cs`, neue EF-Migration einschließlich Designer/Model-Snapshot |
-| Rechte                            | `ArchivePermissions.cs`, `PermissionCatalog.cs`, Berechtigungs-Backfill; zentralen Evaluator wiederverwenden                                                                                                                     |
-| Öffentliche Snapshot-Abfragen     | `SnapshotRepository.cs`, `SnapshotRepository.Search.cs`, `ISnapshotRepository.cs`, kleine interne Query-Erweiterung                                                                                                              |
-| Erstellung                        | `SnapshotRepository.Creation.cs`, entsprechende interne Ergebnis-/Projektionsmodelle und Mapper                                                                                                                                  |
-| Verarbeitung                      | Alle drei Dateien des `SnapshotProcessingRepository`, `SnapshotProcessingState.cs`, `SnapshotProcessingResults.cs`, `SnapshotProcessor.cs`; Benennung, persistente Endzustände und Cleanup konsistent anpassen                   |
-| Moderation / eigene Einreichungen | Neues `SnapshotModerationRepository` mit Interface, kleine Core-Request-/Result-/Page-Modelle; ausdrücklich geschützte Eigentümerabfragen                                                                                        |
-| API                               | Neue Controller unter `Controllers/Admin` und `Controllers/User`, Moderations-/Einreichungsverträge und Mapper; vorhandene Snapshot-Controller/Antworten und OpenAPI-Transformer anpassen                                        |
-| API-Infrastruktur                 | `Program.cs` für neue Registrierungen und private Cache-Pfade; vorhandene Auth-/CORS-Mechanismen wiederverwenden                                                                                                                 |
-| Admin-Frontend                    | `lib/admin/access.ts`, `lib/admin/sections.ts`, `lib/server/admin.ts`, neue Routen unter `(site)/admin/snapshots` und kleine fachliche Komponenten                                                                               |
-| Account-Frontend                  | `AccountDialog.svelte`, gegebenenfalls `AccountControl.svelte`, eigene Routen unter `(site)/account/submissions`, Loader und Datenzugriffe für Einreichungen                                                                     |
-| Capture-Frontend                  | `lib/archive-submission.ts`, `(site)/archive/new/+page.svelte`, öffentlicher Snapshot-Loader unter `routes/snapshots/[snapshotId]`                                                                                               |
-| Generierte API-Typen              | `frontend/src/lib/api/*`, ausschließlich über den bestehenden Generator                                                                                                                                                          |
-| Nachweis                          | Gezielte Backend-Tests für Sichtbarkeit, Berechtigungen, Migration und Übergänge; Browserprüfung der tatsächlich geänderten Oberflächen                                                                                          |
+| Bereich                           | Geplante Dateien / Änderungen                                                                                                                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Persistenz                        | `backend/Archive.Core/Entities/Snapshot.cs`, neues Enum und allgemeine Historienentität, zugehörige Konfigurationen, `DataContext.cs`, `Injection.cs`, `DataContextFactory.cs`, neue EF-Migration einschließlich Designer/Model-Snapshot |
+| Rechte                            | `ArchivePermissions.cs`, `PermissionCatalog.cs`, Berechtigungs-Backfill; zentralen Evaluator wiederverwenden                                                                                                                             |
+| Öffentliche Snapshot-Abfragen     | `SnapshotRepository.cs`, `SnapshotRepository.Search.cs`, `ISnapshotRepository.cs`, kleine interne Query-Erweiterung                                                                                                                      |
+| Erstellung                        | `SnapshotRepository.Creation.cs`, entsprechende interne Ergebnis-/Projektionsmodelle und Mapper                                                                                                                                          |
+| Verarbeitung                      | Alle drei Dateien des `SnapshotProcessingRepository`, `SnapshotProcessingState.cs`, `SnapshotProcessingResults.cs`, `SnapshotProcessor.cs`; Benennung, persistente Endzustände und Cleanup konsistent anpassen                           |
+| Moderation / eigene Einreichungen | Neues `SnapshotModerationRepository` mit Interface, kleine Core-Request-/Result-/Page-Modelle; ausdrücklich geschützte Eigentümerabfragen                                                                                                |
+| API                               | Neue Controller unter `Controllers/Admin` und `Controllers/User`, Moderations-/Einreichungsverträge und Mapper; vorhandene Snapshot-Controller/Antworten und OpenAPI-Transformer anpassen                                                |
+| API-Infrastruktur                 | `Program.cs` für neue Registrierungen und private Cache-Pfade; vorhandene Auth-/CORS-Mechanismen wiederverwenden                                                                                                                         |
+| Admin-Frontend                    | `lib/admin/access.ts`, `lib/admin/sections.ts`, `lib/server/admin.ts`, neue Routen unter `(site)/admin/snapshots` und kleine fachliche Komponenten                                                                                       |
+| Account-Frontend                  | `AccountDialog.svelte`, gegebenenfalls `AccountControl.svelte`, eigene Routen unter `(site)/account/submissions`, Loader und Datenzugriffe für Einreichungen                                                                             |
+| Capture-Frontend                  | `lib/archive-submission.ts`, `(site)/archive/new/+page.svelte`, öffentlicher Snapshot-Loader unter `routes/snapshots/[snapshotId]`                                                                                                       |
+| Generierte API-Typen              | `frontend/src/lib/api/*`, ausschließlich über den bestehenden Generator                                                                                                                                                                  |
+| Nachweis                          | Gezielte Backend-Tests für Sichtbarkeit, Berechtigungen, Migration und Übergänge; Browserprüfung der tatsächlich geänderten Oberflächen                                                                                                  |
 
 `readAdmin()` enthält derzeit benutzerspezifische Fehlermeldungen. Für den neuen Bereich wird entweder ein kleiner fachlicher Snapshot-Reader verwendet oder der bestehende Helfer um ausdrücklich übergebene Bereichstexte erweitert. Es wird vermieden, dass ein Snapshot-Fehler fälschlich von `User administration` spricht. Cookie-Weiterleitung bleibt auf den konfigurierten API-Origin begrenzt.
 
+Die allgemeine Historie erhält `SnapshotHistoryEntry.cs` mit zugehöriger Konfiguration, einen kleinen gemeinsamen `SnapshotHistoryWriter`, die versionierten Payload-Records und bei Bedarf ein `SnapshotHistoryRepository` für paginierte Leseprojektionen. Erstellung, Worker, Moderation und Resubmit verwenden denselben Writer innerhalb ihrer vorhandenen Transaktionen. Die Historienantworten und Frontend-Formatter benennen keine reine Moderationshistorie mehr. Die letzte Moderationsentscheidung in den Detailantworten bleibt eine gezielte Projektion aus dieser allgemeinen Historie.
+
 ## 11. Umsetzung nach Genehmigung
 
-1. **Domäne und Migration:** Enum, Felder, Ereignisse, Ergebnis-Records und Rechteaufteilung anlegen; Backfill und persistente Capture-Ausgänge absichern.
+1. **Domäne und Migration:** Enum, Felder, allgemeine Snapshot-Historie mit JSONB-Inhalt, versionierte Payloads, Ergebnis-Records und Rechteaufteilung anlegen; Backfill und persistente Capture-Ausgänge absichern.
 2. **Speicherung und Sichtbarkeit:** Gemeinsame Erstellung, Worker-Abschluss und Cleanup anpassen; alle öffentlichen Lesewege auf dieselbe genehmigte Grundmenge umstellen.
 3. **Geschützte APIs:** Moderation und eigene Einreichungen mit Eigentumsschutz, optionalen Gründen, ETags, Origin-Prüfung und privaten Cache-Regeln ergänzen.
 4. **OpenAPI und Typen:** Verträge/Beispiele prüfen und Typen bei laufendem Backend neu generieren.
@@ -511,6 +593,15 @@ Die Tests konzentrieren sich auf sichtbare Sicherheits- und Workfloweigenschafte
 | Anonymer Fortschritt                                              | Status und SSE weiterhin ohne Login nutzbar; Abschluss nennt Genehmigung, private Gründe/Metadaten fehlen                       |
 | Cache und Origin                                                  | Private Antworten nicht gemeinsam cachebar; geschützte Mutationen ohne zulässigen Origin blockiert                              |
 
+Zusätzliche Abnahmekriterien für die allgemeine Historie:
+
+- Einreichung, Speicherung, Moderation, erneute Prüfung und erfolgloser Abschluss erzeugen die vorgesehenen Typ-/Versionskombinationen. Die verschiedenen Payloads überstehen Speicherung und Lesen als JSONB ohne Verlust ihrer Bedeutung.
+- Einreichung und automatische Genehmigung können in einer Transaktion zwei Einträge mit verschiedenen Sequenzen bei derselben fachlichen Revision erzeugen. Gleichzeitige Schreibvorgänge erhalten eine eindeutige Reihenfolge, auch bei identischen Zeitstempeln.
+- Schlägt das Schreiben eines Historieneintrags fehl, wird die zugehörige fachliche Datenbankänderung zurückgerollt. Wiederholungen nach unklarem Commit, Recovery, mehrfacher Abbruch und bereits bestätigte Captures erzeugen keine doppelten Abschlussereignisse.
+- Ein neuer Ereignistyp lässt sich ohne neue Historientabellenspalte und ohne Anpassung eines Datenbank-Enums ergänzen. Ältere Payload-Versionen bleiben lesbar; fehlende Pflichtschlüssel, JSON-`null`, falsche Wurzeltypen, ungültige Versionen und unzulässige bekannte Payloads werden beim Schreiben abgewiesen.
+- Eigentümerantworten enthalten nur freigegebene Typ-/Versionskombinationen und Felder; Pagination und Gesamtzahl beziehen sich auf die sichtbare Menge. Öffentliche Fortschritts- und Archivantworten geben keine Historieninhalte oder Begründungen preis.
+- Ein älteres Frontend zeigt neue Ereignisse ohne Absturz als neutralen Historieneintrag an. Es rendert weder ungeprüftes HTML noch technische JSON-Rohdaten. Bestehende Einträge werden durch spätere Payload-Erweiterungen nicht umgeschrieben.
+
 ### 12.2 Builds und integrierte Browserprüfung
 
 Nach der späteren Implementierung werden mindestens der Backend-Solution-Build sowie `bun --bun run check` und `bun --bun run build` im Frontend ausgeführt. Vorhandene Formatprüfungen werden auf den betroffenen Umfang angewendet. Neue Tests decken die obigen fachlichen Fälle ab und spiegeln nicht bloß interne Methoden nach.
@@ -529,7 +620,7 @@ Browserbefunde werden vor Abschluss behoben. In diesem reinen Planungsschritt gi
 
 ## 13. Umfang und Freigabe
 
-Der Vorschlag umfasst die Moderation, den Bestandsschutz, das neue Seitenrecht, unveränderte anonyme Fortschrittszugriffe, private eigene Einreichungen und die erneute Prüfung vorhandener abgelehnter Inhalte. Die erste Version prüft anhand von Screenshot und Metadaten. Benachrichtigungen per E-Mail, Sammelentscheidungen, Änderungen an eingereichten Inhalten, nachträglicher Entzug von Genehmigungen und Zuordnung anonymer Einreichungen zu einem späteren Konto sind eigenständige spätere Erweiterungen.
+Der Vorschlag umfasst die Moderation, eine allgemeine Snapshot-Historie mit versionierten JSONB-Inhalten, den Bestandsschutz, das neue Seitenrecht, unveränderte anonyme Fortschrittszugriffe, private eigene Einreichungen und die erneute Prüfung vorhandener abgelehnter Inhalte. Die erste Version prüft anhand von Screenshot und Metadaten. Benachrichtigungen per E-Mail, Sammelentscheidungen, Änderungen an eingereichten Inhalten, nachträglicher Entzug von Genehmigungen und Zuordnung anonymer Einreichungen zu einem späteren Konto sind eigenständige spätere Erweiterungen.
 
 Die entscheidenden Grenzen sind nachvollziehbar: Ein gespeicherter Capture ist nicht automatisch veröffentlicht; eine frei erreichbare Fortschrittsanzeige gibt keine privaten Inhalte frei; Portalrechte und Eigentümerrechte werden am Backend durchgesetzt. Alle bisherigen Einreichungen werden explizit genehmigt, neue Einreichungen haben einen sicheren Standard.
 
