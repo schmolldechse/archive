@@ -2,7 +2,7 @@
 
 Stand: 2026-10-18. Geprüfter Repository-Stand: `e4faf2c`.
 
-**Status: Technischer Vorschlag zur Genehmigung. Diese Änderung enthält ausschließlich Dokumentation. Die Implementierung beginnt erst nach ausdrücklicher Genehmigung.**
+**Status: Vorschlag genehmigt und implementiert. Die Umsetzung wartet auf die Durchsicht und ausdrückliche Commit-Freigabe des Auftraggebers. Prüfstand und lokale Vorschau sind im [Implementierungsnachweis](../reviews/snapshot-moderation.md) dokumentiert.**
 
 ## 1. Ziel und bestätigte Entscheidungen
 
@@ -149,7 +149,6 @@ Da der neue Schlüssel im geprüften Stand noch nicht existiert, sind regulär k
 | `ModerationStatus`    | Nicht-nullbares `SnapshotModerationStatus`, PostgreSQL-Enum `types.snapshot_moderation_status`           |
 | `ModerationUpdatedAt` | `timestamptz`, Zeitpunkt des letzten Moderationsübergangs; Reihenfolge der Prüfwarteliste                |
 | `Revision`            | Positiver `bigint`, Startwert 1; fachliche Zustandsrevision für konkurrierende Entscheidungen            |
-| `HistorySequence`     | `bigint`, Startwert 0; zuletzt vergebene laufende Nummer der allgemeinen Snapshot-Historie               |
 | `CaptureOutcome`      | Nullable bestehendes `ProcessingStatus`-Enum; ausschließlich dauerhaft gespeicherte terminale Ergebnisse |
 
 `SnapshotModerationStatus` wird wie `SnapshotQuality` mit expliziten `PgName`- und `JsonStringEnumMemberName`-Werten definiert. Die Zuordnung muss in `Injection.cs` **und** `DataContextFactory.cs` registriert werden; EF-Migrationsmetadaten und `DataContextModelSnapshot.cs` werden mitgeführt.
@@ -239,9 +238,9 @@ Kompatible optionale Felder können ergänzt werden. Änderungen an der Bedeutun
 
 #### Reihenfolge, Transaktionen und Wiederholungen
 
-Die Kombination `(SnapshotId, Sequence)` ist eindeutig. Die bisher vorgeschlagene Kopplung an eine eindeutige Snapshot-Revision entfällt: Eine fachliche Revision kann mehrere Historieneinträge erzeugen. `HistorySequence` am Snapshot hält die zuletzt vergebene Sequenznummer; jeder angefügte Eintrag erhöht diesen Zähler innerhalb derselben Transaktion. Die fachliche `Revision` bleibt davon unabhängig und ändert sich bei den für Konkurrenzprüfungen relevanten Zustandsänderungen.
+Die Kombination `(SnapshotId, Sequence)` ist eindeutig. `Sequence` ist die einzige Sequenzspalte und liegt am Historieneintrag. Die nächste Position ergibt sich aus `MAX(Sequence) + 1` für den jeweiligen Snapshot; ohne vorhandene Einträge beginnt sie bei 1. Bereits im Datenkontext vorgemerkte Einträge werden berücksichtigt, sodass mehrere Ereignisse gemeinsam gespeichert werden können. Die fachliche `Revision` bleibt davon unabhängig: Eine Zustandsänderung kann mehrere Historieneinträge erzeugen.
 
-Bei vorhandenen Snapshots erfolgt das Anhängen unter der bestehenden Snapshot-Zeilensperre; bei Neuerstellung existiert der Snapshot nur in der eigenen Transaktion. Ein kleiner gemeinsamer `SnapshotHistoryWriter` fügt Einträge zum bestehenden `DataContext` hinzu. Er führt keinen eigenen Commit aus und öffnet keine zweite Transaktion. Statusänderung beziehungsweise bestätigte Speicherung und zugehörige Historie werden zusammen committet. Ein Fehler beim Historieneintrag rollt den gesamten fachlichen Schreibvorgang zurück.
+Die zentrale Append-Operation `ISnapshotHistoryRepository.AppendAsync` setzt eine bestehende Transaktion voraus und sperrt bei vorhandenen Snapshots den Snapshot mit `FOR UPDATE`, bevor sie die nächste Position ermittelt. Dadurch ist auch ein Snapshot ohne bisherigen Historieneintrag gegen konkurrierende Vergaben abgesichert. Bei Neuerstellung wird der Snapshot zuerst als neu im Datenkontext registriert; seine Historie ist vor dem Commit ausschließlich in dieser Transaktion sichtbar. Die Operation führt keinen eigenen Commit aus und öffnet keine zweite Transaktion. Statusänderung beziehungsweise bestätigte Speicherung und zugehörige Historie werden zusammen committet. Ein Fehler beim Historieneintrag rollt den gesamten fachlichen Schreibvorgang zurück. Die Inhaltsmodelle definieren Ereignistyp und Schema-Version; die JSON-Konvertierung übernimmt der gemeinsame Serializer außerhalb der Repositories. Ein separater History-Writer entfällt.
 
 Bei erfolgreichem Capture wird `snapshot.stored` im selben Datenbankvorgang wie `Quality`, `ContentPrefix` und `CaptureOutcome` geschrieben, nachdem die Objektablage erfolgreich war. Die bestehende Behandlung unklarer Commits bleibt maßgeblich: Ist der Capture bereits bestätigt, darf ein Wiederholungsaufruf keinen zweiten Speicher-Eintrag erzeugen. Fehlerabschluss, direkt in der Queue erfolgter Abbruch und Recovery prüfen den aktuellen terminalen Zustand ebenfalls unter Sperre, bevor sie einen Eintrag ergänzen. Ein wiederholtes Review oder Resubmit wird wie bisher über ETag und Zustandsprüfung abgefangen. Wiederherstellung bereits abgeschlossener Ergebnisse erzeugt keine nachträglichen Duplikate.
 
@@ -265,7 +264,7 @@ Die Migration wird bei gestoppten schreibenden API-/Worker-Instanzen ausgeführt
 
 1. Neues Enum, Spalten und Historientabelle anlegen. Die Statusspalte zunächst nullable **ohne Default** anlegen, damit Altbestand explizit von neuen Datensätzen getrennt behandelt wird.
 2. Sämtliche vorhandenen Snapshots auf `APPROVED` setzen, auch zum Umstellungszeitpunkt wartende, laufende oder noch vorhandene erfolglose Einreichungen. Öffentliche Sichtbarkeit setzt trotzdem weiterhin ein gespeichertes Capture-Ergebnis voraus.
-3. Pro Bestands-Snapshot einen allgemeinen Historieneintrag mit `Sequence = 1`, `type: snapshot.moderated`, `version: 1` und `data.source: LEGACY_MIGRATION` anlegen. `data.previousStatus` ist `null`, `data.status` ist `APPROVED`, `data.reason` ist `null`. Ereigniszeitpunkt ist der Migrationszeitpunkt; ein menschlicher Prüfer wird nicht erfunden. `HistorySequence` wird auf 1 und die fachliche Revision auf 1 gesetzt. Bestehende `CreatedAt`-/Capture-Zeiten bleiben unverändert. Es werden keine historischen Einreichungs- oder Speicher-Ereignisse mit lediglich vermuteten Abläufen nachgebildet.
+3. Pro Bestands-Snapshot einen allgemeinen Historieneintrag mit `Sequence = 1`, `type: snapshot.moderated`, `version: 1` und `data.source: LEGACY_MIGRATION` anlegen. `data.previousStatus` ist `null`, `data.status` ist `APPROVED`, `data.reason` ist `null`. Ereigniszeitpunkt ist der Migrationszeitpunkt; ein menschlicher Prüfer wird nicht erfunden. Die fachliche Revision wird auf 1 gesetzt. Bestehende `CreatedAt`-/Capture-Zeiten bleiben unverändert. Es werden keine historischen Einreichungs- oder Speicher-Ereignisse mit lediglich vermuteten Abläufen nachgebildet.
 4. Für erfolgreiche Ergebnisse `CaptureOutcome = COMPLETED` setzen. Für andere noch vorhandene terminale Verarbeitungen das reale Ergebnis übernehmen. Laufende und wartende Verarbeitungen erhalten noch keinen terminalen Outcome.
 5. Status und Zeitstempel verpflichtend machen, finalen Datenbank-Default `PENDING` setzen, Revision, Historiensequenz und JSONB-Constraints absichern und Indizes erstellen.
 6. Berechtigungs-Overrides gemäß Abschnitt 4.2 migrieren und den alten Schlüssel entfernen.
@@ -534,7 +533,7 @@ Die folgende Liste beschreibt spätere Änderungen; diese Dateien werden im aktu
 
 `readAdmin()` enthält derzeit benutzerspezifische Fehlermeldungen. Für den neuen Bereich wird entweder ein kleiner fachlicher Snapshot-Reader verwendet oder der bestehende Helfer um ausdrücklich übergebene Bereichstexte erweitert. Es wird vermieden, dass ein Snapshot-Fehler fälschlich von `User administration` spricht. Cookie-Weiterleitung bleibt auf den konfigurierten API-Origin begrenzt.
 
-Die allgemeine Historie erhält `SnapshotHistoryEntry.cs` mit zugehöriger Konfiguration, einen kleinen gemeinsamen `SnapshotHistoryWriter`, die versionierten Payload-Records und bei Bedarf ein `SnapshotHistoryRepository` für paginierte Leseprojektionen. Erstellung, Worker, Moderation und Resubmit verwenden denselben Writer innerhalb ihrer vorhandenen Transaktionen. Die Historienantworten und Frontend-Formatter benennen keine reine Moderationshistorie mehr. Die letzte Moderationsentscheidung in den Detailantworten bleibt eine gezielte Projektion aus dieser allgemeinen Historie.
+Die allgemeine Historie verwendet `SnapshotHistoryEntry.cs` mit zugehöriger Konfiguration und einzelne versionierte Inhaltsmodelle unter `Models/Snapshots/History`. Die gemeinsame abstrakte Basis legt die Metadaten fest; der Serializer übernimmt das JSON-Format außerhalb der Repositories. Erstellung, Worker, Moderation und Resubmit verwenden `ISnapshotHistoryRepository.AppendAsync` innerhalb ihrer vorhandenen Transaktionen für die Sequenzvergabe und das Vormerken neuer Einträge. Die paginierten Leseprojektionen verbleiben im Submission-Repository. Die Historienantworten und Frontend-Formatter benennen keine reine Moderationshistorie mehr. Die letzte Moderationsentscheidung in den Detailantworten bleibt eine gezielte Projektion aus dieser allgemeinen Historie.
 
 ## 11. Umsetzung nach Genehmigung
 
@@ -560,7 +559,7 @@ Nach tatsächlichen Ergänzungen, Änderungen oder Entfernungen von API-Verträg
 3. Generierten Diff prüfen; neue Statuswerte, Request-/Response-Typen und entfernte Berechtigungsschlüssel in den Verbrauchern berücksichtigen.
 4. Weder `@hey-api/openapi-ts` noch dessen Konfiguration auf eine lokale Spezifikationsdatei, einen Ersatz-Fetcher oder einen anderen Zugriffsweg umstellen. Generierte Typen nicht manuell nachpflegen.
 
-Im aktuellen Dokumentationsschritt wird dieser Befehl nicht ausgeführt, weil keine API-Verträge im Anwendungscode verändert werden.
+In der ursprünglichen Dokumentationsphase wurde dieser Befehl nicht ausgeführt. Nach der anschließenden Implementierungsfreigabe wurden die Typen wie beschrieben vom laufenden Backend generiert.
 
 ## 12. Prüfplan und Abnahmekriterien
 
@@ -616,7 +615,7 @@ Für visuelle Änderungen ist der **integrierte Browser** verbindlich. Geprüft 
 - keine abgeschnittenen Aktionen, unerwünschten horizontalen Überläufe oder themenabhängig unlesbaren Zustände;
 - genehmigte öffentliche Ansicht und `404` bei direktem Aufruf ungeprüfter IDs.
 
-Browserbefunde werden vor Abschluss behoben. In diesem reinen Planungsschritt gibt es keine visuelle Implementierung zu prüfen.
+Browserbefunde werden vor Abschluss behoben. Die Prüfung der implementierten Oberflächen wird im Implementierungsnachweis festgehalten.
 
 ## 13. Umfang und Freigabe
 
@@ -624,4 +623,4 @@ Der Vorschlag umfasst die Moderation, eine allgemeine Snapshot-Historie mit vers
 
 Die entscheidenden Grenzen sind nachvollziehbar: Ein gespeicherter Capture ist nicht automatisch veröffentlicht; eine frei erreichbare Fortschrittsanzeige gibt keine privaten Inhalte frei; Portalrechte und Eigentümerrechte werden am Backend durchgesetzt. Alle bisherigen Einreichungen werden explizit genehmigt, neue Einreichungen haben einen sicheren Standard.
 
-**Freigabegegenstand ist dieser Lösungsvorschlag. Bis zur Genehmigung werden weder Anwendungscode, Datenbankschema, öffentliche Verträge noch generierte Frontend-Typen verändert.**
+**Die Implementierungsfreigabe ist erfolgt. Ein Commit der Umsetzung erfolgt erst nach der gesonderten Durchsicht und Commit-Freigabe des Auftraggebers.**
