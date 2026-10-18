@@ -6,6 +6,7 @@
 	import ThemeToggle from "./ThemeToggle.svelte";
 	import BrandMark from "./BrandMark.svelte";
 	import AccountControl from "./account/AccountControl.svelte";
+	import { scrollHomeSection } from "./section-navigation";
 
 	let menuOpen = $state(false);
 
@@ -24,8 +25,21 @@
 			class:primary-navigation--open={menuOpen}
 			aria-label="Primary navigation"
 		>
-			<a href="/#browse" aria-current={page.url.pathname === "/" ? "page" : undefined} onclick={closeMenu}>Browse</a>
-			<a href="/#about" onclick={closeMenu}>About</a>
+			<a
+				href="/"
+				aria-current={page.url.pathname === "/" ? "page" : undefined}
+				onclick={(event) => {
+					closeMenu();
+					scrollHomeSection(event, "browse");
+				}}>Browse</a
+			>
+			<a
+				href="/"
+				onclick={(event) => {
+					closeMenu();
+					scrollHomeSection(event, "about");
+				}}>About</a
+			>
 			<a
 				class="primary-navigation__archive"
 				href="/archive/new"

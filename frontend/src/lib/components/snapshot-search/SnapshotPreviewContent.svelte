@@ -8,9 +8,7 @@
 	let { snapshot, layout = "sheet" }: { snapshot: SnapshotResponse; layout?: "sheet" | "desktop" } = $props();
 	let failedImage = $state<string | null>(null);
 	const source = $derived(snapshot.sourceUrl);
-	const archivedHref = $derived(
-		`/snapshots/${snapshot.id}?from=${encodeURIComponent(page.url.pathname + page.url.search + "#snapshot-register")}`
-	);
+	const archivedHref = $derived(`/snapshots/${snapshot.id}?from=${encodeURIComponent(page.url.pathname + page.url.search)}`);
 </script>
 
 <div class="preview-content" data-component="snapshot-preview-content" data-layout={layout}>

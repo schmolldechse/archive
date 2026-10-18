@@ -23,6 +23,6 @@ export const load: PageLoad = async ({ url }) => {
 		};
 	}
 	const lastPage = Math.max(1, Math.ceil(Number(results.total) / pageSize));
-	if (state.page > lastPage) redirect(307, searchHref({ ...state, page: lastPage }, "snapshot-register"));
+	if (state.page > lastPage) redirect(307, searchHref({ ...state, page: lastPage }));
 	return { state, pageSize, errors, results, apiAvailable: true, loadError: null };
 };

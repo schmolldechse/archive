@@ -28,9 +28,9 @@
 			<div class="snapshot-error__actions">
 				{#if canRetry}
 					<Button href={retryHref} data-sveltekit-reload><RotateCcw size={18} aria-hidden="true" />Try again</Button>
-					<Button variant="text" href="/#snapshot-register">Browse snapshots<ArrowRight size={18} aria-hidden="true" /></Button>
+					<Button variant="text" href="/">Browse snapshots<ArrowRight size={18} aria-hidden="true" /></Button>
 				{:else}
-					<Button href="/#snapshot-register">Browse snapshots<ArrowRight size={18} aria-hidden="true" /></Button>
+					<Button href="/">Browse snapshots<ArrowRight size={18} aria-hidden="true" /></Button>
 				{/if}
 			</div>
 		</section>

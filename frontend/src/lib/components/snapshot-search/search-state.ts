@@ -139,7 +139,7 @@ export function apiQuery(state: SearchState): NonNullable<ListSnapshotsData["que
 		pageSize
 	};
 }
-export function searchHref(state: SearchState, anchor = ""): string {
+export function searchHref(state: SearchState): string {
 	const parameters = new URLSearchParams(),
 		query = apiQuery(state);
 	for (const key of [
@@ -158,7 +158,7 @@ export function searchHref(state: SearchState, anchor = ""): string {
 		if (Array.isArray(value)) value.forEach((tag) => parameters.append(key, tag));
 		else parameters.set(key, String(value));
 	}
-	return `/${parameters.size ? `?${parameters}` : ""}${anchor ? `#${anchor}` : ""}`;
+	return `/${parameters.size ? `?${parameters}` : ""}`;
 }
 export function readSearchState(parameters: URLSearchParams): { state: SearchState; errors: SearchErrors } {
 	const errors: SearchErrors = {};

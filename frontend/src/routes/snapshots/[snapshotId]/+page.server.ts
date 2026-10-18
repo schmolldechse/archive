@@ -20,14 +20,14 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 
 	const snapshot = (await response.json()) as SnapshotResponse;
 	if (snapshot.quality === null) redirect(303, `/archive/new?snapshot=${encodeURIComponent(snapshot.id)}`);
-	const requestedReturn = url.searchParams.get("from");
+	const requestedReturn = url.searchParams.get("from")?.split("#", 1)[0];
 	const returnHref =
 		requestedReturn?.startsWith("/") &&
 		!requestedReturn.startsWith("//") &&
 		!requestedReturn.includes("\\") &&
 		!requestedReturn.startsWith("/snapshots/")
 			? requestedReturn
-			: "/#snapshot-register";
+			: "/";
 
 	return { snapshot, returnHref };
 };
