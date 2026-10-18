@@ -1,6 +1,7 @@
 using Archive.Core.Entities.Processing;
 using Archive.Core.Mapping;
 using Archive.Core.Models.Processing;
+using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Processing;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,12 +28,12 @@ internal sealed partial class SnapshotProcessingRepository
         if (item is null) return null;
         var snapshot = await database.Snapshots.AsNoTracking().SingleAsync(s => s.Id == item.SnapshotId, token);
         if (snapshot.Quality is not null)
-            throw new ProcessingInconsistentException("A published snapshot was queued for capture.");
+            throw new ProcessingInconsistentException("A stored snapshot was queued for capture.");
         return new(SnapshotModelMapper.ToCaptureInput(snapshot, item.UploadedObjectKey), owner,
             item.StartedAt ?? throw new ProcessingInconsistentException("A claimed snapshot has no start time."));
     }
 
-    public async Task<bool> PublishAsync(Guid id, Guid owner, SnapshotPublication result, CancellationToken token = default)
+    public async Task<bool> CompleteCaptureAsync(Guid id, Guid owner, SnapshotCaptureResult result, CancellationToken token = default)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(token);
         var (snapshot, processing) = await LockAsync(database, id, token);
@@ -47,6 +48,9 @@ internal sealed partial class SnapshotProcessingRepository
         snapshot.ResourceCount = result.ResourceCount;
         snapshot.CaptureStartedAt = processing.StartedAt;
         snapshot.CaptureCompletedAt = now;
+        await history.AppendAsync(snapshot,
+            new SnapshotStoredData(snapshot.Quality, snapshot.DurationMilliseconds,
+                snapshot.StorageBytes, snapshot.ResourceCount), cancellationToken: token);
         SetTerminal(processing, ProcessingStatus.Completed, now);
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
@@ -61,20 +65,23 @@ internal sealed partial class SnapshotProcessingRepository
         await using var transaction = await database.Database.BeginTransactionAsync(token);
         var (snapshot, processing) = await LockAsync(database, id, token);
         // Re-read publication after an ambiguous commit before allowing any result-object cleanup.
-        if (snapshot?.Quality is not null) return ProcessingCompletion.Published;
-        if (snapshot is null) return ProcessingCompletion.Unpublished;
+        if (snapshot?.Quality is not null) return ProcessingCompletion.Stored;
+        if (snapshot is null) return ProcessingCompletion.NotStored;
         if (processing is null) throw new ProcessingInconsistentException("Snapshot processing is missing.");
         if (processing.Status == ProcessingStatus.Completed)
-            throw new ProcessingInconsistentException("Completed processing has no published result.");
+            throw new ProcessingInconsistentException("Completed processing has no stored result.");
         if (processing.Status is not (ProcessingStatus.Running or ProcessingStatus.Queued))
-            return ProcessingCompletion.Unpublished;
+            return ProcessingCompletion.NotStored;
         if (processing.Status != ProcessingStatus.Running || processing.OwnerToken != owner)
             return ProcessingCompletion.OwnershipLost;
         if (processing.CancelRequested) status = ProcessingStatus.Cancelled;
         SetTerminal(processing, status, await TimestampAsync(database, token));
+        snapshot.CaptureStartedAt = processing.StartedAt;
+        snapshot.CaptureCompletedAt = processing.CompletedAt;
+        await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(), cancellationToken: token);
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
-        return ProcessingCompletion.Unpublished;
+        return ProcessingCompletion.NotStored;
     }
 
     public async Task<IReadOnlyList<string>> RecoverInterruptedAsync(CancellationToken token = default)
@@ -90,6 +97,13 @@ internal sealed partial class SnapshotProcessingRepository
             var status = snapshot.Quality is not null ? ProcessingStatus.Completed
                 : processing.CancelRequested ? ProcessingStatus.Cancelled : ProcessingStatus.Aborted;
             SetTerminal(processing, status, await TimestampAsync(database, token));
+            snapshot.CaptureStartedAt = processing.StartedAt;
+            snapshot.CaptureCompletedAt = processing.CompletedAt;
+            SnapshotHistoryData historyData = status == ProcessingStatus.Completed
+                ? new SnapshotStoredData(snapshot.Quality, snapshot.DurationMilliseconds,
+                    snapshot.StorageBytes, snapshot.ResourceCount)
+                : new SnapshotProcessingFinishedData();
+            await history.AppendAsync(snapshot, historyData, cancellationToken: token);
             await database.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
             if (processing.UploadedObjectKey is { } upload) uploads.Add(upload);

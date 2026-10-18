@@ -5,19 +5,24 @@ using Archive.Core.Storage;
 using Archive.Core.Uploads;
 using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
+using Archive.Core.Repositories.SnapshotHistoryRepository;
 
 namespace Archive.Core.Repositories.SnapshotRepository;
 
-internal sealed partial class SnapshotRepository(DataContext database, IArchiveObjectStore objectStore,
-    UploadFormatSelector uploadFormatSelector, ArchiveOptions options) : ISnapshotRepository
+internal sealed partial class SnapshotRepository(
+    DataContext database, 
+    IArchiveObjectStore objectStore,
+    UploadFormatSelector uploadFormatSelector, 
+    ArchiveOptions options, 
+    ISnapshotHistoryRepository history) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
     {
         return await database.Snapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Id == snapshotId)
-            .Where(snapshot => snapshot.Quality != null || !database.SnapshotProcessing.Any(processing =>
-                processing.SnapshotId == snapshot.Id && processing.ExpiresAt <= DateTimeOffset.UtcNow))
+            .Where(snapshot => snapshot.Id == snapshotId
+                && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && snapshot.Quality != null)
             .ProjectToDetails()
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -26,7 +31,9 @@ internal sealed partial class SnapshotRepository(DataContext database, IArchiveO
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Id == snapshotId && snapshot.Quality != null)
+            .Where(snapshot => snapshot.Id == snapshotId
+                && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && snapshot.Quality != null)
             .Select(snapshot => new { snapshot.ContentPrefix, snapshot.SourceType })
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot is null) return new SnapshotContentResult.NotFound();
@@ -45,7 +52,9 @@ internal sealed partial class SnapshotRepository(DataContext database, IArchiveO
     {
         var prefix = await database.Snapshots
             .AsNoTracking()
-            .Where(snapshot => snapshot.Id == snapshotId && snapshot.Quality != null)
+            .Where(snapshot => snapshot.Id == snapshotId
+                && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && snapshot.Quality != null)
             .Select(snapshot => snapshot.ContentPrefix)
             .SingleOrDefaultAsync(cancellationToken);
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", cancellationToken);

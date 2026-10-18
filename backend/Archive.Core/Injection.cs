@@ -8,6 +8,8 @@ using Archive.Core.Repositories.ProfileImageRepository;
 using Archive.Core.Repositories.SnapshotProcessingRepository;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.UserRepository;
+using Archive.Core.Repositories.SnapshotSubmissionRepository;
+using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Storage;
 using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +75,7 @@ public static class Injection
 
                 options.MapEnum<SourceType>("source_type", "types");
                 options.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+                options.MapEnum<SnapshotModerationStatus>("snapshot_moderation_status", "types");
 
                 options.MapEnum<ProcessingStatus>("processing_status", "types");
                 options.MapEnum<ProgressStep>("progress_step", "types");
@@ -90,6 +93,8 @@ public static class Injection
             .AddScoped<IUserRepository, UserRepository>()
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
             .AddScoped<ISnapshotProcessingRepository, SnapshotProcessingRepository>()
+            .AddScoped<ISnapshotSubmissionRepository, SnapshotSubmissionRepository>()
+            .AddScoped<ISnapshotHistoryRepository, SnapshotHistoryRepository>()
             .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;
     }

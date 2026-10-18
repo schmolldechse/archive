@@ -1,3 +1,4 @@
+using Archive.Core.Entities;
 using Archive.Core.Jobs;
 using Archive.Core.Mapping;
 using Archive.Core.Models;
@@ -26,7 +27,9 @@ internal sealed partial class SnapshotRepository
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var published = database.Snapshots.AsNoTracking().Where(snapshot => snapshot.Quality != null);
+        var published = database.Snapshots.AsNoTracking()
+            .Where(snapshot => snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && snapshot.Quality != null);
         var query = published;
         foreach (var term in textTerms)
         {

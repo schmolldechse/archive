@@ -1,10 +1,10 @@
 using Archive.Core.Entities;
+using Archive.Core.Authorization;
+using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Entities.Processing;
 using Archive.Core.Jobs;
 using Archive.Core.Models;
 using Archive.Core.Models.Snapshots;
-using Archive.Core.Options;
-using Archive.Core.Storage;
 using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
 
@@ -53,16 +53,8 @@ internal sealed partial class SnapshotRepository
         }
 
         var description = request.Description?.Trim();
-        var creatorId = request.CreatedByUserId is { } userId
-            ? await database.Users
-                .Where(user => user.Id == userId && user.RegistrationCompletedAt != null)
-                .Select(user => (Guid?)user.Id)
-                .SingleOrDefaultAsync(cancellationToken)
-            : null;
-
         var snapshot = new Snapshot
         {
-            CreatedByUserId = creatorId,
             SourceType = format?.SourceType ?? SourceType.Url,
             OriginUrl = originUrl,
             Title = title,
@@ -79,17 +71,38 @@ internal sealed partial class SnapshotRepository
             }
 
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+
+            // Coordinate with access-management writes before reading permission overrides.
+            var creator = request.CreatedByUserId is { } userId
+                ? await database.Users
+                    .FromSqlInterpolated($"SELECT * FROM authentication.users WHERE id = {userId} FOR SHARE")
+                    .Include(user => user.PermissionOverrides)
+                    .SingleOrDefaultAsync(cancellationToken)
+                : null;
+            if (request.CreatedByUserId is not null && creator is null)
+                throw new MissingCreatorException();
+
+            snapshot.CreatedByUserId = creator?.Id;
+            snapshot.ModerationStatus = PermissionEvaluator.IsAllowed(creator, ArchivePermissions.PublishSnapshotsWithoutApproval)
+                ? SnapshotModerationStatus.Approved
+                : SnapshotModerationStatus.Pending;
+
+            database.Snapshots.Add(snapshot);
+            await history.AppendAsync(snapshot, new SnapshotSubmittedData(), actorUserId: creator?.Id, cancellationToken: cancellationToken);
+
             foreach (var value in tags.Distinct(StringComparer.Ordinal))
             {
                 await database.Database.ExecuteSqlInterpolatedAsync($"""
                     INSERT INTO archive.tags (id, value) VALUES ({Guid.NewGuid()}, {value})
                     ON CONFLICT (value) DO NOTHING
                     """, cancellationToken);
-                var tagId = await database.Tags.Where(tag => tag.Value == value)
-                    .Select(tag => tag.Id).SingleAsync(cancellationToken);
+                var tagId = await database.Tags
+                    .Where(tag => tag.Value == value)
+                    .Select(tag => tag.Id)
+                    .SingleAsync(cancellationToken);
                 snapshot.SnapshotTags.Add(new SnapshotTag { Snapshot = snapshot, TagId = tagId });
             }
-            database.Snapshots.Add(snapshot);
+
             database.SnapshotProcessing.Add(new SnapshotProcessing
             {
                 Snapshot = snapshot,
@@ -99,10 +112,15 @@ internal sealed partial class SnapshotRepository
                 ProgressStep = ProgressStep.SourceCheck,
                 UploadedObjectKey = uploadedKey
             });
+
+            if (snapshot.ModerationStatus == SnapshotModerationStatus.Approved)
+                await history.AppendAsync(snapshot, new SnapshotModeratedData(null, snapshot.ModerationStatus, null), cancellationToken: cancellationToken);
+            
+            // Per-snapshot positions include pending entries, so both events are saved atomically.
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch
+        catch (Exception exception)
         {
             if (uploadedKey is not null)
             {
@@ -114,9 +132,14 @@ internal sealed partial class SnapshotRepository
                 }
                 catch { /* A later reconciliation can remove an orphan; never break a committed submission. */ }
             }
+            if (exception is MissingCreatorException) return new SnapshotCreationResult.AccountUnavailable();
             throw;
         }
-        return new SnapshotCreationResult.Created(snapshot.Id);
+        return new SnapshotCreationResult.Created(snapshot.Id, snapshot.ModerationStatus);
     }
+
+    // Routes missing creators through transaction disposal and upload cleanup before returning AccountUnavailable.
+    // Returning directly from the creation block would skip cleanup of an already uploaded source file.
+    private sealed class MissingCreatorException : Exception;
 }
 

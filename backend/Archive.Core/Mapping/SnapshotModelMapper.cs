@@ -15,7 +15,7 @@ internal static partial class SnapshotModelMapper
     [MapProperty(nameof(Snapshot.SnapshotTags), nameof(SnapshotDetails.Tags), Use = nameof(MapTags))]
     [MapProperty(nameof(Snapshot.CreatedBy), nameof(SnapshotDetails.CreatedBy), Use = nameof(MapCreator))]
     [MapProperty(nameof(Snapshot.OriginUrl), nameof(SnapshotDetails.SourceUrl))]
-    private static partial SnapshotDetails MapDetails(Snapshot snapshot);
+    internal static partial SnapshotDetails MapDetails(Snapshot snapshot);
 
     internal static partial CaptureInput ToCaptureInput(Snapshot snapshot, string? uploadedObjectKey);
 

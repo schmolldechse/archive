@@ -2,16 +2,22 @@ using Archive.Core.Entities;
 using Archive.Core.Entities.Processing;
 using Archive.Core.Mapping;
 using Archive.Core.Models.Processing;
+using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Options;
 using Archive.Core.Processing;
+using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Archive.Core.Repositories.SnapshotProcessingRepository;
 
-internal sealed partial class SnapshotProcessingRepository(DataContext database, ProcessingOptions options,
-    IArchiveObjectStore objectStore, ILogger<SnapshotProcessingRepository> logger) : ISnapshotProcessingRepository
+internal sealed partial class SnapshotProcessingRepository(
+    DataContext database,
+    ProcessingOptions options,
+    IArchiveObjectStore objectStore,
+    ILogger<SnapshotProcessingRepository> logger,
+    ISnapshotHistoryRepository history) : ISnapshotProcessingRepository
 {
     public async Task<SnapshotProcessingState?> GetByIdAsync(Guid id, CancellationToken token = default)
     {
@@ -23,8 +29,7 @@ internal sealed partial class SnapshotProcessingRepository(DataContext database,
                          where snapshot.Id == id
                          select new
                          {
-                             Published = snapshot.Quality != null,
-                             snapshot.CaptureStartedAt,
+                             Snapshot = snapshot,
                              Processing = processing,
                              Expired = processing != null && processing.ExpiresAt <= DateTimeOffset.UtcNow,
                              Position = processing != null && processing.Status == ProcessingStatus.Queued
@@ -33,10 +38,11 @@ internal sealed partial class SnapshotProcessingRepository(DataContext database,
                                  : null
                          }).SingleOrDefaultAsync(token);
         if (row is null) return null;
-        if (row.Published) return Completed(id, row.CaptureStartedAt);
-        if (row.Processing is null || row.Processing.Status == ProcessingStatus.Completed)
-            throw new ProcessingInconsistentException("An unpublished snapshot has no valid processing record.");
-        return row.Expired ? null : ToState(row.Processing, row.Position);
+        if (row.Snapshot.Quality is not null) return Completed(row.Snapshot);
+        if (row.Processing?.Status == ProcessingStatus.Completed)
+            throw new ProcessingInconsistentException("Completed processing has no stored capture.");
+        if (row.Processing is null || row.Expired) return null;
+        return ToState(row.Processing, row.Snapshot, row.Position);
     }
 
     public async Task<ProcessingCancellation> CancelAsync(Guid id, CancellationToken token = default)
@@ -48,19 +54,24 @@ internal sealed partial class SnapshotProcessingRepository(DataContext database,
             var (snapshot, processing) = await LockAsync(database, id, token);
             if (snapshot is null) return new(CancellationOutcome.Missing, null);
             if (snapshot.Quality is not null)
-                return new(CancellationOutcome.NotCancellable, Completed(id, snapshot.CaptureStartedAt));
-            if (processing is null) throw new ProcessingInconsistentException("Snapshot processing is missing.");
+                return new(CancellationOutcome.NotCancellable, Completed(snapshot));
+            if (processing is null) return new(CancellationOutcome.Missing, null);
             var now = await TimestampAsync(database, token);
             if (processing.ExpiresAt <= now) return new(CancellationOutcome.Missing, null);
             if (processing.Status == ProcessingStatus.Queued)
+            {
                 SetTerminal(processing, ProcessingStatus.Cancelled, now);
+                snapshot.CaptureStartedAt = processing.StartedAt;
+                snapshot.CaptureCompletedAt = now;
+                await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(), cancellationToken: token);
+            }
             else if (processing.Status == ProcessingStatus.Running)
                 processing.CancelRequested = true;
             else if (processing.Status != ProcessingStatus.Cancelled)
-                return new(CancellationOutcome.NotCancellable, ToState(processing));
+                return new(CancellationOutcome.NotCancellable, ToState(processing, snapshot));
             await database.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
-            state = ToState(processing);
+            state = ToState(processing, snapshot);
             upload = processing.Status == ProcessingStatus.Cancelled ? processing.UploadedObjectKey : null;
         }
         await DeleteUploadAsync(upload, token);
@@ -98,12 +109,15 @@ internal sealed partial class SnapshotProcessingRepository(DataContext database,
         processing.ExpiresAt ??= now.AddSeconds(options.TerminalRetentionSeconds);
     }
 
-    private static SnapshotProcessingState ToState(SnapshotProcessing item, int? position = null) =>
+    private static SnapshotProcessingState ToState(SnapshotProcessing item, Snapshot snapshot, int? position = null) =>
         SnapshotProcessingModelMapper.ToState(item, position,
-            item.Status is ProcessingStatus.Queued or ProcessingStatus.Running && !item.CancelRequested);
+            item.Status is ProcessingStatus.Queued or ProcessingStatus.Running && !item.CancelRequested,
+            snapshot.ModerationStatus,
+            snapshot.Quality is not null && snapshot.ModerationStatus == SnapshotModerationStatus.Approved);
 
-    private static SnapshotProcessingState Completed(Guid id, DateTimeOffset? started) =>
-        new(id, ProcessingStatus.Completed, ProgressStep.Finished, null, false, false, started);
+    private static SnapshotProcessingState Completed(Snapshot snapshot) =>
+        new(snapshot.Id, ProcessingStatus.Completed, ProgressStep.Finished, null, false, false,
+            snapshot.CaptureStartedAt, snapshot.ModerationStatus, snapshot.ModerationStatus == SnapshotModerationStatus.Approved);
 
     // Every operation locking both tables follows this order, including recovery and cleanup.
     private static async Task<(Snapshot? Snapshot, SnapshotProcessing? Processing)> LockAsync(

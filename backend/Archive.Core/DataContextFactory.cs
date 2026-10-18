@@ -19,6 +19,7 @@ public sealed class DataContextFactory : IDesignTimeDbContextFactory<DataContext
 
                 npgsql.MapEnum<SourceType>("source_type", "types");
                 npgsql.MapEnum<SnapshotQuality>("snapshot_quality", "types");
+                npgsql.MapEnum<SnapshotModerationStatus>("snapshot_moderation_status", "types");
 
                 npgsql.MapEnum<ProcessingStatus>("processing_status", "types");
                 npgsql.MapEnum<ProgressStep>("progress_step", "types");

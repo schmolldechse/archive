@@ -8,6 +8,7 @@ namespace Archive.Core.Entities;
 
 [Table("snapshots", Schema = "archive")]
 [Index(nameof(CreatedAt))]
+[Index(nameof(CreatedByUserId), nameof(CreatedAt), nameof(Id))]
 public sealed class Snapshot
 {
     [Key]
@@ -62,6 +63,9 @@ public sealed class Snapshot
     [MaxLength(512)]
     [Column("content_prefix")]
     public string? ContentPrefix { get; set; }
+
+    [Column("moderation_status")]
+    public SnapshotModerationStatus ModerationStatus { get; set; } = SnapshotModerationStatus.Pending;
 
     [InverseProperty(nameof(SnapshotTag.Snapshot))]
     public List<SnapshotTag> SnapshotTags { get; set; } = [];

@@ -24,9 +24,9 @@ public static class PermissionCatalog
             "Open the Users section and view user profiles, roles, and individual permission settings. Changing access requires the corresponding management permission.",
             [ArchiveRole.Admin]),
         new(
-            ArchivePermissions.ReviewSnapshots,
-            "Review snapshots",
-            "View submitted snapshots, their previews, and review history. Approve submissions for public access or reject them with an optional reason.",
+            ArchivePermissions.AccessAdminSnapshots,
+            "Access snapshot moderation",
+            "View submissions, previews, and snapshot history. Approve or reject snapshots with an optional reason. Requires access to the admin portal.",
             [ArchiveRole.Admin]),
         new(
             ArchivePermissions.PublishSnapshotsWithoutApproval,

@@ -23,7 +23,8 @@ internal sealed partial class SnapshotProcessingRepository
                     || processing.ExpiresAt > await TimestampAsync(database, token)
                     || processing.Status is ProcessingStatus.Queued or ProcessingStatus.Running) continue;
                 upload = processing.UploadedObjectKey;
-                if (snapshot.Quality is not null) database.SnapshotProcessing.Remove(processing);
+                if (snapshot.Quality is not null || snapshot.CreatedByUserId is not null)
+                    database.SnapshotProcessing.Remove(processing);
                 else database.Snapshots.Remove(snapshot);
                 await database.SaveChangesAsync(token);
                 await transaction.CommitAsync(token);

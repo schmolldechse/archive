@@ -11,6 +11,7 @@ public sealed class DataContext(DbContextOptions<DataContext> options) : DbConte
     public DbSet<SnapshotProcessing> SnapshotProcessing => Set<SnapshotProcessing>();
 
     public DbSet<Snapshot> Snapshots => Set<Snapshot>();
+    public DbSet<SnapshotHistoryEntry> SnapshotHistory => Set<SnapshotHistoryEntry>();
     public DbSet<SnapshotTag> SnapshotTags => Set<SnapshotTag>();
 
     public DbSet<Tag> Tags => Set<Tag>();

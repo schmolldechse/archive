@@ -12,7 +12,7 @@ public static class ArchivePermissions
     public const string AccessAdminUsers = "admin.users.access";
 
     /// <summary>Allows reading, approving, and rejecting submitted snapshots.</summary>
-    public const string ReviewSnapshots = "snapshots.review";
+    public const string AccessAdminSnapshots = "admin.snapshots.access";
 
     /// <summary>Allows publishing the user's own submissions without manual approval.</summary>
     public const string PublishSnapshotsWithoutApproval = "snapshots.publish_without_approval";

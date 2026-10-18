@@ -24,7 +24,8 @@ public sealed record SnapshotUpload(string FileName, long Length, Func<Stream> O
 public abstract record SnapshotCreationResult
 {
     private SnapshotCreationResult() { }
-    public sealed record Created(Guid Id) : SnapshotCreationResult;
+    public sealed record Created(Guid Id, Entities.SnapshotModerationStatus ModerationStatus) : SnapshotCreationResult;
     public sealed record Invalid(IReadOnlyList<FieldValidationError> Errors) : SnapshotCreationResult;
     public sealed record UploadTooLarge : SnapshotCreationResult;
+    public sealed record AccountUnavailable : SnapshotCreationResult;
 }
