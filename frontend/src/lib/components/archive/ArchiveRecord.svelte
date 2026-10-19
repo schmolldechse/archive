@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
+	import Check from "@lucide/svelte/icons/check";
 	import Image from "@lucide/svelte/icons/image";
 	import type { SnapshotResponse } from "$api";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
@@ -21,6 +22,10 @@
 
 	const source = $derived(snapshot.sourceUrl);
 	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
+	const previewIsOpen = $derived(previewExpanded ?? selected);
+	const sourceTypeLabel = $derived(
+		{ URL: "Direct URL", HTML: "HTML", MHTML: "MHTML", WEBARCHIVE: "Web archive" }[snapshot.sourceType]
+	);
 	let failedScreenshot = $state<string | null>(null);
 	const screenshot = $derived(snapshot.screenshotUrl !== failedScreenshot ? snapshot.screenshotUrl : null);
 
@@ -30,18 +35,12 @@
 </script>
 
 <article class="archive-record" data-component="archive-record" data-state={selected ? "selected" : "idle"}>
-	<div class="archive-record__provenance">
-		<ArchiveCaptureTime value={snapshot.createdAt} layout="compact" />
-		<ArchiveAttribution creator={snapshot.createdBy} layout="compact" />
-	</div>
-
 	<div class="archive-record__main">
-		<div class="archive-record__title">
-			<h3>{snapshot.title}</h3>
-			<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact">
-				{qualityLabel}
-			</Badge>
+		<div class="archive-record__register">
+			<ArchiveCaptureTime value={snapshot.createdAt} layout="compact" />
 		</div>
+
+		<h3>{snapshot.title}</h3>
 
 		{#if source}
 			<div class="archive-record__source">
@@ -50,16 +49,25 @@
 			</div>
 		{/if}
 
+		<div class="archive-record__condition">
+			<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact">
+				{qualityLabel}
+			</Badge>
+			<span class="archive-record__source-type">{sourceTypeLabel} capture</span>
+		</div>
+
 		{#if snapshot.description}
 			<p class="archive-record__description">{snapshot.description}</p>
 		{/if}
+
 		<SnapshotTagList tags={snapshot.tags} />
 	</div>
 
 	<button
 		type="button"
 		class="archive-record__preview"
-		aria-label={`Inspect ${snapshot.title}`}
+		data-state={previewIsOpen ? "selected" : "idle"}
+		aria-label={`Preview archived page: ${snapshot.title}`}
 		aria-haspopup="dialog"
 		aria-controls={previewExpanded ? "snapshot-preview" : undefined}
 		aria-expanded={previewExpanded ?? selected}
@@ -78,18 +86,28 @@
 		{:else}
 			<span class="archive-record__preview-empty"><Image aria-hidden="true" />Preview unavailable</span>
 		{/if}
-		<span class="archive-record__preview-action">Inspect capture <ArrowRight aria-hidden="true" /></span>
+		<span class="archive-record__preview-action">
+			<span>{previewIsOpen ? "Preview open" : "Preview capture"}</span>
+			{#if previewIsOpen}<Check aria-hidden="true" />{:else}<ArrowRight aria-hidden="true" />{/if}
+		</span>
 	</button>
 
 	<footer class="archive-record__footer">
+		<div class="archive-record__attribution">
+			{#if snapshot.createdBy}
+				<ArchiveAttribution creator={snapshot.createdBy} layout="compact" label={null} />
+			{:else}
+				<p>Submitted anonymously</p>
+			{/if}
+		</div>
 		<dl class="archive-record__meta">
 			<div>
 				<dt>Resources</dt>
-				<dd>{String(snapshot.resourceCount).padStart(3, "0")}</dd>
+				<dd>{snapshot.resourceCount === null ? "—" : String(snapshot.resourceCount).padStart(3, "0")}</dd>
 			</div>
 			<div>
-				<dt>Size</dt>
-				<dd>{formatBytes(Number(snapshot.storageBytes))}</dd>
+				<dt>Stored</dt>
+				<dd>{snapshot.storageBytes === null ? "—" : formatBytes(Number(snapshot.storageBytes))}</dd>
 			</div>
 		</dl>
 	</footer>
@@ -99,62 +117,72 @@
 	.archive-record {
 		position: relative;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 13rem;
+		grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.38fr);
 		grid-template-areas:
-			"provenance preview"
 			"main preview"
 			"footer footer";
-		column-gap: 2.5rem;
+		column-gap: clamp(1.5rem, 4vw, 3.5rem);
 		border-block: 1px solid var(--border-trace);
-		padding: 1rem 1rem 1.5rem;
+		padding: 1.5rem 1rem 1.125rem;
 		transition: background-color 150ms ease;
 	}
 
-	.archive-record:hover,
-	.archive-record[data-state="selected"] {
-		background: color-mix(in srgb, var(--archive-layer) 55%, transparent);
+	.archive-record:hover {
+		background: color-mix(in srgb, var(--archive-layer) 35%, transparent);
 	}
-	.archive-record__provenance {
-		grid-area: provenance;
-		display: grid;
-		grid-template-columns: minmax(10rem, auto) minmax(12rem, 1fr);
-		gap: 2rem;
-		min-width: 0;
+
+	.archive-record[data-state="selected"] {
+		background: color-mix(in srgb, var(--register-mark) 5%, transparent);
 	}
 
 	.archive-record__main {
 		grid-area: main;
 		min-width: 0;
-		padding-top: 1.5rem;
 	}
 
-	.archive-record__main h3 {
-		overflow-wrap: anywhere;
-		margin: 0;
-		font-family: var(--font-editorial);
-		font-size: clamp(1.35rem, 2.5vw, 1.75rem);
-		font-weight: 500;
-		line-height: 1.18;
-	}
-
-	.archive-record__title {
+	.archive-record__register {
 		display: flex;
+		min-width: 0;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 1rem;
+		margin-bottom: 1rem;
 	}
 
-	.archive-record__title :global(.badge) {
-		flex: none;
-		margin-top: 0.1875rem;
+	.archive-record__condition {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 0.5rem 0.75rem;
+		margin-top: 0.75rem;
+	}
+
+	.archive-record__source-type {
+		color: var(--marginal-note);
+		font-family: var(--font-record);
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.4;
+	}
+
+	.archive-record__main h3 {
+		max-width: 34ch;
+		overflow-wrap: anywhere;
+		margin: 0;
+		font-family: var(--font-editorial);
+		font-size: clamp(1.5rem, 2.8vw, 2.125rem);
+		font-weight: 500;
+		letter-spacing: -0.015em;
+		line-height: 1.12;
 	}
 
 	.archive-record__source {
 		display: flex;
 		min-width: 0;
 		align-items: center;
-		gap: 0.25rem;
-		margin-top: 0.5rem;
+		gap: 0.375rem;
+		margin-top: 0.75rem;
 	}
 
 	.archive-record__url {
@@ -173,8 +201,8 @@
 	}
 
 	.archive-record__description {
-		max-width: 45rem;
-		margin: 0.875rem 0 0;
+		max-width: 52rem;
+		margin: 1rem 0 0;
 		color: var(--marginal-note);
 		font-size: 0.9375rem;
 		line-height: 1.55;
@@ -183,76 +211,108 @@
 	.archive-record__preview {
 		grid-area: preview;
 		position: relative;
-		align-self: start;
+		display: flex;
 		min-width: 0;
-		margin-top: 1rem;
+		flex-direction: column;
+		align-self: start;
+		margin: 0;
 		border: 1px solid var(--border-trace);
 		border-radius: var(--radius-control);
 		padding: 0;
-		aspect-ratio: 16 / 10;
 		overflow: hidden;
 		background: var(--archive-layer);
 		color: var(--reading-ink);
+		text-align: left;
 		cursor: pointer;
+		transition:
+			border-color 150ms ease,
+			background-color 150ms ease;
 	}
-	.archive-record__preview:hover {
-		border-color: var(--reading-ink);
+
+	.archive-record__preview:hover,
+	.archive-record__preview[data-state="selected"] {
+		border-color: var(--register-mark);
 	}
+
+	.archive-record__preview:focus-visible {
+		outline: 3px solid var(--register-mark);
+		outline-offset: 3px;
+	}
+
 	.archive-record__preview img {
 		display: block;
 		width: 100%;
-		height: 100%;
+		aspect-ratio: 16 / 10;
 		object-fit: cover;
 		object-position: top;
 	}
+
 	.archive-record__preview-empty {
 		display: grid;
+		min-height: 9rem;
 		place-items: center;
 		align-content: center;
 		gap: 0.5rem;
-		height: 100%;
 		color: var(--marginal-note);
-		font-size: 0.75rem;
+		font-size: 0.8125rem;
 	}
+
 	.archive-record__preview-empty :global(svg) {
 		width: 1.5rem;
 		height: 1.5rem;
 		stroke-width: 1.5;
 	}
+
 	.archive-record__preview-action {
-		position: absolute;
-		inset-inline: 0;
-		bottom: 0;
 		display: flex;
+		min-height: 2.75rem;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.5rem;
-		padding: 0.5rem 0.625rem;
+		gap: 0.75rem;
 		border-top: 1px solid var(--border-trace);
-		background: var(--reading-room);
-		font-family: var(--font-interface);
-		font-size: 0.75rem;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.875rem;
 		font-weight: 600;
 	}
+
 	.archive-record__preview-action :global(svg) {
 		width: 1rem;
 		height: 1rem;
+		flex: none;
 	}
+
 	.archive-record__footer {
 		grid-area: footer;
 		display: flex;
+		min-width: 0;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1.5rem;
+		flex-wrap: wrap;
+		gap: 0.75rem 1.5rem;
 		margin-top: 1.5rem;
-		border-top: 1px solid color-mix(in srgb, var(--border-trace) 55%, transparent);
-		padding-top: 1rem;
+		border-top: 1px solid color-mix(in srgb, var(--border-trace) 65%, transparent);
+		padding-top: 0.875rem;
+	}
+
+	.archive-record__attribution {
+		min-width: 0;
+		color: var(--marginal-note);
+		font-size: 0.8125rem;
+		line-height: 1.4;
+	}
+
+	.archive-record__attribution p {
+		margin: 0;
+	}
+
+	.archive-record__attribution :global(.archive-attribution__identity) {
+		min-height: 2rem;
 	}
 
 	.archive-record__meta {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 1rem 2rem;
+		gap: 0.75rem 1.5rem;
 		margin: 0;
 	}
 
@@ -278,60 +338,50 @@
 		text-align: left;
 	}
 
-	@media (max-width: 56rem) {
-		.archive-record {
-			grid-template-columns: minmax(0, 1fr) 11rem;
-			column-gap: 1.5rem;
-		}
-	}
-
 	@media (max-width: 48rem) {
 		.archive-record {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 			grid-template-areas:
-				"preview"
-				"provenance"
 				"main"
+				"preview"
 				"footer";
-			padding: 0 0 1.5rem;
+			row-gap: 1.25rem;
+			padding: 1.25rem 0 1rem;
 		}
-		.archive-record__provenance {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: 1rem;
-			padding-inline: 1rem;
-		}
+
 		.archive-record__main,
 		.archive-record__footer {
 			margin-inline: 1rem;
 		}
+
 		.archive-record__preview {
-			margin: 0;
-			border-inline: 0;
-			border-radius: 0;
-			aspect-ratio: 2 / 1;
+			margin-inline: 1rem;
+		}
+
+		.archive-record__preview img {
+			aspect-ratio: 16 / 9;
+			object-fit: cover;
+		}
+
+		.archive-record__footer {
+			margin-top: 0;
 		}
 	}
 
 	@media (max-width: 34rem) {
-		.archive-record__provenance {
-			grid-template-columns: 1fr;
+		.archive-record__main h3 {
+			font-size: clamp(1.5rem, 7vw, 1.875rem);
 		}
+
 		.archive-record__footer {
-			align-items: stretch;
-			flex-direction: column;
-		}
-		.archive-record__meta {
-			justify-content: space-between;
-		}
-		.archive-record__title {
 			align-items: flex-start;
 			flex-direction: column;
-			gap: 0.75rem;
 		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.archive-record {
+		.archive-record,
+		.archive-record__preview {
 			transition: none;
 		}
 	}
