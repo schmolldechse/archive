@@ -20,7 +20,7 @@ public sealed class SnapshotHistoryItemResponse
     public required DateTimeOffset CreatedAt { get; init; }
 
     [JsonPropertyName("actor")]
-    [Description("Public information about the acting account. Null for system events and owner-visible history.")]
+    [Description("Public information about the acting registered account. Null for system events or unavailable profiles.")]
     public required PublicUserResponse? Actor { get; init; }
 
     [JsonPropertyName("content")]

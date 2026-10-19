@@ -157,7 +157,9 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 entry.Sequence,
                 entry.CreatedAt,
                 entry.Content,
-                Actor = ownerId == null && entry.Actor != null && entry.Actor.Handle != null && entry.Actor.DisplayName != null
+                // Both owner and moderator history show attribution for completed public profiles.
+                Actor = entry.Actor != null && entry.Actor.RegistrationCompletedAt != null &&
+                    entry.Actor.Handle != null && entry.Actor.DisplayName != null
                     ? new PublicUser(entry.Actor.Handle, entry.Actor.DisplayName,
                         entry.Actor.ProfileImage != null && entry.Actor.ProfileImage.Length > 0, entry.Actor.Role)
                     : null
