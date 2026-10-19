@@ -3,6 +3,7 @@
 	import { invalidate } from "$app/navigation";
 	import {
 		SnapshotModerationStatus as Status,
+		type ReviewSnapshotRequest,
 		type SnapshotSubmissionDetailResponse,
 		type SnapshotHistoryResponse
 	} from "$api";
@@ -12,9 +13,12 @@
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Check from "@lucide/svelte/icons/check";
+	import X from "@lucide/svelte/icons/x";
 	import Button from "$lib/components/ui/Button.svelte";
+	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
+	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
@@ -31,6 +35,9 @@
 	let detail = $state.raw(untrack(() => data.detail));
 	let etag = $state(untrack(() => data.etag));
 	let saving = $state(false);
+	let reviewing = $state(false);
+	let reviewDecision = $state<typeof Status.APPROVED | typeof Status.REJECTED | null>(null);
+	let reviewReason = $state("");
 	let reloading = $state(false);
 	let message = $state("");
 	let success = $state("");
@@ -45,9 +52,19 @@
 			? "Incomplete capture"
 			: processingLabel(detail.processingStatus)
 	);
-	const isPublished = $derived(detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.APPROVED);
+	/** Keeps capture quality visually independent from the snapshot's moderation decision. */
+	const captureVariant = $derived.by(() => {
+		if (detail.processingStatus === "FAILED" || detail.processingStatus === "ABORTED") return "critical" as const;
+		if (detail.processingStatus !== "COMPLETED") return "info" as const;
+		return detail.snapshot.quality === "COMPLETE" ? ("success" as const) : ("warning" as const);
+	});
 	const canResubmit = $derived(
 		!data.admin && detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.REJECTED
+	);
+	const canModerate = $derived(
+		data.admin &&
+			detail.snapshot.quality !== null &&
+			(detail.moderation.status === Status.PENDING || detail.moderation.status === Status.RESUBMITTED)
 	);
 
 	/** Updates the local record only after the server acknowledges the renewed review request. */
@@ -94,6 +111,62 @@
 		}
 	}
 
+	/** Submits an ETag-protected moderation decision through the existing administrator API. */
+	async function submitReview(decision: typeof Status.APPROVED | typeof Status.REJECTED) {
+		if (!canModerate || reviewing || saving || reloading || conflict || blocked) return;
+		reviewing = true;
+		reviewDecision = decision;
+		message = "";
+		success = "";
+		const body: ReviewSnapshotRequest = { decision, reason: reviewReason.trim() || null };
+		try {
+			const response = await fetch(apiUrl(`${base}/review`), {
+				method: "POST",
+				credentials: "include",
+				cache: "no-store",
+				redirect: "error",
+				headers: { "Content-Type": "application/json", "If-Match": etag },
+				body: JSON.stringify(body)
+			});
+			if (response.status === 412) {
+				conflict = true;
+				message = "This snapshot has changed. Reload it before recording a decision.";
+				return;
+			}
+			if (response.status === 401 || response.status === 403) {
+				blocked = true;
+				message = "Your moderation access has changed. Sign in again or return to the snapshot list.";
+				return;
+			}
+			if (!response.ok || !response.headers.get("etag")) {
+				const problem = await response.json().catch(() => null);
+				message =
+					problem?.detail ??
+					(response.status === 409
+						? "This snapshot is no longer awaiting a review decision. Reload it to see the current status."
+						: "The review decision could not be saved. Please try again.");
+				if (response.status === 409) conflict = true;
+				return;
+			}
+			detail = await response.json();
+			etag = response.headers.get("etag")!;
+			reviewReason = "";
+			success =
+				decision === Status.APPROVED
+					? "Snapshot approved and published in the public archive."
+					: "Snapshot rejected and added to its history.";
+			await invalidate("app:submissions");
+		} catch {
+			message = "The review service is temporarily unavailable. Please try again.";
+		} finally {
+			reviewing = false;
+			reviewDecision = null;
+			await tick();
+			if (message) errorNotice?.focus();
+			else if (success) successNotice?.focus();
+		}
+	}
+
 	async function reload() {
 		reloading = true;
 		message = "";
@@ -119,11 +192,14 @@
 	<header class="detail-heading">
 		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
 		<h1>{detail.snapshot.title}</h1>
-		<div class="detail-status"><SnapshotModerationStatus status={detail.moderation.status} /><span>{technicalLabel}</span></div>
+		<div class="detail-status">
+			<SnapshotModerationStatus status={detail.moderation.status} />
+			<Badge variant={captureVariant}>{technicalLabel}</Badge>
+		</div>
 		{#if detail.snapshot.sourceUrl}<div class="detail-source">
-				<a href={detail.snapshot.sourceUrl} target="_blank" rel="noreferrer">{detail.snapshot.sourceUrl}</a><CopySourceButton
-					value={detail.snapshot.sourceUrl}
-				/>
+				<a href={detail.snapshot.sourceUrl} target="_blank" rel="noreferrer" title={detail.snapshot.sourceUrl}
+					>{detail.snapshot.sourceUrl}</a
+				><CopySourceButton value={detail.snapshot.sourceUrl} label={`Copy source URL for ${detail.snapshot.title}`} />
 			</div>{/if}
 	</header>
 	{#if message}<div bind:this={errorNotice} tabindex="-1" class="detail-message" role="alert">
@@ -140,10 +216,6 @@
 		<section class="detail-record" aria-labelledby="detail-record-title">
 			<h2 id="detail-record-title">Snapshot details</h2>
 			<dl>
-				{#if data.admin}<div class="snapshot-id">
-						<dt>Snapshot ID</dt>
-						<dd><code>{detail.snapshot.id}</code></dd>
-					</div>{/if}
 				<div>
 					<dt>Submitted</dt>
 					<dd><ArchiveTimestamp value={detail.snapshot.createdAt} /></dd>
@@ -162,7 +234,11 @@
 					</div>{/if}
 				{#if detail.snapshot.quality}<div>
 						<dt>Capture quality</dt>
-						<dd>{detail.snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</dd>
+						<dd>
+							<Badge variant={detail.snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact"
+								>{detail.snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</Badge
+							>
+						</dd>
 					</div>{/if}
 				{#if detail.snapshot.captureCompletedAt}<div>
 						<dt>Capture ended</dt>
@@ -183,21 +259,48 @@
 				<ul class="record-tags">
 					{#each detail.snapshot.tags as tag (tag)}<li>{tag}</li>{/each}
 				</ul>{/if}
-			{#if isPublished}<Button href={`/snapshots/${detail.snapshot.id}`}
+			{#if detail.snapshot.contentUrl}<Button href={`/snapshots/${detail.snapshot.id}`}
 					>Open archived page<ArrowRight aria-hidden="true" /></Button
-				>
-			{:else if detail.processingStatus === "COMPLETED"}<p class="private-note">
-					This snapshot is available to its owner and moderators. It is not in the public archive.
-				</p>
-			{:else}<p class="private-note">A successful capture is required before this submission can be reviewed.</p>{/if}
+				>{/if}
 		</section>
 		{#if detail.snapshot.screenshotUrl}<div class="detail-preview">
+				<h2>Screenshot preview</h2>
 				{#key detail.snapshot.screenshotUrl}<PrivateSnapshotPreview
 						path={detail.snapshot.screenshotUrl}
 						title={detail.snapshot.title}
 					/>{/key}
 			</div>{/if}
 	</div>
+	{#if canModerate}<section class="review-actions" aria-labelledby="review-actions-title">
+			<div class="review-actions__intro">
+				<h2 id="review-actions-title">Review this snapshot</h2>
+				<p>Approval publishes this capture in the public archive. Rejection records a decision in the snapshot history.</p>
+			</div>
+			<div class="review-actions__form">
+				<InputRoot id="snapshot-review-note" hasDescription disabled={reviewing || reloading}>
+					<InputLabel>Decision note <span>(optional)</span></InputLabel>
+					<InputTextarea bind:value={reviewReason} maxlength={2048} rows={4} placeholder="Add context for the submitter." />
+					<InputDescription>Visible to the submitter and moderators. Maximum 2,048 characters.</InputDescription>
+				</InputRoot>
+				<div class="review-actions__buttons">
+					<Button
+						variant="secondary"
+						class="review-reject"
+						onclick={() => submitReview(Status.REJECTED)}
+						disabled={reviewing || conflict || blocked || reloading || saving}
+						loading={reviewing && reviewDecision === Status.REJECTED}
+						loadingLabel="Rejecting snapshot"><X aria-hidden="true" />Reject snapshot</Button
+					>
+					<Button
+						variant="primary"
+						onclick={() => submitReview(Status.APPROVED)}
+						disabled={reviewing || conflict || blocked || reloading || saving}
+						loading={reviewing && reviewDecision === Status.APPROVED}
+						loadingLabel="Approving snapshot"><Check aria-hidden="true" />Approve snapshot</Button
+					>
+				</div>
+			</div>
+		</section>{/if}
 	{#if canResubmit}<section class="resubmit-section" aria-labelledby="resubmit-title">
 			<div>
 				<h2 id="resubmit-title">Request another review</h2>
@@ -233,14 +336,6 @@
 	.detail-heading {
 		padding-block: 1.5rem 2rem;
 	}
-	.snapshot-id code {
-		display: inline-block;
-		max-width: 100%;
-		font-family: var(--font-record);
-		font-size: 0.8125rem;
-		overflow-wrap: anywhere;
-		word-break: break-word;
-	}
 	.section-label {
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
@@ -262,19 +357,19 @@
 		gap: 0.75rem 1.5rem;
 		margin-block: 1rem;
 	}
-	.detail-status > span {
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-	}
 	.detail-source {
-		display: flex;
-		align-items: flex-start;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 2.75rem;
+		align-items: center;
 		gap: 0.5rem;
+		width: fit-content;
+		max-width: 100%;
 	}
 	.detail-source a {
 		min-width: 0;
-		font: 400 0.875rem/1.6 var(--font-record);
+		font: 400 0.8125rem/1.55 var(--font-record);
 		overflow-wrap: anywhere;
+		word-break: break-word;
 	}
 	.detail-columns {
 		display: grid;
@@ -332,14 +427,41 @@
 		padding: 0.25rem 0.5rem;
 		overflow-wrap: anywhere;
 	}
-	.private-note {
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-		max-width: 45ch;
-		margin: 1.5rem 0 0;
-	}
 	.detail-preview {
 		min-width: 0;
+	}
+	.detail-preview > h2 {
+		margin-bottom: 1.25rem;
+	}
+	.review-actions {
+		display: grid;
+		grid-template-columns: minmax(14rem, 0.8fr) minmax(0, 1.2fr);
+		align-items: start;
+		gap: 2rem;
+		border-block: 1px solid var(--border-trace);
+		padding-block: 2rem;
+	}
+	.review-actions__intro > h2 {
+		margin-bottom: 0.75rem;
+	}
+	.review-actions__intro > p {
+		max-width: 40ch;
+		margin: 0;
+		color: var(--marginal-note);
+		font-size: 0.9375rem;
+	}
+	.review-actions__form {
+		display: grid;
+		gap: 1rem;
+	}
+	.review-actions__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+	}
+	.review-actions__buttons :global(.review-reject) {
+		border-color: var(--time-marker);
+		color: var(--time-marker);
 	}
 	.resubmit-section {
 		display: grid;
@@ -389,6 +511,7 @@
 	}
 	@media (max-width: 48rem) {
 		.detail-columns,
+		.review-actions,
 		.resubmit-section {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;

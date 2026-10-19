@@ -91,7 +91,9 @@
 					<TableCell class="snapshot-cell" data-label="Snapshot">
 						<a class="snapshot-title" href={`/admin/snapshots/${item.id}`}>{item.title}</a>
 						{#if item.sourceUrl}
-							<a class="snapshot-source" href={item.sourceUrl} target="_blank" rel="noreferrer">{item.sourceUrl}</a>
+							<a class="snapshot-source" href={item.sourceUrl} target="_blank" rel="noreferrer" title={item.sourceUrl}
+								>{item.sourceUrl}</a
+							>
 						{/if}
 						<p class="snapshot-origin">{item.sourceType}</p>
 					</TableCell>
@@ -192,15 +194,21 @@
 		text-underline-offset: 0.16em;
 	}
 	.snapshot-source {
-		display: block;
+		display: -webkit-box;
+		min-width: 0;
 		max-width: 35rem;
 		margin-top: 0.375rem;
+		overflow: hidden;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
 		color: var(--register-mark);
 		font-family: var(--font-record);
 		font-size: 0.75rem;
 		line-height: 1.45;
 		overflow-wrap: anywhere;
 		word-break: break-word;
+		text-overflow: ellipsis;
 	}
 	.snapshot-origin {
 		margin: 0.5rem 0 0;

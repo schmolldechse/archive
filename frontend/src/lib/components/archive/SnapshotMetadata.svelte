@@ -4,7 +4,7 @@
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
 	import { formatBytes } from "./format";
-	let { snapshot, includeIdentifier = false }: { snapshot: SnapshotResponse; includeIdentifier?: boolean } = $props();
+	let { snapshot }: { snapshot: SnapshotResponse } = $props();
 </script>
 
 <div class="snapshot-metadata" data-component="snapshot-metadata">
@@ -51,14 +51,6 @@
 		</section>
 	{:else}
 		<p>Capture in progress.</p>
-	{/if}
-	{#if includeIdentifier}
-		<dl class="snapshot-metadata__identifier">
-			<div>
-				<dt>Snapshot ID</dt>
-				<dd>{snapshot.id}</dd>
-			</div>
-		</dl>
 	{/if}
 </div>
 
@@ -123,19 +115,6 @@
 		font-size: 0.8125rem;
 		text-align: right;
 		overflow-wrap: anywhere;
-	}
-	.snapshot-metadata__identifier {
-		margin-top: 1.5rem;
-		border-top: 1px solid var(--border-trace);
-		padding-top: 1.5rem;
-	}
-	.snapshot-metadata__identifier > div {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 0.5rem;
-	}
-	.snapshot-metadata__identifier dd {
-		color: var(--marginal-note);
-		text-align: left;
 	}
 	ul {
 		display: flex;

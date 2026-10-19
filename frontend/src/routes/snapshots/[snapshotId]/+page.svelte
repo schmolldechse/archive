@@ -11,6 +11,7 @@
 <svelte:head>
 	<title>Snapshot: {data.snapshot.title} · Archive</title>
 	<meta name="description" content={`Archived page captured by ARCHIV: ${data.snapshot.title}`} />
+	{#if data.isPrivate}<meta name="robots" content="noindex, nofollow" />{/if}
 </svelte:head>
 
 <div class="archived-page">

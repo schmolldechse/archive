@@ -26,7 +26,7 @@
 					<CopySourceButton value={source} />
 				</div>
 			{/if}
-			<SnapshotMetadata {snapshot} includeIdentifier />
+			<SnapshotMetadata {snapshot} />
 		</div>
 	</DialogContent>
 </DialogRoot>
