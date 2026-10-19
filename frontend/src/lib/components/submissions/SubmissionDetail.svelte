@@ -18,6 +18,7 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
+	import SnapshotTags from "$lib/components/archive/SnapshotTags.svelte";
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
@@ -256,9 +257,7 @@
 			{#if detail.snapshot.description}<h3>Description</h3>
 				<p class="record-description">{detail.snapshot.description}</p>{/if}
 			{#if detail.snapshot.tags.length}<h3>Tags</h3>
-				<ul class="record-tags">
-					{#each detail.snapshot.tags as tag (tag)}<li>{tag}</li>{/each}
-				</ul>{/if}
+				<div class="record-tags"><SnapshotTags tags={detail.snapshot.tags} /></div>{/if}
 			{#if detail.snapshot.contentUrl}<Button href={`/snapshots/${detail.snapshot.id}`}
 					>Open archived page<ArrowRight aria-hidden="true" /></Button
 				>{/if}
@@ -414,18 +413,7 @@
 		font-size: 0.9375rem;
 	}
 	.record-tags {
-		display: flex;
-		flex-wrap: wrap;
-		list-style: none;
-		gap: 0.5rem;
-		padding: 0;
-		font-size: 0.8125rem;
 		margin-bottom: 1.5rem;
-	}
-	.record-tags li {
-		background: var(--archive-layer);
-		padding: 0.25rem 0.5rem;
-		overflow-wrap: anywhere;
 	}
 	.detail-preview {
 		min-width: 0;

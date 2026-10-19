@@ -3,6 +3,7 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
+	import SnapshotTags from "./SnapshotTags.svelte";
 	import { formatBytes } from "./format";
 	let { snapshot }: { snapshot: SnapshotResponse } = $props();
 </script>
@@ -16,11 +17,7 @@
 		<section class="snapshot-metadata__about" aria-label="About this page">
 			<h4>About this page</h4>
 			{#if snapshot.description}<p>{snapshot.description}</p>{/if}
-			{#if snapshot.tags.length}
-				<ul aria-label="Snapshot tags">
-					{#each snapshot.tags as tag (tag)}<li><span>#</span>{tag}</li>{/each}
-				</ul>
-			{/if}
+			<SnapshotTags tags={snapshot.tags} />
 		</section>
 	{/if}
 	{#if snapshot.quality !== null}
@@ -115,20 +112,6 @@
 		font-size: 0.8125rem;
 		text-align: right;
 		overflow-wrap: anywhere;
-	}
-	ul {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem 0.75rem;
-		margin: 0.75rem 0 0;
-		padding: 0;
-		list-style: none;
-		color: var(--marginal-note);
-		font-size: 0.8125rem;
-		overflow-wrap: anywhere;
-	}
-	li span {
-		color: var(--register-mark);
 	}
 	@container (max-width: 28rem) {
 		.snapshot-metadata__provenance {
