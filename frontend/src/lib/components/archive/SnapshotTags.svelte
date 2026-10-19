@@ -1,37 +1,21 @@
 <script lang="ts">
 	interface SnapshotTagsProps {
-		tags: string[];
+		tag: string;
 	}
 
-	let { tags }: SnapshotTagsProps = $props();
+	let { tag }: SnapshotTagsProps = $props();
 </script>
 
-<!-- Keep tag labels consistent anywhere an archived snapshot is summarized. -->
-{#if tags.length}
-	<ul class="snapshot-tags" aria-label="Snapshot tags" data-component="snapshot-tags">
-		{#each tags as tag (tag)}
-			<li><span aria-hidden="true">#</span>{tag}</li>
-		{/each}
-	</ul>
-{/if}
+<!-- Keep a single tag label consistent across archive and review views. -->
+<li class="snapshot-tag" data-component="snapshot-tag"><span aria-hidden="true">#</span>{tag}</li>
 
 <style>
-	.snapshot-tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem 0.75rem;
-		margin: 0.75rem 0 0;
-		padding: 0;
-		list-style: none;
-		color: var(--marginal-note);
-		font-size: 0.75rem;
-	}
-
-	.snapshot-tags li {
+	.snapshot-tag {
 		overflow-wrap: anywhere;
+		color: var(--marginal-note);
 	}
 
-	.snapshot-tags li span {
+	.snapshot-tag span {
 		color: var(--register-mark);
 	}
 </style>

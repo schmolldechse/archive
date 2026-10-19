@@ -4,6 +4,7 @@
 	import { historyLabel, historyReason } from "$lib/submission-history";
 	import { pageHref } from "$lib/admin/navigation";
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
+	import ArchiveAttribution from "$lib/components/archive/ArchiveAttribution.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
 
 	let { history }: { history: SnapshotHistoryResponse } = $props();
@@ -53,10 +54,9 @@
 			<p class="history-kicker">Record log</p>
 			<h2 id="snapshot-history-title">Snapshot history</h2>
 		</div>
-		<p class="history-count" aria-label={`${total} history events, newest first`}>
+		<p class="history-count" aria-label={`${total} history events`}>
 			<strong>{total}</strong>
 			<span>{total === 1 ? "event" : "events"}</span>
-			<span class="history-count__order">Newest first</span>
 		</p>
 	</header>
 
@@ -72,7 +72,11 @@
 						<p class="history-category">{historyCategory(item)}</p>
 						<h3>{historyLabel(item)}</h3>
 						{#if item.actor}
-							<p class="history-actor">By @{item.actor.handle}<span>{item.actor.role}</span></p>
+							<div class="history-actor">
+								<span class="history-actor__prefix">By</span>
+								<ArchiveAttribution creator={item.actor} layout="compact" label={null} />
+								<span class="history-actor__role">{item.actor.role}</span>
+							</div>
 						{/if}
 						{#if historyReason(item)}
 							<div class="history-note">
@@ -135,11 +139,6 @@
 		font: 500 0.875rem/1.4 var(--font-record);
 		font-variant-numeric: tabular-nums;
 	}
-	.history-count__order {
-		border-inline-start: 1px solid var(--border-trace);
-		margin-inline-start: 0.5rem;
-		padding-inline-start: 0.75rem;
-	}
 	.history-list {
 		list-style: none;
 		margin: 0;
@@ -156,7 +155,10 @@
 		padding-bottom: 0.5rem;
 	}
 	.history-time {
+		display: flex;
+		align-items: center;
 		grid-column: 1;
+		align-self: start;
 		justify-self: end;
 		padding-top: 0.25rem;
 	}
@@ -169,7 +171,7 @@
 	}
 	.history-item:not(:last-child) .history-rail::after {
 		position: absolute;
-		inset-block: 0.875rem -2rem;
+		inset-block: 0.75rem -2rem;
 		border-inline-start: 1px solid var(--border-trace);
 		content: "";
 	}
@@ -178,7 +180,7 @@
 		z-index: 1;
 		width: 0.75rem;
 		height: 0.75rem;
-		margin-top: 0.25rem;
+		margin-top: 0.375rem;
 		border: 2px solid var(--border-trace);
 		border-radius: 50%;
 		background: var(--reading-room);
@@ -235,14 +237,17 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.375rem 0.75rem;
-		margin: 0.5rem 0 0;
+		gap: 0.375rem 0.625rem;
+		margin: 0.75rem 0 0;
+	}
+	.history-actor__prefix {
 		color: var(--marginal-note);
 		font-size: 0.875rem;
 	}
-	.history-actor > span {
+	.history-actor__role {
 		border-inline-start: 1px solid var(--border-trace);
 		padding-inline-start: 0.75rem;
+		color: var(--marginal-note);
 		font-size: 0.75rem;
 		font-weight: 600;
 		letter-spacing: 0.04em;
@@ -286,10 +291,6 @@
 			flex-direction: column;
 			gap: 0.75rem;
 		}
-		.history-count__order {
-			margin-inline-start: 0.375rem;
-			padding-inline-start: 0.625rem;
-		}
 		.history-item {
 			grid-template-columns: 1.25rem minmax(0, 1fr);
 			grid-template-rows: auto auto;
@@ -305,6 +306,9 @@
 			justify-self: start;
 			padding-top: 0;
 		}
+		.history-mark {
+			margin-top: 0.125rem;
+		}
 		.history-rail {
 			grid-column: 1;
 			grid-row: 1 / span 2;
@@ -312,7 +316,7 @@
 			padding-inline-start: 0.25rem;
 		}
 		.history-item:not(:last-child) .history-rail::after {
-			inset-block: 0.875rem -1.5rem;
+			inset-block: 0.5rem -1.5rem;
 		}
 		.history-event {
 			grid-column: 2;

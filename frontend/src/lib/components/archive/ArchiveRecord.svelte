@@ -53,7 +53,11 @@
 		{#if snapshot.description}
 			<p class="archive-record__description">{snapshot.description}</p>
 		{/if}
-		<SnapshotTags tags={snapshot.tags} />
+		{#if snapshot.tags.length}
+			<ul class="snapshot-tag-list" aria-label="Snapshot tags">
+				{#each snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
+			</ul>
+		{/if}
 	</div>
 
 	<button

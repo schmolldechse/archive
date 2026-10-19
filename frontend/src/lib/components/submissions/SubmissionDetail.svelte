@@ -257,7 +257,11 @@
 			{#if detail.snapshot.description}<h3>Description</h3>
 				<p class="record-description">{detail.snapshot.description}</p>{/if}
 			{#if detail.snapshot.tags.length}<h3>Tags</h3>
-				<div class="record-tags"><SnapshotTags tags={detail.snapshot.tags} /></div>{/if}
+				<div class="record-tags">
+					<ul class="snapshot-tag-list" aria-label="Snapshot tags">
+						{#each detail.snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
+					</ul>
+				</div>{/if}
 			{#if detail.snapshot.contentUrl}<Button href={`/snapshots/${detail.snapshot.id}`}
 					>Open archived page<ArrowRight aria-hidden="true" /></Button
 				>{/if}

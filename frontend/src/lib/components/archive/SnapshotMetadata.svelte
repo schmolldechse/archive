@@ -17,7 +17,11 @@
 		<section class="snapshot-metadata__about" aria-label="About this page">
 			<h4>About this page</h4>
 			{#if snapshot.description}<p>{snapshot.description}</p>{/if}
-			<SnapshotTags tags={snapshot.tags} />
+			{#if snapshot.tags.length}
+				<ul class="snapshot-tag-list" aria-label="Snapshot tags">
+					{#each snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
+				</ul>
+			{/if}
 		</section>
 	{/if}
 	{#if snapshot.quality !== null}

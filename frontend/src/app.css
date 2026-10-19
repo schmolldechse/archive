@@ -179,6 +179,17 @@
 		border-inline-start: 3px solid var(--time-marker);
 		background: var(--archive-layer);
 	}
+
+	/* Keep archive tag collections consistent across public and review records. */
+	.snapshot-tag-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 0.75rem;
+		margin: 0.75rem 0 0;
+		padding: 0;
+		list-style: none;
+		font-size: 0.75rem;
+	}
 }
 
 @layer utilities {
