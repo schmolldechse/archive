@@ -13,8 +13,7 @@
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Check from "@lucide/svelte/icons/check";
 	import Button from "$lib/components/ui/Button.svelte";
-	import { InputRoot, InputLabel, InputTextarea, InputDescription } from "$lib/components/ui/input";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
@@ -26,14 +25,11 @@
 			detail: SnapshotSubmissionDetailResponse;
 			etag: string;
 			history: SnapshotHistoryResponse;
-			review: boolean;
 			admin: boolean;
 		};
 	} = $props();
 	let detail = $state.raw(untrack(() => data.detail));
 	let etag = $state(untrack(() => data.etag));
-	let decision = $state<Status>(Status.APPROVED);
-	let reason = $state("");
 	let saving = $state(false);
 	let reloading = $state(false);
 	let message = $state("");
@@ -43,40 +39,34 @@
 	let errorNotice = $state<HTMLDivElement | null>(null);
 	let successNotice = $state<HTMLParagraphElement | null>(null);
 	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
-	const backHref = $derived(data.review ? "/admin/snapshot-reviews" : data.admin ? "/admin/snapshots" : "/account/submissions");
+	const backHref = $derived(data.admin ? "/admin/snapshots" : "/account/submissions");
 	const technicalLabel = $derived(
 		detail.processingStatus === "COMPLETED" && detail.snapshot.quality === "INCOMPLETE"
 			? "Incomplete capture"
 			: processingLabel(detail.processingStatus)
 	);
 	const isPublished = $derived(detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.APPROVED);
-	const canReview = $derived(
-		data.review &&
-			detail.processingStatus === "COMPLETED" &&
-			(detail.moderation.status === Status.PENDING || detail.moderation.status === Status.RESUBMITTED)
-	);
 	const canResubmit = $derived(
 		!data.admin && detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.REJECTED
 	);
 
-	/** Updates only from an acknowledged response; a failed write preserves the decision draft. */
+	/** Updates the local record only after the server acknowledges the renewed review request. */
 	async function save() {
 		if (saving || reloading || conflict || blocked) return;
 		saving = true;
 		message = "";
 		success = "";
 		try {
-			const response = await fetch(apiUrl(`${base}/${data.review ? "review" : "resubmit"}`), {
+			const response = await fetch(apiUrl(`${base}/resubmit`), {
 				method: "POST",
 				credentials: "include",
 				cache: "no-store",
 				redirect: "error",
-				headers: { "If-Match": etag, ...(data.review ? { "content-type": "application/json" } : {}) },
-				...(data.review ? { body: JSON.stringify({ decision, reason: reason.trim() || null }) } : {})
+				headers: { "If-Match": etag }
 			});
 			if (response.status === 412) {
 				conflict = true;
-				message = "This snapshot has changed. Reload before saving. Your draft has been kept.";
+				message = "This snapshot has changed. Reload it before requesting another review.";
 				return;
 			}
 			if (response.status === 401 || response.status === 403) {
@@ -86,17 +76,16 @@
 			}
 			if (!response.ok || !response.headers.get("etag")) {
 				const problem = await response.json().catch(() => null);
-				message = problem?.detail ?? "The decision could not be saved. Please try again.";
+				message = problem?.detail ?? "The review request could not be submitted. Please try again.";
 				if (response.status === 409) conflict = true;
 				return;
 			}
 			detail = await response.json();
 			etag = response.headers.get("etag")!;
-			reason = "";
-			success = data.review ? "Decision saved." : "Your snapshot has been submitted for review again.";
+			success = "Your snapshot has been submitted for review again.";
 			await invalidate("app:submissions");
 		} catch {
-			message = "The submission service is temporarily unavailable. Your draft has been kept.";
+			message = "The submission service is temporarily unavailable. Please try again.";
 		} finally {
 			saving = false;
 			await tick();
@@ -125,12 +114,10 @@
 
 <article class="submission-detail">
 	<nav class="detail-path" aria-label="Submission navigation">
-		<a href={backHref}
-			><ArrowLeft aria-hidden="true" />{data.review ? "Snapshot reviews" : data.admin ? "All snapshots" : "My submissions"}</a
-		>
+		<a href={backHref}><ArrowLeft aria-hidden="true" />{data.admin ? "All snapshots" : "My submissions"}</a>
 	</nav>
 	<header class="detail-heading">
-		<p class="section-label">{data.review ? "Review submission" : data.admin ? "Snapshot record" : "Your submission"}</p>
+		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
 		<h1>{detail.snapshot.title}</h1>
 		<div class="detail-status"><SnapshotModerationStatus status={detail.moderation.status} /><span>{technicalLabel}</span></div>
 		{#if detail.snapshot.sourceUrl}<div class="detail-source">
@@ -159,11 +146,11 @@
 					</div>{/if}
 				<div>
 					<dt>Submitted</dt>
-					<dd><LocalTimestamp value={detail.snapshot.createdAt} /></dd>
+					<dd><ArchiveTimestamp value={detail.snapshot.createdAt} /></dd>
 				</div>
 				<div>
 					<dt>Review status updated</dt>
-					<dd><LocalTimestamp value={detail.moderation.updatedAt} /></dd>
+					<dd><ArchiveTimestamp value={detail.moderation.updatedAt} /></dd>
 				</div>
 				<div>
 					<dt>Source type</dt>
@@ -179,7 +166,7 @@
 					</div>{/if}
 				{#if detail.snapshot.captureCompletedAt}<div>
 						<dt>Capture ended</dt>
-						<dd><LocalTimestamp value={detail.snapshot.captureCompletedAt} /></dd>
+						<dd><ArchiveTimestamp value={detail.snapshot.captureCompletedAt} /></dd>
 					</div>{/if}
 				{#if detail.snapshot.storageBytes !== null}<div>
 						<dt>Stored size</dt>
@@ -211,46 +198,7 @@
 					/>{/key}
 			</div>{/if}
 	</div>
-	{#if canReview}<section class="decision-section" aria-labelledby="decision-title">
-			<div>
-				<h2 id="decision-title">Review decision</h2>
-				<p>Check the capture and its source before saving a decision.</p>
-			</div>
-			<form
-				onsubmit={(event) => {
-					event.preventDefault();
-					void save();
-				}}
-			>
-				<label class="decision-label" for="review-decision">Decision</label><select
-					id="review-decision"
-					bind:value={decision}
-					disabled={saving || blocked}
-				>
-					<option value={Status.APPROVED}>Approve</option><option value={Status.REJECTED}>Reject</option>
-				</select>
-				<InputRoot id="review-reason" hasDescription disabled={saving || blocked}
-					><InputLabel>Reason <span class="optional">(optional)</span></InputLabel><InputTextarea
-						bind:value={reason}
-						maxlength={2048}
-						rows={4}
-					/><InputDescription>The submitting user can see this reason.</InputDescription></InputRoot
-				>
-				<p class="decision-effect">
-					{decision === "APPROVED"
-						? "The snapshot will become available in the public archive."
-						: "The snapshot will remain outside the public archive. Its owner can request another review."}
-				</p>
-				<Button
-					variant="primary"
-					type="submit"
-					disabled={conflict || blocked || reloading}
-					loading={saving}
-					loadingLabel="Saving decision">Save decision</Button
-				>
-			</form>
-		</section>
-	{:else if canResubmit}<section class="decision-section" aria-labelledby="resubmit-title">
+	{#if canResubmit}<section class="resubmit-section" aria-labelledby="resubmit-title">
 			<div>
 				<h2 id="resubmit-title">Request another review</h2>
 				<p>Request another review of this snapshot. The archived content will remain unchanged.</p>
@@ -264,9 +212,6 @@
 			>
 		</section>{/if}
 	<div class="detail-history"><SnapshotHistory history={data.history} /></div>
-	{#if data.review && !canReview}<Button href="/admin/snapshot-reviews" variant="text"
-			>Next awaiting review<ArrowRight aria-hidden="true" /></Button
-		>{/if}
 </article>
 
 <style>
@@ -396,7 +341,7 @@
 	.detail-preview {
 		min-width: 0;
 	}
-	.decision-section {
+	.resubmit-section {
 		display: grid;
 		grid-template-columns: minmax(14rem, 0.8fr) minmax(0, 1.2fr);
 		gap: 2rem;
@@ -404,40 +349,12 @@
 		border-block: 1px solid var(--border-trace);
 		padding-block: 2rem;
 	}
-	.decision-section > div > p {
+	.resubmit-section > div > p {
 		color: var(--marginal-note);
 		font-size: 0.9375rem;
 		max-width: 40ch;
 	}
-	.decision-section form {
-		display: grid;
-		gap: 1rem;
-	}
-	.decision-label {
-		font-size: 0.875rem;
-		font-weight: 600;
-		margin-bottom: -0.5rem;
-	}
-	select {
-		min-height: 2.75rem;
-		width: 100%;
-		padding: 0.625rem;
-		background: var(--reading-room);
-		color: var(--reading-ink);
-		border: 1px solid var(--border-trace);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	.optional {
-		font-weight: 400;
-		color: var(--marginal-note);
-	}
-	.decision-effect {
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-		margin: 0;
-	}
-	.decision-section :global(.button) {
+	.resubmit-section :global(.button) {
 		justify-self: start;
 	}
 	.detail-history {
@@ -472,7 +389,7 @@
 	}
 	@media (max-width: 48rem) {
 		.detail-columns,
-		.decision-section {
+		.resubmit-section {
 			grid-template-columns: 1fr;
 			gap: 1.5rem;
 		}

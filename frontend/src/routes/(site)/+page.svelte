@@ -2,7 +2,7 @@
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from "$app/navigation";
 	import { navigating, page } from "$app/state";
 	import type { SnapshotResponse } from "$api";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CaptureSequence from "$lib/components/snapshot-search/CaptureSequence.svelte";
 	import SearchNotation from "$lib/components/snapshot-search/SearchNotation.svelte";
 	import {
@@ -164,7 +164,7 @@
 						{#each recentCaptures as timestamp, index (index)}
 							<li class:index-sequence__latest={index === 0}>
 								<span class="sequence-point" aria-hidden="true"></span>
-								<LocalTimestamp value={timestamp} />
+								<ArchiveTimestamp value={timestamp} />
 							</li>
 						{/each}
 					</ol>

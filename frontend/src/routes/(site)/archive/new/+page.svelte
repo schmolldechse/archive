@@ -22,7 +22,7 @@
 	import { TabsList, TabsPanel, TabsRoot, TabsTrigger } from "$lib/components/ui/tabs";
 	import { ToastProvider, ToastViewport, createToastController } from "$lib/components/ui/toast";
 	import TagEditor from "$lib/components/tags/TagEditor.svelte";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import {
 		ArchiveHttpError,
 		cancelSnapshot,
@@ -434,7 +434,7 @@
 						<div>
 							<dt>Started</dt>
 							<dd>
-								{#if archive.startedAt ?? submittedAt}<LocalTimestamp
+								{#if archive.startedAt ?? submittedAt}<ArchiveTimestamp
 										value={(archive.startedAt ?? submittedAt)!}
 									/>{:else}Waiting{/if}
 							</dd>

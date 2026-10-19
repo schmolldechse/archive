@@ -20,26 +20,17 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         ["snapshot.submitted", "snapshot.moderated", "snapshot.resubmitted"];
 
     public Task<SnapshotSubmissionPage> SearchOwnAsync(Guid userId, string? text, SnapshotModerationStatus? status,
-        int page, int pageSize, CancellationToken token) => SearchAsync(userId, text, status, null, false, page, pageSize, token);
+        int page, int pageSize, CancellationToken token) => SearchAsync(userId, text, status, null, page, pageSize, token);
 
     /// <summary>Returns every snapshot record for the permission-checked administration register.</summary>
     public Task<SnapshotSubmissionPage> SearchForAdminAsync(string? text, SnapshotModerationStatus? status,
         SnapshotQuality? quality, int page, int pageSize, CancellationToken token) =>
-        SearchAsync(null, text, status, quality, false, page, pageSize, token);
-
-    /// <summary>Returns only captured snapshots that still need a first or renewed decision.</summary>
-    public Task<SnapshotSubmissionPage> SearchForReviewAsync(string? text, SnapshotModerationStatus? status,
-        int page, int pageSize, CancellationToken token) =>
-        SearchAsync(null, text, status, null, true, page, pageSize, token);
+        SearchAsync(null, text, status, quality, page, pageSize, token);
 
     private async Task<SnapshotSubmissionPage> SearchAsync(Guid? ownerId, string? text, SnapshotModerationStatus? status,
-        SnapshotQuality? quality, bool reviewQueue, int page, int pageSize, CancellationToken token)
+        SnapshotQuality? quality, int page, int pageSize, CancellationToken token)
     {
         var query = Scope(ownerId);
-        if (reviewQueue)
-            query = query.Where(snapshot => snapshot.Quality != null &&
-                (snapshot.ModerationStatus == SnapshotModerationStatus.Pending ||
-                 snapshot.ModerationStatus == SnapshotModerationStatus.Resubmitted));
         if (status is not null) query = query.Where(snapshot => snapshot.ModerationStatus == status);
         if (quality == SnapshotQuality.Complete)
             query = query.Where(snapshot => snapshot.Quality == SnapshotQuality.Complete);
@@ -66,10 +57,8 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                     .Select(processing => (ProcessingStatus?)processing.Status)
                     .FirstOrDefault() ?? ProcessingStatus.Failed
         });
-        var ordered = reviewQueue
-            ? projected.OrderBy(row => row.UpdatedAt).ThenBy(row => row.Snapshot.Id)
-            : projected.OrderByDescending(row => row.Snapshot.CreatedAt).ThenByDescending(row => row.Snapshot.Id);
-        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(row =>
+        var items = await projected.OrderByDescending(row => row.Snapshot.CreatedAt)
+            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize).Select(row =>
             new SnapshotSubmissionSummary(row.Snapshot.Id, row.Snapshot.Title, row.Snapshot.OriginUrl,
                 row.Snapshot.SourceType, row.Snapshot.CreatedAt, row.UpdatedAt, row.Snapshot.ModerationStatus,
                 row.ProcessingStatus, row.Snapshot.Quality, row.Snapshot.CaptureCompletedAt,

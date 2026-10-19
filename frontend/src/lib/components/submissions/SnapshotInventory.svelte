@@ -3,7 +3,7 @@
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import type { SnapshotSubmissionSummaryResponse } from "$api";
 	import ArchiveAttribution from "$lib/components/archive/ArchiveAttribution.svelte";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
 	import {
@@ -69,15 +69,6 @@
 		}
 		return item.quality === "COMPLETE" ? "success" : "warning";
 	}
-
-	function actionHref(item: SnapshotSubmissionSummaryResponse): string {
-		const awaitingDecision = item.moderationStatus === "PENDING" || item.moderationStatus === "RESUBMITTED";
-		return `${awaitingDecision ? "/admin/snapshot-reviews" : "/admin/snapshots"}/${item.id}`;
-	}
-
-	function actionLabel(item: SnapshotSubmissionSummaryResponse): string {
-		return item.moderationStatus === "PENDING" || item.moderationStatus === "RESUBMITTED" ? "Review" : "Open record";
-	}
 </script>
 
 <p class="table-scroll-hint"><ArrowLeftRight aria-hidden="true" />Scroll to view all snapshot details.</p>
@@ -96,8 +87,6 @@
 		</TableHeader>
 		<TableBody>
 			{#each items as item (item.id)}
-				{@const href = actionHref(item)}
-				{@const label = actionLabel(item)}
 				<TableRow>
 					<TableCell class="snapshot-cell" data-label="Snapshot">
 						<a class="snapshot-title" href={`/admin/snapshots/${item.id}`}>{item.title}</a>
@@ -108,12 +97,12 @@
 					</TableCell>
 					<TableCell class="submitted-cell" data-label="Submitted">
 						<ArchiveAttribution creator={item.createdBy} layout="compact" label={null} />
-						<p class="record-time"><LocalTimestamp value={item.createdAt} /></p>
+						<p class="record-time"><ArchiveTimestamp value={item.createdAt} /></p>
 					</TableCell>
 					<TableCell class="capture-cell" data-label="Capture status">
 						<Badge variant={captureVariant(item)} size="compact">{captureLabel(item)}</Badge>
 						{#if item.captureCompletedAt}
-							<p class="record-time">Ended <LocalTimestamp value={item.captureCompletedAt} /></p>
+							<p class="record-time">Ended <ArchiveTimestamp value={item.captureCompletedAt} /></p>
 						{/if}
 					</TableCell>
 					<TableCell class="data-cell" data-label="Archived data">
@@ -134,11 +123,16 @@
 					</TableCell>
 					<TableCell class="moderation-cell" data-label="Moderation">
 						<SnapshotModerationStatus status={item.moderationStatus} />
-						<p class="record-time">Updated <LocalTimestamp value={item.moderationUpdatedAt} /></p>
+						<p class="record-time">Updated <ArchiveTimestamp value={item.moderationUpdatedAt} /></p>
 					</TableCell>
 					<TableCell class="action-cell" data-label="Action" align="end">
-						<Button {href} variant="text" class="record-action" aria-label={`${label}: ${item.title}`}>
-							{label}<ArrowRight aria-hidden="true" />
+						<Button
+							href={"/admin/snapshots/" + item.id}
+							variant="text"
+							class="record-action"
+							aria-label={"View record: " + item.title}
+						>
+							View record<ArrowRight aria-hidden="true" />
 						</Button>
 					</TableCell>
 				</TableRow>

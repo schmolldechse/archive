@@ -14,7 +14,7 @@
 <AdminSectionHeading title="Snapshots" description="Browse snapshot records across capture and moderation states." />
 {#key page.url.search}
 	<section class="snapshot-register" aria-labelledby="snapshot-register-title">
-		<SubmissionFilters filters={data.filters} review={false} filterQuality resetHref="/admin/snapshots" />
+		<SubmissionFilters filters={data.filters} filterQuality resetHref="/admin/snapshots" />
 		<div class="register-caption">
 			<h2 id="snapshot-register-title">All snapshot records</h2>
 			<p role="status">{total.toLocaleString()} {total === 1 ? "snapshot" : "snapshots"}</p>

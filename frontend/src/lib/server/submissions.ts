@@ -8,9 +8,9 @@ import { pageHref } from "$lib/admin/navigation";
 type SubmissionLoadEvent = RequestEvent & { depends: (...dependencies: string[]) => void };
 
 /** Every private page guards its own load; layout loads may run concurrently. */
-function requireAccess(event: SubmissionLoadEvent, review: boolean) {
+function requireAccess(event: SubmissionLoadEvent, admin: boolean) {
 	event.depends("app:auth", "app:submissions");
-	if (review) return requireAdmin(event, "snapshots");
+	if (admin) return requireAdmin(event, "snapshots");
 	if (!event.locals.session) error(503, "Your account could not be loaded. Please try again.");
 	if (!event.locals.session.isAuthenticated || !event.locals.session.user)
 		redirect(303, loginHref(event.url.pathname + event.url.search));
@@ -40,8 +40,8 @@ const statuses = ["PENDING", "APPROVED", "REJECTED", "RESUBMITTED"];
 const qualities = ["COMPLETE", "INCOMPLETE"];
 
 /** Validates URL-owned filters before requesting a bounded backend page. */
-export async function loadSubmissions(event: SubmissionLoadEvent, review: boolean) {
-	requireAccess(event, review);
+export async function loadSubmissions(event: SubmissionLoadEvent) {
+	requireAccess(event, false);
 	const q = (event.url.searchParams.get("q") ?? "").trim();
 	const status = event.url.searchParams.get("moderationStatus") ?? "";
 	const page = event.url.searchParams.get("page") ?? "1";
@@ -50,11 +50,10 @@ export async function loadSubmissions(event: SubmissionLoadEvent, review: boolea
 	const query = new URLSearchParams({ page, pageSize: "25" });
 	if (q) query.set("q", q);
 	if (status) query.set("moderationStatus", status);
-	const path = review ? "/api/admin/snapshot-reviews" : "/api/users/snapshots";
-	const result = await readPrivate<SnapshotSubmissionListResponse>(event, `${path}?${query}`);
+	const result = await readPrivate<SnapshotSubmissionListResponse>(event, `/api/users/snapshots?${query}`);
 	const lastPage = Math.max(1, Math.ceil(Number(result.value.total) / Number(result.value.pageSize)));
 	if (Number(page) > lastPage) redirect(303, pageHref(event.url, "page", lastPage));
-	return { submissions: result.value, filters: { q, status }, review };
+	return { submissions: result.value, filters: { q, status } };
 }
 
 /** Loads a bounded, filterable register of every private snapshot for administrators. */
@@ -82,8 +81,8 @@ export async function loadAdminSnapshots(event: SubmissionLoadEvent) {
 	return { snapshots: result.value, filters: { q, status, quality } };
 }
 
-/** Loads metadata and a separate history page while keeping the decision ETag stable. */
-export async function loadSubmission(event: SubmissionLoadEvent, review: boolean, admin = review) {
+/** Loads a snapshot record and its separate, paginated history. */
+export async function loadSubmission(event: SubmissionLoadEvent, admin = false) {
 	requireAccess(event, admin);
 	const id = event.params.snapshotId;
 	if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) error(404, "Submission not found");
@@ -97,5 +96,5 @@ export async function loadSubmission(event: SubmissionLoadEvent, review: boolean
 	if (!detail.etag) error(503, "The submission could not be validated. Please try again.");
 	const lastPage = Math.max(1, Math.ceil(Number(history.value.total) / Number(history.value.pageSize)));
 	if (Number(historyPage) > lastPage) redirect(303, pageHref(event.url, "historyPage", lastPage));
-	return { detail: detail.value, etag: detail.etag, history: history.value, review, admin };
+	return { detail: detail.value, etag: detail.etag, history: history.value, admin };
 }

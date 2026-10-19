@@ -1597,50 +1597,6 @@ export type ListAdminSnapshotsResponses = {
 
 export type ListAdminSnapshotsResponse = ListAdminSnapshotsResponses[keyof ListAdminSnapshotsResponses];
 
-export type ListSnapshotsForReviewData = {
-	body?: never;
-	path?: never;
-	query?: {
-		/**
-		 * Title or source URL substring.
-		 */
-		q?: string;
-		/**
-		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
-		 */
-		moderationStatus?: SnapshotModerationStatus;
-		page?: number | string;
-		pageSize?: number | string;
-	};
-	url: "/api/admin/snapshot-reviews";
-};
-
-export type ListSnapshotsForReviewErrors = {
-	/**
-	 * Bad Request
-	 */
-	400: ValidationProblemDetails;
-	/**
-	 * Unauthorized
-	 */
-	401: ProblemDetails;
-	/**
-	 * Forbidden
-	 */
-	403: ProblemDetails;
-};
-
-export type ListSnapshotsForReviewError = ListSnapshotsForReviewErrors[keyof ListSnapshotsForReviewErrors];
-
-export type ListSnapshotsForReviewResponses = {
-	/**
-	 * OK
-	 */
-	200: SnapshotSubmissionListResponse;
-};
-
-export type ListSnapshotsForReviewResponse = ListSnapshotsForReviewResponses[keyof ListSnapshotsForReviewResponses];
-
 export type GetSnapshotForReviewData = {
 	body?: never;
 	path: {

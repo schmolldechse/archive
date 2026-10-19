@@ -35,7 +35,7 @@
 
 		<div class="site-footer__meta">
 			<span>PUBLIC INDEX · NO ACCOUNT REQUIRED</span>
-			<span>TIMES SHOWN WITH YOUR LOCAL OFFSET</span>
+			<span>TIMES SHOWN IN UTC</span>
 		</div>
 	</div>
 </footer>

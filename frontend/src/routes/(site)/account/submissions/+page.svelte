@@ -7,7 +7,7 @@
 
 <svelte:head><title>My submissions · Archive</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <main id="main-content" class="own-submissions">
-	{#key page.url.search}<SubmissionRegister submissions={data.submissions} filters={data.filters} review={false} />{/key}
+	{#key page.url.search}<SubmissionRegister submissions={data.submissions} filters={data.filters} />{/key}
 </main>
 
 <style>

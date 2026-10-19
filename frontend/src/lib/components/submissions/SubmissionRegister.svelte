@@ -6,64 +6,42 @@
 	import FileSearch from "@lucide/svelte/icons/file-search";
 	import Button from "$lib/components/ui/Button.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import SubmissionFilters from "./SubmissionFilters.svelte";
-	import AdminSnapshotTable from "./AdminSnapshotTable.svelte";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import { pageHref } from "$lib/admin/navigation";
 	let {
 		submissions,
-		filters,
-		review,
-		showHeading = true
+		filters
 	}: {
 		submissions: SnapshotSubmissionListResponse;
 		filters: { q: string; status: string };
-		review: boolean;
-		showHeading?: boolean;
 	} = $props();
-	const base = $derived(review ? "/admin/snapshot-reviews" : "/account/submissions");
+	const base = "/account/submissions";
 	const total = $derived(Number(submissions.total));
 </script>
 
 <section class="submission-register" aria-labelledby="submission-register-title">
-	{#if showHeading}
-		<header class="register-heading">
-			<p class="section-label">Your account</p>
-			<h1 id="submission-register-title">My submissions</h1>
-			<p>Follow your captures, review decisions and requests for another review.</p>
-		</header>
-	{:else}
-		<h2 id="submission-register-title" class="sr-only">{review ? "Snapshot reviews" : "My submissions"}</h2>
-	{/if}
-	<SubmissionFilters {filters} {review} resetHref={base} />
+	<header class="register-heading">
+		<p class="section-label">Your account</p>
+		<h1 id="submission-register-title">My submissions</h1>
+		<p>Follow your captures, review decisions and requests for another review.</p>
+	</header>
+	<SubmissionFilters {filters} resetHref={base} />
 	<div class="register-caption">
-		<h2>{review && !filters.status ? "Review requests" : "Submissions"}</h2>
+		<h2>Submissions</h2>
 		<p role="status">{total.toLocaleString()} {total === 1 ? "submission" : "submissions"}</p>
 	</div>
 	{#if !submissions.items.length}
 		<div class="submission-empty">
 			<FileSearch aria-hidden="true" />
-			<h3>{review && !filters.q && !filters.status ? "No snapshots awaiting review" : "No submissions found"}</h3>
+			<h3>No submissions found</h3>
 			<p>
-				{review
-					? "Captured submissions will appear here when they are ready for review."
-					: filters.q || filters.status
-						? "Try a different search or status."
-						: "Your submitted snapshots and their review status will appear here."}
+				{filters.q || filters.status
+					? "Try a different search or status."
+					: "Your submitted snapshots and their review status will appear here."}
 			</p>
-			{#if !review && !filters.q && !filters.status}<Button href="/archive/new">Archive a page</Button>{/if}
-		</div>
-	{:else if review}
-		<AdminSnapshotTable items={submissions.items} {base} />
-		<div class="register-pagination">
-			<AdminPagination
-				{total}
-				pageSize={Number(submissions.pageSize)}
-				currentPage={Number(submissions.page)}
-				href={(value) => pageHref(page.url, "page", value)}
-				label="Submission pages"
-			/>
+			{#if !filters.q && !filters.status}<Button href="/archive/new">Archive a page</Button>{/if}
 		</div>
 	{:else}
 		<ol class="submission-list">
@@ -74,10 +52,9 @@
 						{#if item.sourceUrl}<p class="submission-source">{item.sourceUrl}</p>{/if}
 						<p class="submission-meta">
 							<span>{item.createdBy ? `@${item.createdBy.handle}` : "Anonymous"}</span><span
-								>Submitted <LocalTimestamp value={item.createdAt} /></span
+								>Submitted <ArchiveTimestamp value={item.createdAt} /></span
 							>
 						</p>
-						{#if review}<p class="submission-meta">Review requested <LocalTimestamp value={item.moderationUpdatedAt} /></p>{/if}
 					</div>
 					<div class="submission-state">
 						<SnapshotModerationStatus status={item.moderationStatus} />
@@ -85,9 +62,7 @@
 								>{processingLabel(item.processingStatus)}</span
 							>{/if}
 					</div>
-					<Button href={`${base}/${item.id}`} variant="text"
-						>{review ? "Review snapshot" : "View submission"}<ArrowRight aria-hidden="true" /></Button
-					>
+					<Button href={`${base}/${item.id}`} variant="text">View submission<ArrowRight aria-hidden="true" /></Button>
 				</li>
 			{/each}
 		</ol>

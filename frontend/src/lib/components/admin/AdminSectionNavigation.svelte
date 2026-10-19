@@ -1,9 +1,8 @@
 <script lang="ts">
 	import Camera from "@lucide/svelte/icons/camera";
-	import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
 	import UsersRound from "@lucide/svelte/icons/users-round";
 
-	type AdminSection = { key: "users" | "snapshots" | "snapshotReviews"; label: string; href: string };
+	type AdminSection = { key: "users" | "snapshots"; label: string; href: string };
 	let { sections, pathname }: { sections: readonly AdminSection[]; pathname: string } = $props();
 </script>
 
@@ -14,11 +13,7 @@
 				href={section.href}
 				aria-current={pathname === section.href ? "page" : pathname.startsWith(`${section.href}/`) ? "location" : undefined}
 			>
-				{#if section.key === "users"}<UsersRound
-						aria-hidden="true"
-					/>{:else if section.key === "snapshotReviews"}<ClipboardCheck aria-hidden="true" />{:else}<Camera
-						aria-hidden="true"
-					/>{/if}
+				{#if section.key === "users"}<UsersRound aria-hidden="true" />{:else}<Camera aria-hidden="true" />{/if}
 				<span>{section.label}</span>
 			</a>
 		{/each}

@@ -3,7 +3,7 @@
 	import type { SnapshotHistoryResponse } from "$api";
 	import { historyLabel, historyReason } from "$lib/submission-history";
 	import { pageHref } from "$lib/admin/navigation";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
 	let { history }: { history: SnapshotHistoryResponse } = $props();
 </script>
@@ -18,7 +18,7 @@
 					<div>
 						<h3>{historyLabel(item)}</h3>
 						<p class="history-meta">
-							<LocalTimestamp value={item.createdAt} />{#if item.actor}<span>@{item.actor.handle} · {item.actor.role}</span
+							<ArchiveTimestamp value={item.createdAt} />{#if item.actor}<span>@{item.actor.handle} · {item.actor.role}</span
 								>{/if}
 						</p>
 						{#if historyReason(item)}<p class="history-reason">{historyReason(item)}</p>{/if}

@@ -18,27 +18,21 @@
 
 	let {
 		filters,
-		review,
 		resetHref,
 		filterQuality = false
 	}: {
 		filters: { q: string; status: string; quality?: string };
-		review: boolean;
 		resetHref: string;
 		filterQuality?: boolean;
 	} = $props();
 
-	const statuses = $derived([
-		{ value: "", label: review ? "All review requests" : "All statuses" },
-		{ value: "PENDING", label: review ? "Pending first review" : "Pending review" },
+	const statuses = [
+		{ value: "", label: "All statuses" },
+		{ value: "PENDING", label: "Pending review" },
 		{ value: "RESUBMITTED", label: "Resubmitted" },
-		...(review
-			? []
-			: [
-					{ value: "APPROVED", label: "Approved" },
-					{ value: "REJECTED", label: "Rejected" }
-				])
-	]);
+		{ value: "APPROVED", label: "Approved" },
+		{ value: "REJECTED", label: "Rejected" }
+	];
 	const qualities = [
 		{ value: "", label: "All capture states" },
 		{ value: "COMPLETE", label: "Fully captured" },
@@ -84,34 +78,36 @@
 	</div>
 	<Separator />
 	<div class="search-filters">
-		<SelectRoot type="single" name="moderationStatus" bind:value={status} disabled={pending} class="status-filter">
-			<SelectLabel>Moderation status <span class="field-qualifier">Optional</span></SelectLabel>
-			<SelectTrigger>
-				<SelectValue>{statuses.find((item) => item.value === status)?.label ?? statuses[0].label}</SelectValue>
-			</SelectTrigger>
-			<SelectContent>
-				<SelectViewport>
-					{#each statuses as item (item.value)}
-						<SelectItem value={item.value} textValue={item.label}>{item.label}</SelectItem>
-					{/each}
-				</SelectViewport>
-			</SelectContent>
-		</SelectRoot>
-		{#if filterQuality}
-			<SelectRoot type="single" name="quality" bind:value={quality} disabled={pending} class="quality-filter">
-				<SelectLabel>Capture completeness <span class="field-qualifier">Optional</span></SelectLabel>
+		<div class="filter-fields">
+			<SelectRoot type="single" name="moderationStatus" bind:value={status} disabled={pending} class="status-filter">
+				<SelectLabel>Moderation status <span class="field-qualifier">Optional</span></SelectLabel>
 				<SelectTrigger>
-					<SelectValue>{qualities.find((item) => item.value === quality)?.label ?? qualities[0].label}</SelectValue>
+					<SelectValue>{statuses.find((item) => item.value === status)?.label ?? statuses[0].label}</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectViewport>
-						{#each qualities as item (item.value)}
+						{#each statuses as item (item.value)}
 							<SelectItem value={item.value} textValue={item.label}>{item.label}</SelectItem>
 						{/each}
 					</SelectViewport>
 				</SelectContent>
 			</SelectRoot>
-		{/if}
+			{#if filterQuality}
+				<SelectRoot type="single" name="quality" bind:value={quality} disabled={pending} class="quality-filter">
+					<SelectLabel>Capture completeness <span class="field-qualifier">Optional</span></SelectLabel>
+					<SelectTrigger>
+						<SelectValue>{qualities.find((item) => item.value === quality)?.label ?? qualities[0].label}</SelectValue>
+					</SelectTrigger>
+					<SelectContent>
+						<SelectViewport>
+							{#each qualities as item (item.value)}
+								<SelectItem value={item.value} textValue={item.label}>{item.label}</SelectItem>
+							{/each}
+						</SelectViewport>
+					</SelectContent>
+				</SelectRoot>
+			{/if}
+		</div>
 		<Button href={resetHref} variant="text" disabled={pending || !hasFilters} onclick={clearDraft}>
 			<RotateCcw aria-hidden="true" />Reset filters
 		</Button>
@@ -139,16 +135,32 @@
 		margin-top: 1.8125rem;
 	}
 	.search-filters {
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: end;
-		justify-content: space-between;
-		gap: 1rem 2rem;
+		gap: 1rem;
 		padding: 1.25rem 1.5rem;
+	}
+	.filter-fields {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 17rem));
+		gap: 1rem;
 	}
 	.search-filters :global(.status-filter),
 	.search-filters :global(.quality-filter) {
 		max-width: 17rem;
+	}
+	.search-filters > :global(a) {
+		justify-self: end;
+		white-space: nowrap;
+	}
+	@media (max-width: 56rem) {
+		.search-filters {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.search-filters > :global(a) {
+			justify-self: start;
+		}
 	}
 	@media (max-width: 42rem) {
 		.search-main {
@@ -162,12 +174,12 @@
 		.search-filters {
 			padding: 1rem;
 		}
+		.filter-fields {
+			grid-template-columns: minmax(0, 1fr);
+		}
 		.search-filters :global(.status-filter),
 		.search-filters :global(.quality-filter) {
 			max-width: none;
-		}
-		.search-filters > :global(a) {
-			margin-inline-start: auto;
 		}
 	}
 </style>
