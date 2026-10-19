@@ -32,11 +32,6 @@
 				<a href={healthUrl} target="_blank" rel="noreferrer">System health&nbsp;↗</a>
 			</div>
 		</div>
-
-		<div class="site-footer__meta">
-			<span>PUBLIC INDEX · NO ACCOUNT REQUIRED</span>
-			<span>TIMES SHOWN IN YOUR LOCAL TIME</span>
-		</div>
 	</div>
 </footer>
 
@@ -106,19 +101,6 @@
 		text-decoration-thickness: 0.14em;
 	}
 
-	.site-footer__meta {
-		display: flex;
-		grid-column: 1 / -1;
-		justify-content: space-between;
-		gap: 1rem;
-		border-top: 1px solid var(--border-trace);
-		padding-top: 1.5rem;
-		color: var(--marginal-note);
-		font-family: var(--font-record);
-		font-size: 0.6875rem;
-		letter-spacing: 0.06em;
-	}
-
 	@media (max-width: 48rem) {
 		.site-footer__inner {
 			grid-template-columns: 1fr;
@@ -127,12 +109,6 @@
 
 		.site-footer__links {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.site-footer__meta {
-			grid-column: auto;
-			flex-direction: column;
-			gap: 0.5rem;
 		}
 	}
 
