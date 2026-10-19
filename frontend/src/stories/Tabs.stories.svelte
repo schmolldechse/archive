@@ -210,7 +210,7 @@
 				<TabsTrigger value="long">
 					A long label wraps across several lines without losing its complete accessible text
 				</TabsTrigger>
-				<TabsTrigger value="record"><span class="record-value">2026-09-09 · 14:32 UTC</span></TabsTrigger>
+				<TabsTrigger value="record"><span class="record-value">9 Sep 2026 | 14:32</span></TabsTrigger>
 				<TabsTrigger value="details">Details</TabsTrigger>
 			</TabsList>
 			<TabsPanel value="long">

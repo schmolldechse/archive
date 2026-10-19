@@ -8,10 +8,10 @@ using Riok.Mapperly.Abstractions;
 namespace Archive.Api.Mapping;
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
-public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
+public partial class SnapshotMapper(PublicUserMapper publicUserMapper)
 {
     [UseMapper]
-    private ArchiveCreatorMapper CreatorMapper { get; } = creatorMapper;
+    private PublicUserMapper PublicUserMapper { get; } = publicUserMapper;
 
     public partial SnapshotSearch ToSearch(SnapshotSearchRequest request);
 
@@ -21,16 +21,17 @@ public partial class SnapshotMapper(ArchiveCreatorMapper creatorMapper)
     public SnapshotResponse ToResponse(SnapshotDetails snapshot, string publicBaseUrl)
     {
         var resourceUrl = $"{publicBaseUrl.TrimEnd('/')}/api/snapshots/{snapshot.Id}";
-        return MapSnapshot(snapshot,
+        return ToResponse(snapshot,
             snapshot.Quality is null ? null : $"{resourceUrl}/screenshot",
             snapshot.Quality is null ? null : $"{resourceUrl}/content/index.html");
     }
 
+    /// <summary>Maps metadata using resource URLs selected by the caller's access scope.</summary>
+    public partial SnapshotResponse ToResponse(SnapshotDetails snapshot,
+        string? screenshotUrl, string? contentUrl);
+
     public SnapshotListResponse ToResponse(SnapshotPage page, string publicBaseUrl) =>
         MapPage(page, page.Items.Select(item => ToResponse(item, publicBaseUrl)).ToArray());
-
-    private partial SnapshotResponse MapSnapshot(SnapshotDetails snapshot,
-        string? screenshotUrl, string? contentUrl);
 
     [MapperIgnoreSource(nameof(SnapshotPage.Items))]
     private partial SnapshotListResponse MapPage(SnapshotPage page, IReadOnlyList<SnapshotResponse> items);

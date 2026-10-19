@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from "$app/state";
 	import { invalidate } from "$app/navigation";
+	import { adminAccess } from "$lib/admin/access";
 	import { getAuthContext } from "$lib/auth/context";
 	import { loginHref } from "$lib/auth/return-url";
 	import AccountDialog from "./AccountDialog.svelte";
@@ -12,7 +13,7 @@
 	{#if account.session === null}
 		<button class="session-retry" type="button" onclick={() => invalidate("app:auth")}>Retry account</button>
 	{:else if account.session.user}
-		<AccountDialog user={account.session.user} {onopen} />
+		<AccountDialog user={account.session.user} canOpenAdminPortal={adminAccess(account.session).portal} {onopen} />
 	{:else}
 		<a class="sign-in-link" href={loginHref(page.url.pathname + page.url.search)} onclick={onopen}>Sign in</a>
 	{/if}

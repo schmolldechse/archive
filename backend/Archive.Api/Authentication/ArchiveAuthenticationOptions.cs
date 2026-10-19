@@ -26,6 +26,7 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
 
     public string FrontendUrl(string? path) => FrontendOrigin.TrimEnd('/') + LocalReturnUrl(path);
 
+    /// <summary>Returns a validated local path and query without fragment-based navigation.</summary>
     public static string LocalReturnUrl(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Length > 2048 ||
@@ -37,8 +38,9 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
         if (decodedPath.Contains('\\') || decodedPath.Contains('%') || decodedPath.Any(char.IsControl) ||
             parsed.AbsolutePath.Contains("%2f", StringComparison.OrdinalIgnoreCase)) return "/";
         var route = decodedPath.Split('/')[1].ToLowerInvariant();
-        if (route is "login" or "account" or "api") return "/";
-        return parsed.PathAndQuery + parsed.Fragment;
+        if (route is "login" or "api" || route == "account" &&
+            decodedPath != "/account/submissions" && !decodedPath.StartsWith("/account/submissions/", StringComparison.Ordinal)) return "/";
+        return parsed.PathAndQuery;
     }
 
     private static bool IsOrigin(string origin) =>

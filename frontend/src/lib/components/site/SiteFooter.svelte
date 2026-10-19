@@ -1,5 +1,6 @@
 <script lang="ts">
 	import BrandMark from "./BrandMark.svelte";
+	import { scrollHomeSection } from "./section-navigation";
 
 	interface SiteFooterProps {
 		healthUrl: string;
@@ -11,30 +12,25 @@
 <footer class="site-footer" data-component="site-footer">
 	<div class="site-footer__inner">
 		<div>
-			<BrandMark href="/#home" aria-label="archive — Back to top" />
+			<BrandMark href="/" aria-label="archive — Back to top" onclick={(event) => scrollHomeSection(event, "home")} />
 			<p class="site-footer__statement">A public reading room for pages that would otherwise disappear.</p>
 		</div>
 
 		<div class="site-footer__links">
 			<div>
 				<h2>Archive</h2>
-				<a href="/#browse">Browse snapshots</a>
+				<a href="/" onclick={(event) => scrollHomeSection(event, "browse")}>Browse snapshots</a>
 				<a href="/archive/new">Archive a page</a>
 			</div>
 			<div>
 				<h2>Context</h2>
-				<a href="/#about">About the record</a>
-				<a href="/#about">How records work</a>
+				<a href="/" onclick={(event) => scrollHomeSection(event, "about")}>About the record</a>
+				<a href="/" onclick={(event) => scrollHomeSection(event, "about")}>How records work</a>
 			</div>
 			<div>
 				<h2>Technical</h2>
 				<a href={healthUrl} target="_blank" rel="noreferrer">System health&nbsp;↗</a>
 			</div>
-		</div>
-
-		<div class="site-footer__meta">
-			<span>PUBLIC INDEX · NO ACCOUNT REQUIRED</span>
-			<span>TIMES SHOWN WITH YOUR LOCAL OFFSET</span>
 		</div>
 	</div>
 </footer>
@@ -105,19 +101,6 @@
 		text-decoration-thickness: 0.14em;
 	}
 
-	.site-footer__meta {
-		display: flex;
-		grid-column: 1 / -1;
-		justify-content: space-between;
-		gap: 1rem;
-		border-top: 1px solid var(--border-trace);
-		padding-top: 1.5rem;
-		color: var(--marginal-note);
-		font-family: var(--font-record);
-		font-size: 0.6875rem;
-		letter-spacing: 0.06em;
-	}
-
 	@media (max-width: 48rem) {
 		.site-footer__inner {
 			grid-template-columns: 1fr;
@@ -126,12 +109,6 @@
 
 		.site-footer__links {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.site-footer__meta {
-			grid-column: auto;
-			flex-direction: column;
-			gap: 0.5rem;
 		}
 	}
 

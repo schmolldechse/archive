@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30">
+	<!-- Compact symbol from corporate-design/03_SVG/Symbol Compact 30.svg. -->
+	<style>
+		.ink { fill: #18201f; }
+		.accent { fill: #a43c2e; }
+		@media (prefers-color-scheme: dark) {
+			.ink { fill: #ece9df; }
+			.accent { fill: #ff9a7a; }
+		}
+	</style>
+	<path class="ink" d="M6.031,27.719l0,-25.438l2,0l0,3.281l18.75,0l-0,2l-18.75,0l0,3.625l13.125,0l0,2l-13.125,0l0,3.625l16.875,0l0,2l-16.875,0l-0,3.625l9.844,0l0,2l-9.844,0l0,3.281l-2,0Z" />
+	<rect class="accent" x="1.75" y="15.813" width="10.562" height="4" />
+</svg>

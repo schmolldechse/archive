@@ -18,16 +18,16 @@ internal sealed class SnapshotProcessor(IServiceScopeFactory scopeFactory,
         var input = claim.Input;
         CaptureResult? capture = null;
         var status = ProcessingStatus.Failed;
-        var completion = ProcessingCompletion.Unpublished;
+        var completion = ProcessingCompletion.NotStored;
         try
         {
             var progress = new CaptureProgress(scopeFactory, input.Id, claim.OwnerToken, logger, token);
             try { capture = await CaptureAsync(claim, progress, token); }
             finally { await progress.FlushAsync(); }
-            var published = await WithRepositoryAsync(processing => processing.PublishAsync(input.Id, claim.OwnerToken,
+            var published = await WithRepositoryAsync(processing => processing.CompleteCaptureAsync(input.Id, claim.OwnerToken,
                 new(capture.Quality, capture.ContentPrefix, capture.DurationMilliseconds, capture.StorageBytes, capture.ResourceCount), token));
             if (!published) throw new CaptureCancelledException();
-            completion = ProcessingCompletion.Published;
+            completion = ProcessingCompletion.Stored;
         }
         catch (CaptureCancelledException) { status = ProcessingStatus.Cancelled; }
         catch (CaptureDiscardedException exception)
@@ -46,11 +46,11 @@ internal sealed class SnapshotProcessor(IServiceScopeFactory scopeFactory,
         }
         catch (Exception exception) { logger.LogError(exception, "Snapshot {SnapshotId} processing failed", input.Id); }
 
-        if (completion != ProcessingCompletion.Published)
+        if (completion != ProcessingCompletion.Stored)
             completion = await FinishUntilConfirmedAsync(claim, status, token);
         if (completion == ProcessingCompletion.OwnershipLost) return;
         await DeleteUploadAsync(input.UploadedObjectKey, token);
-        if (completion == ProcessingCompletion.Unpublished && capture is not null)
+        if (completion == ProcessingCompletion.NotStored && capture is not null)
             foreach (var key in capture.StoredObjectKeys.Reverse())
             {
                 try { await objectStore.DeleteAsync(key, token); }

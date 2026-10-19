@@ -1,3 +1,4 @@
+using Archive.Api.Authentication;
 using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Mapping;
@@ -17,13 +18,15 @@ public sealed partial class SnapshotsController(
     ISnapshotRepository snapshotRepository,
     SnapshotMapper mapper,
     ArchiveApiOptions options,
+    ArchiveAuthenticationOptions authenticationOptions,
     ISnapshotProcessingRepository processing) : ControllerBase
 {
-    private static string ArchivedContentPolicy(string origin) =>
+    // Allow the configured viewer to embed archived documents without relaxing their sandbox.
+    private string ArchivedContentPolicy(string origin) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
         $"font-src {origin} data:; media-src {origin} data:; frame-src {origin}; " +
         "script-src 'none'; connect-src 'none'; object-src 'none'; " +
-        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self'; sandbox";
+        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self' {authenticationOptions.FrontendOrigin.TrimEnd('/')}; sandbox";
 
     private string ArchivedContentOrigin()
     {
@@ -38,8 +41,8 @@ public sealed partial class SnapshotsController(
 
     [HttpGet]
     [EndpointName("ListSnapshots")]
-    [EndpointSummary("Lists and searches archived snapshots.")]
-    [EndpointDescription("Returns a stably ordered page of snapshots using explicit text, source, tag, quality, source-type, and capture-time filters, with annual capture counts before capture-time filters and a global register summary.")]
+    [EndpointSummary("Lists and searches approved archived snapshots.")]
+    [EndpointDescription("Returns only approved snapshots with stored captures. Search results, annual capture counts and the global register summary share that visibility boundary. Annual counts precede capture-time filters.")]
     [ProducesResponseType<SnapshotListResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<ActionResult<SnapshotListResponse>> ListAsync(
@@ -60,8 +63,8 @@ public sealed partial class SnapshotsController(
 
     [HttpGet("{snapshotId:guid}")]
     [EndpointName("GetSnapshot")]
-    [EndpointSummary("Gets a snapshot.")]
-    [EndpointDescription("Returns metadata and public resource URLs for a stored snapshot.")]
+    [EndpointSummary("Gets an approved snapshot.")]
+    [EndpointDescription("Returns metadata and public resource URLs only for an approved stored snapshot. Other states return 404, including for signed-in moderators.")]
     [ProducesResponseType<SnapshotResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<SnapshotResponse>> GetAsync(Guid snapshotId, CancellationToken cancellationToken)

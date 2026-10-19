@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head>
-	<title>Sign in — ARCHIV</title>
+	<title>Sign in · Archive</title>
 	<meta name="robots" content="noindex, nofollow" />
 	<meta name="description" content="Sign in to your archive account. Browsing and archiving remain open to everyone." />
 </svelte:head>

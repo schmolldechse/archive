@@ -1,4 +1,4 @@
-/** Return destinations are local public pages, never an authentication endpoint. */
+/** Return destinations contain only a local public path and query, never a fragment or authentication endpoint. */
 export function safeReturnUrl(value: string | null | undefined): string {
 	if (!value || value.length > 2048) return "/";
 	try {
@@ -9,10 +9,11 @@ export function safeReturnUrl(value: string | null | undefined): string {
 			url.origin !== "https://archive.invalid" ||
 			/[\\%\p{Cc}]/u.test(path) ||
 			/%2f/i.test(url.pathname) ||
-			/^\/(?:login|account|api)(?:\/|$)/i.test(path)
+			/^\/(?:login|api)(?:\/|$)/i.test(path) ||
+			(/^\/account(?:\/|$)/i.test(path) && !/^\/account\/submissions(?:\/|$)/.test(path))
 		)
 			return "/";
-		return url.pathname + url.search + url.hash;
+		return url.pathname + url.search;
 	} catch {
 		return "/";
 	}

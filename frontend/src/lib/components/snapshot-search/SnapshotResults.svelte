@@ -77,7 +77,7 @@
 			{pageSize}
 			page={committed.page}
 			onPageChange={onPage}
-			getHref={(page) => searchHref({ ...committed, page }, "snapshot-register")}
+			getHref={(page) => searchHref({ ...committed, page })}
 			label="Snapshot result pages"
 			alwaysShow
 		>

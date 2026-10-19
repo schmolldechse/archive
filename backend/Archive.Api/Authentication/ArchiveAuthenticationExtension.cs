@@ -1,5 +1,6 @@
 using Archive.Api.Authentication.Catalog;
 using Archive.Api.Authentication.Provider;
+using Archive.Api.Authorization;
 using Archive.Api.Mapping;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Cors.Infrastructure;
@@ -37,9 +38,10 @@ public static class ArchiveAuthenticationExtension
                 .WithOrigins(options.FrontendOrigin.TrimEnd('/'))
                 .AllowAnyHeader()
                 .AllowAnyMethod()
-                .AllowCredentials()));
+                .AllowCredentials()
+                .WithExposedHeaders("ETag")));
 
-        services.AddAuthorization();
+        services.AddArchiveAuthorization();
 
         var dataProtection = services.AddDataProtection().SetApplicationName("Archive.Api");
         if (!isDevelopment)

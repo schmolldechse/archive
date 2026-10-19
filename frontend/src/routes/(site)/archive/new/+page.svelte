@@ -22,7 +22,7 @@
 	import { TabsList, TabsPanel, TabsRoot, TabsTrigger } from "$lib/components/ui/tabs";
 	import { ToastProvider, ToastViewport, createToastController } from "$lib/components/ui/toast";
 	import TagEditor from "$lib/components/tags/TagEditor.svelte";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
+	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import {
 		ArchiveHttpError,
 		cancelSnapshot,
@@ -36,6 +36,9 @@
 	} from "$lib/archive-submission";
 	import { onMount, tick } from "svelte";
 	import { snapshotLimits } from "$lib/snapshot-validation";
+	import SnapshotModerationStatus from "$lib/components/submissions/SnapshotModerationStatus.svelte";
+	import { getAuthContext } from "$lib/auth/context";
+	const account = getAuthContext();
 
 	const apiBaseUrl = apiOrigin();
 	const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -82,6 +85,7 @@
 
 	const terminal = $derived(archive !== null && terminalStatuses.has(archive.status));
 	const canCancel = $derived(archive?.canCancel === true);
+	const isPublished = $derived(archive?.status === ProcessingStatus.COMPLETED && archive.moderationStatus === "APPROVED");
 	const currentStep = $derived(!archive?.startedAt ? -1 : steps.findIndex((step) => step.key === archive?.progressStep));
 	const heading = $derived(
 		archive?.status === ProcessingStatus.COMPLETED
@@ -96,7 +100,13 @@
 		archive?.status === ProcessingStatus.QUEUED
 			? `Your request is waiting${archive.queuePosition ? ` at position ${archive.queuePosition}` : ""}.`
 			: archive?.status === ProcessingStatus.COMPLETED
-				? "The preserved page is ready to read in the archive."
+				? isPublished
+					? "The preserved page is ready to read in the archive."
+					: archive.moderationStatus === "REJECTED"
+						? "This snapshot was not approved."
+						: archive.moderationStatus === "RESUBMITTED"
+							? "Your snapshot has been submitted for review again."
+							: "Your snapshot has been submitted for approval."
 				: archive?.status === ProcessingStatus.CANCELLED
 					? "The archive was cancelled. No new snapshot was published."
 					: archive && terminal
@@ -183,6 +193,8 @@
 	}
 
 	async function loadMetadata(id: string): Promise<void> {
+		// Public metadata is unavailable until both capture and approval are complete.
+		if (!isPublished) return;
 		try {
 			const snapshot = await getSnapshot(apiBaseUrl, id);
 			if (!alive || archive?.id !== id) return;
@@ -254,6 +266,7 @@
 			submittedAt = new Date().toISOString();
 			applyArchive({
 				id: result.id,
+				moderationStatus: result.moderationStatus,
 				status: ProcessingStatus.QUEUED,
 				progressStep: ProgressStep.SOURCE_CHECK,
 				queuePosition: null,
@@ -325,10 +338,20 @@
 		if (archive?.status === ProcessingStatus.RUNNING && index === currentStep) return "active";
 		return "waiting";
 	}
+
+	/** Capture streams close at completion; moderation can be refreshed without a long-lived stream. */
+	async function refreshStatus(): Promise<void> {
+		if (!archive) return;
+		try {
+			applyArchive(await getSnapshotStatus(apiBaseUrl, archive.id));
+		} catch {
+			monitorError = "The current status could not be loaded. Please try again.";
+		}
+	}
 </script>
 
 <svelte:head>
-	<title>Archive a page — ARCHIV</title>
+	<title>{archive ? heading : restoring ? "Capture status" : "Archive a page"} · Archive</title>
 	<meta name="description" content="Preserve a public web page or a saved page file, and follow its capture progress." />
 </svelte:head>
 
@@ -390,6 +413,7 @@
 						<span>{statusMessage}</span>
 					</div>
 					<p class="progress-description">{progressDescription}</p>
+					{#if archive.status === ProcessingStatus.COMPLETED}<SnapshotModerationStatus status={archive.moderationStatus} />{/if}
 					{#if monitorError}<p class="status-note" role="status">{monitorError}</p>{/if}
 					<dl class="progress-source">
 						{#if submittedTitle}<div>
@@ -410,7 +434,7 @@
 						<div>
 							<dt>Started</dt>
 							<dd>
-								{#if archive.startedAt ?? submittedAt}<LocalTimestamp
+								{#if archive.startedAt ?? submittedAt}<ArchiveTimestamp
 										value={(archive.startedAt ?? submittedAt)!}
 									/>{:else}Waiting{/if}
 							</dd>
@@ -440,8 +464,14 @@
 									void cancel();
 								}}>{cancelling ? "Cancelling…" : "Cancel archiving"}</Button
 							>{/if}
-						{#if archive.status === ProcessingStatus.COMPLETED}<Button variant="primary" href={`/snapshots/${archive.id}`}
+						{#if isPublished}<Button variant="primary" href={`/snapshots/${archive.id}`}
 								>Open snapshot <ArrowRight size={18} aria-hidden="true" /></Button
+							>{/if}
+						{#if archive.status === ProcessingStatus.COMPLETED && !isPublished}<Button variant="text" onclick={refreshStatus}
+								>Refresh status</Button
+							>{/if}
+						{#if account.session?.user}<Button variant="text" href={`/account/submissions/${archive.id}`}
+								>View submission</Button
 							>{/if}
 						{#if terminal}<Button variant="secondary" onclick={restart}>Start another capture</Button>{/if}
 						{#if canCancel}<span class="actions-note">You can cancel while the request is queued or running.</span>{/if}

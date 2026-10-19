@@ -17,7 +17,11 @@
 		DialogClose
 	} from "$lib/components/ui/dialog";
 
-	let { user, onopen }: { user: UserProfileResponse; onopen?: () => void } = $props();
+	let {
+		user,
+		onopen,
+		canOpenAdminPortal = false
+	}: { user: UserProfileResponse; onopen?: () => void; canOpenAdminPortal?: boolean } = $props();
 	let open = $state(false);
 	let closeButton = $state<HTMLButtonElement | null>(null);
 </script>
@@ -82,6 +86,21 @@
 				</div>
 			{/if}
 
+			<section class="account-submissions" aria-labelledby="account-submissions-title">
+				<h3 id="account-submissions-title">My submissions</h3>
+				<Button href="/account/submissions" variant="text" onclick={() => (open = false)}
+					>View all submissions<ArrowRight aria-hidden="true" /></Button
+				>
+			</section>
+
+			{#if canOpenAdminPortal}
+				<div class="account-admin">
+					<Button href="/admin" variant="text" onclick={() => (open = false)}
+						>Admin portal<ArrowRight aria-hidden="true" /></Button
+					>
+				</div>
+			{/if}
+
 			<form method="POST" action={apiUrl("/api/auth/logout")} class="account-logout">
 				<button type="submit"><LogOut aria-hidden="true" />Sign out</button>
 			</form>
@@ -90,6 +109,20 @@
 </div>
 
 <style>
+	.account-submissions {
+		border-top: 1px solid var(--border-trace);
+		padding: 1rem;
+	}
+	.account-submissions h3 {
+		margin: 0 0 0.75rem;
+		font: 600 0.875rem/1.4 var(--font-interface);
+	}
+	.account-submissions > :global(.button) {
+		width: 100%;
+		justify-content: space-between;
+		padding-inline: 0;
+		font-size: 0.875rem;
+	}
 	.site-account {
 		display: flex;
 	}
@@ -178,6 +211,11 @@
 		width: 100%;
 		justify-content: space-between;
 		text-align: start;
+	}
+
+	.account-admin {
+		padding: 0.25rem 0.5rem;
+		border-top: 1px solid var(--border-trace);
 	}
 
 	.account-logout {

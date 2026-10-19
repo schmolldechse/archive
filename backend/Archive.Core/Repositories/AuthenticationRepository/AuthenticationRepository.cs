@@ -1,4 +1,5 @@
 ﻿using Archive.Core.Entities.Authentication;
+using Archive.Core.Entities.Authentication.Permissible;
 using Archive.Core.Models.Authentication;
 using Archive.Core.Models.ProfileImages;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +37,8 @@ public sealed class AuthenticationRepository(DataContext dataContext) : IAuthent
 
         var user = new ArchiveUser
         {
-            ProfileImage = ProfileImageEncoding.Encode(descriptor.ProfileImage, out _)
+            ProfileImage = ProfileImageEncoding.Encode(descriptor.ProfileImage, out _),
+            Role = ArchiveRole.User
         };
         authIdentity = new UserAuthIdentity
         {

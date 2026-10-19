@@ -1,7 +1,6 @@
 <script lang="ts">
 	import X from "@lucide/svelte/icons/x";
 	import type { SnapshotResponse } from "$api";
-	import LocalTimestamp from "$lib/components/site/LocalTimestamp.svelte";
 	import { DialogClose, DialogContent, DialogRoot, DialogTitle } from "$lib/components/ui/dialog";
 	import SnapshotPreviewContent from "./SnapshotPreviewContent.svelte";
 	let {
@@ -46,8 +45,8 @@
 				aria-describedby={undefined}
 			>
 				<div class="dialog-heading">
-					<DialogTitle>Snapshot preview</DialogTitle><LocalTimestamp value={snapshot.createdAt} /><DialogClose
-						aria-label="Close snapshot preview"><X aria-hidden="true" /></DialogClose
+					<DialogTitle>Snapshot preview</DialogTitle><DialogClose aria-label="Close snapshot preview"
+						><X aria-hidden="true" /></DialogClose
 					>
 				</div>
 				<SnapshotPreviewContent {snapshot} layout="desktop" />
@@ -101,11 +100,5 @@
 	.dialog-heading :global(button) {
 		min-width: 44px;
 		padding-inline: 0.5rem;
-	}
-	.dialog-heading :global(time) {
-		margin-left: auto;
-		color: var(--marginal-note);
-		font-family: var(--font-record);
-		font-size: 0.75rem;
 	}
 </style>
