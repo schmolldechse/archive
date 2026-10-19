@@ -97,12 +97,12 @@
 					</TableCell>
 					<TableCell class="submitted-cell" data-label="Submitted">
 						<ArchiveAttribution creator={item.createdBy} layout="compact" label={null} />
-						<p class="record-time"><ArchiveTimestamp value={item.createdAt} /></p>
+						<p class="record-time"><ArchiveTimestamp value={item.createdAt} density="compact" /></p>
 					</TableCell>
 					<TableCell class="capture-cell" data-label="Capture status">
 						<Badge variant={captureVariant(item)} size="compact">{captureLabel(item)}</Badge>
 						{#if item.captureCompletedAt}
-							<p class="record-time">Ended <ArchiveTimestamp value={item.captureCompletedAt} /></p>
+							<p class="record-time"><ArchiveTimestamp value={item.captureCompletedAt} density="compact" /></p>
 						{/if}
 					</TableCell>
 					<TableCell class="data-cell" data-label="Archived data">
@@ -123,7 +123,7 @@
 					</TableCell>
 					<TableCell class="moderation-cell" data-label="Moderation">
 						<SnapshotModerationStatus status={item.moderationStatus} />
-						<p class="record-time">Updated <ArchiveTimestamp value={item.moderationUpdatedAt} /></p>
+						<p class="record-time"><ArchiveTimestamp value={item.moderationUpdatedAt} density="compact" /></p>
 					</TableCell>
 					<TableCell class="action-cell" data-label="Action" align="end">
 						<Button
@@ -202,12 +202,14 @@
 		overflow-wrap: anywhere;
 		word-break: break-word;
 	}
-	.snapshot-origin,
-	.record-time {
+	.snapshot-origin {
 		margin: 0.5rem 0 0;
 		color: var(--marginal-note);
 		font-size: 0.75rem;
 		line-height: 1.45;
+	}
+	.record-time {
+		margin: 0.5rem 0 0;
 	}
 	.snapshot-origin {
 		font-family: var(--font-record);
