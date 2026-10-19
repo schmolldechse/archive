@@ -166,30 +166,6 @@
 		font-size: 0.875rem;
 		font-weight: 400;
 	}
-
-	.archive-field {
-		min-height: 3.5rem;
-		border: 1px solid var(--border-trace);
-		border-radius: var(--radius-control);
-		background: var(--archive-layer);
-		color: var(--reading-ink);
-	}
-
-	.snapshot[aria-selected="true"] {
-		border-inline-start: 3px solid var(--time-marker);
-		background: var(--archive-layer);
-	}
-
-	/* Keep archive tag collections consistent across public and review records. */
-	.snapshot-tag-list {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem 0.75rem;
-		margin: 0.75rem 0 0;
-		padding: 0;
-		list-style: none;
-		font-size: 0.75rem;
-	}
 }
 
 @layer utilities {

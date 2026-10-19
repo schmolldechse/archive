@@ -3,7 +3,7 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
-	import SnapshotTags from "./SnapshotTags.svelte";
+	import SnapshotTagList from "./SnapshotTagList.svelte";
 	import { formatBytes } from "./format";
 	let { snapshot }: { snapshot: SnapshotResponse } = $props();
 </script>
@@ -17,11 +17,7 @@
 		<section class="snapshot-metadata__about" aria-label="About this page">
 			<h4>About this page</h4>
 			{#if snapshot.description}<p>{snapshot.description}</p>{/if}
-			{#if snapshot.tags.length}
-				<ul class="snapshot-tag-list" aria-label="Snapshot tags">
-					{#each snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
-				</ul>
-			{/if}
+			<SnapshotTagList tags={snapshot.tags} />
 		</section>
 	{/if}
 	{#if snapshot.quality !== null}

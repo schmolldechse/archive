@@ -18,7 +18,7 @@
 	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
-	import SnapshotTags from "$lib/components/archive/SnapshotTags.svelte";
+	import SnapshotTagList from "$lib/components/archive/SnapshotTagList.svelte";
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
@@ -258,9 +258,7 @@
 				<p class="record-description">{detail.snapshot.description}</p>{/if}
 			{#if detail.snapshot.tags.length}<h3>Tags</h3>
 				<div class="record-tags">
-					<ul class="snapshot-tag-list" aria-label="Snapshot tags">
-						{#each detail.snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
-					</ul>
+					<SnapshotTagList tags={detail.snapshot.tags} />
 				</div>{/if}
 			{#if detail.snapshot.contentUrl}<Button href={`/snapshots/${detail.snapshot.id}`}
 					>Open archived page<ArrowRight aria-hidden="true" /></Button

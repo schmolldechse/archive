@@ -7,7 +7,7 @@
 	import type { HTMLButtonAttributes } from "svelte/elements";
 	import CopySourceButton from "./CopySourceButton.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
-	import SnapshotTags from "./SnapshotTags.svelte";
+	import SnapshotTagList from "./SnapshotTagList.svelte";
 	import { formatBytes } from "./format";
 
 	interface ArchiveRecordProps {
@@ -53,11 +53,7 @@
 		{#if snapshot.description}
 			<p class="archive-record__description">{snapshot.description}</p>
 		{/if}
-		{#if snapshot.tags.length}
-			<ul class="snapshot-tag-list" aria-label="Snapshot tags">
-				{#each snapshot.tags as tag (tag)}<SnapshotTags {tag} />{/each}
-			</ul>
-		{/if}
+		<SnapshotTagList tags={snapshot.tags} />
 	</div>
 
 	<button
