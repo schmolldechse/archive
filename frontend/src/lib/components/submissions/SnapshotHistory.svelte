@@ -73,9 +73,7 @@
 						<h3>{historyLabel(item)}</h3>
 						{#if item.actor}
 							<div class="history-actor">
-								<span class="history-actor__prefix">By</span>
 								<ArchiveAttribution creator={item.actor} layout="compact" label={null} />
-								<span class="history-actor__role">{item.actor.role}</span>
 							</div>
 						{/if}
 						{#if historyReason(item)}
@@ -234,24 +232,7 @@
 		letter-spacing: -0.005em;
 	}
 	.history-actor {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.375rem 0.625rem;
-		margin: 0.75rem 0 0;
-	}
-	.history-actor__prefix {
-		color: var(--marginal-note);
-		font-size: 0.875rem;
-	}
-	.history-actor__role {
-		border-inline-start: 1px solid var(--border-trace);
-		padding-inline-start: 0.75rem;
-		color: var(--marginal-note);
-		font-size: 0.75rem;
-		font-weight: 600;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
+		margin-top: 0.75rem;
 	}
 	.history-note {
 		max-width: 72ch;
