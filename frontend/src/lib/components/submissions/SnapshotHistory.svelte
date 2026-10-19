@@ -73,7 +73,7 @@
 						<h3>{historyLabel(item)}</h3>
 						{#if item.actor}
 							<div class="history-actor">
-								<ArchiveAttribution creator={item.actor} layout="compact" label={null} />
+								<ArchiveAttribution creator={item.actor} layout="compact" label="Actor" />
 							</div>
 						{/if}
 						{#if historyReason(item)}
