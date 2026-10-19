@@ -10,6 +10,7 @@ export function adminAccess(session: AuthenticationSessionResponse | null) {
 		portal,
 		users,
 		snapshots: portal && has("admin.snapshots.access"),
+		snapshotReviews: portal && has("admin.snapshots.access"),
 		roles: users && has("users.assign_roles"),
 		permissions: users && has("users.assign_permissions")
 	};

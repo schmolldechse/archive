@@ -8,4 +8,5 @@ namespace Archive.Core.Models.Snapshots;
 public sealed record SnapshotSubmissionSummary(Guid Id, string Title, string? SourceUrl,
     SourceType SourceType, DateTimeOffset CreatedAt, DateTimeOffset ModerationUpdatedAt,
     SnapshotModerationStatus ModerationStatus, ProcessingStatus ProcessingStatus,
-    SnapshotQuality? Quality, PublicUser? CreatedBy);
+    SnapshotQuality? Quality, DateTimeOffset? CaptureCompletedAt, long? DurationMilliseconds,
+    long? StorageBytes, int? ResourceCount, PublicUser? CreatedBy);

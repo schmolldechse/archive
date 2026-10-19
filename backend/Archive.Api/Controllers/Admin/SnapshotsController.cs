@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Archive.Api.Controllers.Admin;
 
-/// <summary>Private review queue, lifecycle history and conditional moderation decisions.</summary>
+/// <summary>Private snapshot administration, review queue and conditional moderation decisions.</summary>
 [ApiController, Route("api/admin/snapshots"), Tags("Snapshot Moderation")]
 [RequirePermission(ArchivePermissions.AccessAdminPortal), RequirePermission(ArchivePermissions.AccessAdminSnapshots)]
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
@@ -18,9 +18,16 @@ namespace Archive.Api.Controllers.Admin;
 public sealed class SnapshotsController(ISnapshotSubmissionRepository submissions, SnapshotSubmissionMapper mapper,
     ArchiveAuthenticationOptions options) : SnapshotSubmissionControllerBase(submissions, mapper, options)
 {
-    [HttpGet, EndpointName("ListSnapshotsForReview"), EndpointSummary("Lists captured submissions for moderation.")]
+    [HttpGet, EndpointName("ListAdminSnapshots"), EndpointSummary("Lists snapshot records for administration.")]
     [ProducesResponseType<SnapshotSubmissionListResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
-    public async Task<ActionResult<SnapshotSubmissionListResponse>> List([FromQuery] SnapshotSubmissionQuery query, CancellationToken token) =>
+    [EndpointDescription("Returns a bounded page of snapshot records across all moderation and capture states. Supports title or source URL search, exact moderation status, and complete or not-fully-captured filters.")]
+    public async Task<ActionResult<SnapshotSubmissionListResponse>> List([FromQuery] SnapshotAdministrationQuery query, CancellationToken token) =>
+        Ok(Mapper.ToResponse(await Submissions.SearchForAdminAsync(query.Q, query.ModerationStatus, query.Quality, query.Page, query.PageSize, token)));
+
+    [HttpGet("/api/admin/snapshot-reviews"), EndpointName("ListSnapshotsForReview"), EndpointSummary("Lists captured snapshots awaiting a moderation decision.")]
+    [ProducesResponseType<SnapshotSubmissionListResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
+    [EndpointDescription("Returns only stored pending or resubmitted snapshots, ordered by the oldest outstanding review request first.")]
+    public async Task<ActionResult<SnapshotSubmissionListResponse>> ReviewQueue([FromQuery] SnapshotSubmissionQuery query, CancellationToken token) =>
         Ok(Mapper.ToResponse(await Submissions.SearchForReviewAsync(query.Q, query.ModerationStatus, query.Page, query.PageSize, token)));
 
     [HttpGet("{id:guid}"), EndpointName("GetSnapshotForReview"), EndpointSummary("Reads private snapshot details and a strong ETag.")]

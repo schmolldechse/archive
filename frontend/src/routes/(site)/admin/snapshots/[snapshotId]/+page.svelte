@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head
-	><title>{data.detail.snapshot.title} · Moderation · Archive</title><meta
+	><title>{data.detail.snapshot.title} · Snapshot record · Archive</title><meta
 		name="robots"
 		content="noindex, nofollow"
 	/></svelte:head

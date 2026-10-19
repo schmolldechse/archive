@@ -3,7 +3,8 @@ import type { adminAccess } from "./access";
 /** Only implemented panel sections belong here; detail pages remain within their parent section. */
 const sections = [
 	{ key: "users", label: "Users", href: "/admin/users" },
-	{ key: "snapshots", label: "Snapshots", href: "/admin/snapshots" }
+	{ key: "snapshots", label: "Snapshots", href: "/admin/snapshots" },
+	{ key: "snapshotReviews", label: "Snapshot reviews", href: "/admin/snapshot-reviews" }
 ] as const;
 
 /** Navigation and the portal entry point use the same effective section permissions. */

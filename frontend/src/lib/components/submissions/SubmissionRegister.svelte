@@ -22,7 +22,7 @@
 		review: boolean;
 		showHeading?: boolean;
 	} = $props();
-	const base = $derived(review ? "/admin/snapshots" : "/account/submissions");
+	const base = $derived(review ? "/admin/snapshot-reviews" : "/account/submissions");
 	const total = $derived(Number(submissions.total));
 </script>
 
@@ -34,7 +34,7 @@
 			<p>Follow your captures, review decisions and requests for another review.</p>
 		</header>
 	{:else}
-		<h2 id="submission-register-title" class="sr-only">Snapshot submissions</h2>
+		<h2 id="submission-register-title" class="sr-only">{review ? "Snapshot reviews" : "My submissions"}</h2>
 	{/if}
 	<SubmissionFilters {filters} {review} resetHref={base} />
 	<div class="register-caption">

@@ -50,6 +50,25 @@ public sealed class SnapshotSubmissionSummaryResponse
     [Description("Stored capture quality. Null until capture storage has completed.")]
     public required SnapshotQuality? Quality { get; init; }
 
+    [JsonPropertyName("captureCompletedAt")]
+    [Description("Capture completion time, including the UTC offset. Null until a capture has ended.")]
+    public required DateTimeOffset? CaptureCompletedAt { get; init; }
+
+    [JsonPropertyName("durationMilliseconds")]
+    [Description("Capture processing duration in milliseconds. Null until capture storage has completed.")]
+    [Range(0, long.MaxValue)]
+    public required long? DurationMilliseconds { get; init; }
+
+    [JsonPropertyName("storageBytes")]
+    [Description("Stored snapshot size in bytes. Null until capture storage has completed.")]
+    [Range(0, long.MaxValue)]
+    public required long? StorageBytes { get; init; }
+
+    [JsonPropertyName("resourceCount")]
+    [Description("Number of archived resources. Null until capture storage has completed.")]
+    [Range(0, int.MaxValue)]
+    public required int? ResourceCount { get; init; }
+
     [JsonPropertyName("createdBy")]
     [Description("Public information about the submitting account. Null for anonymous submissions.")]
     public required PublicUserResponse? CreatedBy { get; init; }

@@ -21,8 +21,15 @@
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	let {
 		data
-	}: { data: { detail: SnapshotSubmissionDetailResponse; etag: string; history: SnapshotHistoryResponse; review: boolean } } =
-		$props();
+	}: {
+		data: {
+			detail: SnapshotSubmissionDetailResponse;
+			etag: string;
+			history: SnapshotHistoryResponse;
+			review: boolean;
+			admin: boolean;
+		};
+	} = $props();
 	let detail = $state.raw(untrack(() => data.detail));
 	let etag = $state(untrack(() => data.etag));
 	let decision = $state<Status>(Status.APPROVED);
@@ -35,9 +42,13 @@
 	let blocked = $state(false);
 	let errorNotice = $state<HTMLDivElement | null>(null);
 	let successNotice = $state<HTMLParagraphElement | null>(null);
-	const base = $derived(`/api/${data.review ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
-	const backHref = $derived(data.review ? "/admin/snapshots" : "/account/submissions");
-	const technicalLabel = $derived(processingLabel(detail.processingStatus));
+	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
+	const backHref = $derived(data.review ? "/admin/snapshot-reviews" : data.admin ? "/admin/snapshots" : "/account/submissions");
+	const technicalLabel = $derived(
+		detail.processingStatus === "COMPLETED" && detail.snapshot.quality === "INCOMPLETE"
+			? "Incomplete capture"
+			: processingLabel(detail.processingStatus)
+	);
 	const isPublished = $derived(detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.APPROVED);
 	const canReview = $derived(
 		data.review &&
@@ -45,7 +56,7 @@
 			(detail.moderation.status === Status.PENDING || detail.moderation.status === Status.RESUBMITTED)
 	);
 	const canResubmit = $derived(
-		!data.review && detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.REJECTED
+		!data.admin && detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.REJECTED
 	);
 
 	/** Updates only from an acknowledged response; a failed write preserves the decision draft. */
@@ -114,10 +125,12 @@
 
 <article class="submission-detail">
 	<nav class="detail-path" aria-label="Submission navigation">
-		<a href={backHref}><ArrowLeft aria-hidden="true" />{data.review ? "Snapshot moderation" : "My submissions"}</a>
+		<a href={backHref}
+			><ArrowLeft aria-hidden="true" />{data.review ? "Snapshot reviews" : data.admin ? "All snapshots" : "My submissions"}</a
+		>
 	</nav>
 	<header class="detail-heading">
-		<p class="section-label">{data.review ? "Review submission" : "Your submission"}</p>
+		<p class="section-label">{data.review ? "Review submission" : data.admin ? "Snapshot record" : "Your submission"}</p>
 		<h1>{detail.snapshot.title}</h1>
 		<div class="detail-status"><SnapshotModerationStatus status={detail.moderation.status} /><span>{technicalLabel}</span></div>
 		{#if detail.snapshot.sourceUrl}<div class="detail-source">
@@ -140,6 +153,10 @@
 		<section class="detail-record" aria-labelledby="detail-record-title">
 			<h2 id="detail-record-title">Snapshot details</h2>
 			<dl>
+				{#if data.admin}<div class="snapshot-id">
+						<dt>Snapshot ID</dt>
+						<dd><code>{detail.snapshot.id}</code></dd>
+					</div>{/if}
 				<div>
 					<dt>Submitted</dt>
 					<dd><LocalTimestamp value={detail.snapshot.createdAt} /></dd>
@@ -247,7 +264,7 @@
 			>
 		</section>{/if}
 	<div class="detail-history"><SnapshotHistory history={data.history} /></div>
-	{#if data.review && !canReview}<Button href="/admin/snapshots" variant="text"
+	{#if data.review && !canReview}<Button href="/admin/snapshot-reviews" variant="text"
 			>Next awaiting review<ArrowRight aria-hidden="true" /></Button
 		>{/if}
 </article>
@@ -270,6 +287,14 @@
 	}
 	.detail-heading {
 		padding-block: 1.5rem 2rem;
+	}
+	.snapshot-id code {
+		display: inline-block;
+		max-width: 100%;
+		font-family: var(--font-record);
+		font-size: 0.8125rem;
+		overflow-wrap: anywhere;
+		word-break: break-word;
 	}
 	.section-label {
 		text-transform: uppercase;

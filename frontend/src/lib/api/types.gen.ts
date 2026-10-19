@@ -557,6 +557,22 @@ export type SnapshotSubmissionSummaryResponse = {
 	 */
 	processingStatus: ProcessingStatus;
 	quality: null | SnapshotQuality;
+	/**
+	 * Capture completion time, including the UTC offset. Null until a capture has ended.
+	 */
+	captureCompletedAt: null | string;
+	/**
+	 * Capture processing duration in milliseconds. Null until capture storage has completed.
+	 */
+	durationMilliseconds: null | number | string;
+	/**
+	 * Stored snapshot size in bytes. Null until capture storage has completed.
+	 */
+	storageBytes: null | number | string;
+	/**
+	 * Number of archived resources. Null until capture storage has completed.
+	 */
+	resourceCount: null | number | string;
 	createdBy: null | PublicUserResponse;
 };
 
@@ -1527,6 +1543,60 @@ export type ListPermissionsResponses = {
 
 export type ListPermissionsResponse = ListPermissionsResponses[keyof ListPermissionsResponses];
 
+export type ListAdminSnapshotsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		/**
+		 * Capture completeness. COMPLETE selects stored complete captures; INCOMPLETE selects captures with missing resources or snapshots without a completed capture.
+		 */
+		quality?: SnapshotQuality;
+		/**
+		 * One-based page number.
+		 */
+		page?: number | string;
+		/**
+		 * Maximum records per page.
+		 */
+		pageSize?: number | string;
+	};
+	url: "/api/admin/snapshots";
+};
+
+export type ListAdminSnapshotsErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+};
+
+export type ListAdminSnapshotsError = ListAdminSnapshotsErrors[keyof ListAdminSnapshotsErrors];
+
+export type ListAdminSnapshotsResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionListResponse;
+};
+
+export type ListAdminSnapshotsResponse = ListAdminSnapshotsResponses[keyof ListAdminSnapshotsResponses];
+
 export type ListSnapshotsForReviewData = {
 	body?: never;
 	path?: never;
@@ -1542,7 +1612,7 @@ export type ListSnapshotsForReviewData = {
 		page?: number | string;
 		pageSize?: number | string;
 	};
-	url: "/api/admin/snapshots";
+	url: "/api/admin/snapshot-reviews";
 };
 
 export type ListSnapshotsForReviewErrors = {

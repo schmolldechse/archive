@@ -16,30 +16,51 @@
 		SelectItem
 	} from "$lib/components/ui/select";
 
-	let { filters, review, resetHref }: { filters: { q: string; status: string }; review: boolean; resetHref: string } = $props();
+	let {
+		filters,
+		review,
+		resetHref,
+		filterQuality = false
+	}: {
+		filters: { q: string; status: string; quality?: string };
+		review: boolean;
+		resetHref: string;
+		filterQuality?: boolean;
+	} = $props();
 
 	const statuses = $derived([
 		{ value: "", label: review ? "All review requests" : "All statuses" },
 		{ value: "PENDING", label: review ? "Pending first review" : "Pending review" },
 		{ value: "RESUBMITTED", label: "Resubmitted" },
-		{ value: "APPROVED", label: "Approved" },
-		{ value: "REJECTED", label: "Rejected" }
+		...(review
+			? []
+			: [
+					{ value: "APPROVED", label: "Approved" },
+					{ value: "REJECTED", label: "Rejected" }
+				])
 	]);
+	const qualities = [
+		{ value: "", label: "All capture states" },
+		{ value: "COMPLETE", label: "Fully captured" },
+		{ value: "INCOMPLETE", label: "Not fully captured" }
+	];
 	let query = $state(untrack(() => filters.q));
 	let status = $state<string | null>(untrack(() => filters.status));
+	let quality = $state<string | null>(untrack(() => filters.quality ?? ""));
 	const pending = $derived(navigating.to?.url.pathname === resetHref);
-	const hasFilters = $derived(Boolean(query.trim() || status || filters.q || filters.status));
+	const hasFilters = $derived(Boolean(query.trim() || status || quality || filters.q || filters.status || filters.quality));
 
 	function clearDraft(): void {
 		query = "";
 		status = "";
+		quality = "";
 	}
 </script>
 
 <form
 	method="GET"
 	role="search"
-	aria-label="Search snapshot submissions"
+	aria-label="Search snapshot records"
 	aria-busy={pending ? "true" : undefined}
 	class="submission-search"
 >
@@ -76,6 +97,21 @@
 				</SelectViewport>
 			</SelectContent>
 		</SelectRoot>
+		{#if filterQuality}
+			<SelectRoot type="single" name="quality" bind:value={quality} disabled={pending} class="quality-filter">
+				<SelectLabel>Capture completeness <span class="field-qualifier">Optional</span></SelectLabel>
+				<SelectTrigger>
+					<SelectValue>{qualities.find((item) => item.value === quality)?.label ?? qualities[0].label}</SelectValue>
+				</SelectTrigger>
+				<SelectContent>
+					<SelectViewport>
+						{#each qualities as item (item.value)}
+							<SelectItem value={item.value} textValue={item.label}>{item.label}</SelectItem>
+						{/each}
+					</SelectViewport>
+				</SelectContent>
+			</SelectRoot>
+		{/if}
 		<Button href={resetHref} variant="text" disabled={pending || !hasFilters} onclick={clearDraft}>
 			<RotateCcw aria-hidden="true" />Reset filters
 		</Button>
@@ -110,7 +146,8 @@
 		gap: 1rem 2rem;
 		padding: 1.25rem 1.5rem;
 	}
-	.search-filters :global(.status-filter) {
+	.search-filters :global(.status-filter),
+	.search-filters :global(.quality-filter) {
 		max-width: 17rem;
 	}
 	@media (max-width: 42rem) {
@@ -125,7 +162,8 @@
 		.search-filters {
 			padding: 1rem;
 		}
-		.search-filters :global(.status-filter) {
+		.search-filters :global(.status-filter),
+		.search-filters :global(.quality-filter) {
 			max-width: none;
 		}
 		.search-filters > :global(a) {

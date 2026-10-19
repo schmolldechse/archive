@@ -37,6 +37,7 @@ async function readPrivate<T>(event: RequestEvent, path: string): Promise<{ valu
 }
 
 const statuses = ["PENDING", "APPROVED", "REJECTED", "RESUBMITTED"];
+const qualities = ["COMPLETE", "INCOMPLETE"];
 
 /** Validates URL-owned filters before requesting a bounded backend page. */
 export async function loadSubmissions(event: SubmissionLoadEvent, review: boolean) {
@@ -49,21 +50,46 @@ export async function loadSubmissions(event: SubmissionLoadEvent, review: boolea
 	const query = new URLSearchParams({ page, pageSize: "25" });
 	if (q) query.set("q", q);
 	if (status) query.set("moderationStatus", status);
-	const scope = review ? "admin" : "users";
-	const result = await readPrivate<SnapshotSubmissionListResponse>(event, `/api/${scope}/snapshots?${query}`);
+	const path = review ? "/api/admin/snapshot-reviews" : "/api/users/snapshots";
+	const result = await readPrivate<SnapshotSubmissionListResponse>(event, `${path}?${query}`);
 	const lastPage = Math.max(1, Math.ceil(Number(result.value.total) / Number(result.value.pageSize)));
 	if (Number(page) > lastPage) redirect(303, pageHref(event.url, "page", lastPage));
 	return { submissions: result.value, filters: { q, status }, review };
 }
 
+/** Loads a bounded, filterable register of every private snapshot for administrators. */
+export async function loadAdminSnapshots(event: SubmissionLoadEvent) {
+	requireAccess(event, true);
+	const q = (event.url.searchParams.get("q") ?? "").trim();
+	const status = event.url.searchParams.get("moderationStatus") ?? "";
+	const quality = event.url.searchParams.get("quality") ?? "";
+	const page = event.url.searchParams.get("page") ?? "1";
+	if (
+		q.length > 500 ||
+		(status && !statuses.includes(status)) ||
+		(quality && !qualities.includes(quality)) ||
+		!/^[1-9]\d*$/.test(page) ||
+		Number(page) > 1000000
+	)
+		error(400, "Use a valid search, moderation status, capture quality and page number.");
+	const query = new URLSearchParams({ page, pageSize: "25" });
+	if (q) query.set("q", q);
+	if (status) query.set("moderationStatus", status);
+	if (quality) query.set("quality", quality);
+	const result = await readPrivate<SnapshotSubmissionListResponse>(event, `/api/admin/snapshots?${query}`);
+	const lastPage = Math.max(1, Math.ceil(Number(result.value.total) / Number(result.value.pageSize)));
+	if (Number(page) > lastPage) redirect(303, pageHref(event.url, "page", lastPage));
+	return { snapshots: result.value, filters: { q, status, quality } };
+}
+
 /** Loads metadata and a separate history page while keeping the decision ETag stable. */
-export async function loadSubmission(event: SubmissionLoadEvent, review: boolean) {
-	requireAccess(event, review);
+export async function loadSubmission(event: SubmissionLoadEvent, review: boolean, admin = review) {
+	requireAccess(event, admin);
 	const id = event.params.snapshotId;
 	if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) error(404, "Submission not found");
 	const historyPage = event.url.searchParams.get("historyPage") ?? "1";
 	if (!/^[1-9]\d*$/.test(historyPage) || Number(historyPage) > 1000000) error(400, "Use a valid history page.");
-	const base = `/api/${review ? "admin" : "users"}/snapshots/${id}`;
+	const base = `/api/${admin ? "admin" : "users"}/snapshots/${id}`;
 	const [detail, history] = await Promise.all([
 		readPrivate<SnapshotSubmissionDetailResponse>(event, base),
 		readPrivate<SnapshotHistoryResponse>(event, `${base}/history?page=${historyPage}&pageSize=25`)
@@ -71,5 +97,5 @@ export async function loadSubmission(event: SubmissionLoadEvent, review: boolean
 	if (!detail.etag) error(503, "The submission could not be validated. Please try again.");
 	const lastPage = Math.max(1, Math.ceil(Number(history.value.total) / Number(history.value.pageSize)));
 	if (Number(historyPage) > lastPage) redirect(303, pageHref(event.url, "historyPage", lastPage));
-	return { detail: detail.value, etag: detail.etag, history: history.value, review };
+	return { detail: detail.value, etag: detail.etag, history: history.value, review, admin };
 }
