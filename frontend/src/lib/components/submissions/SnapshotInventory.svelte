@@ -16,18 +16,10 @@
 		TableRow,
 		TableViewport
 	} from "$lib/components/ui/table";
-	import { processingLabel } from "$lib/submission-status";
+	import { captureLabel, captureVariant } from "$lib/submission-status";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 
 	let { items }: { items: SnapshotSubmissionSummaryResponse[] } = $props();
-
-	/** Turns capture and processing fields into one concise, accessible state label. */
-	function captureLabel(item: SnapshotSubmissionSummaryResponse): string {
-		if (item.processingStatus !== "COMPLETED") return processingLabel(item.processingStatus);
-		if (item.quality === "COMPLETE") return "Fully captured";
-		if (item.quality === "INCOMPLETE") return "Incomplete capture";
-		return "Capture stored";
-	}
 
 	/** Formats backend integer strings exactly, including values above JavaScript's safe integer limit. */
 	function formatBytes(value: string | number | null): string {
@@ -62,13 +54,6 @@
 			return "Not available";
 		}
 	}
-
-	function captureVariant(item: SnapshotSubmissionSummaryResponse): "info" | "success" | "warning" | "critical" {
-		if (item.processingStatus !== "COMPLETED") {
-			return item.processingStatus === "FAILED" || item.processingStatus === "ABORTED" ? "critical" : "info";
-		}
-		return item.quality === "COMPLETE" ? "success" : "warning";
-	}
 </script>
 
 <p class="table-scroll-hint"><ArrowLeftRight aria-hidden="true" />Scroll to view all snapshot details.</p>
@@ -102,7 +87,9 @@
 						<p class="record-time"><ArchiveTimestamp value={item.createdAt} density="compact" /></p>
 					</TableCell>
 					<TableCell class="capture-cell" data-label="Capture status">
-						<Badge variant={captureVariant(item)} size="compact">{captureLabel(item)}</Badge>
+						<Badge variant={captureVariant(item.processingStatus, item.quality)} size="compact">
+							{captureLabel(item.processingStatus, item.quality)}
+						</Badge>
 						{#if item.captureCompletedAt}
 							<p class="record-time"><ArchiveTimestamp value={item.captureCompletedAt} density="compact" /></p>
 						{/if}
