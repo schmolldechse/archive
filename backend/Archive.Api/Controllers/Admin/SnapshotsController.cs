@@ -2,10 +2,12 @@ using Archive.Api.Authentication;
 using Archive.Api.Authorization.Attributes;
 using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Mapping;
+using Archive.Api.Snapshots;
 using Archive.Core.Authorization;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotSubmissionRepository;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Archive.Api.Controllers.Admin;
@@ -16,7 +18,9 @@ namespace Archive.Api.Controllers.Admin;
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
 [ProducesResponseType<ProblemDetails>(401), ProducesResponseType<ProblemDetails>(403)]
 public sealed class SnapshotsController(ISnapshotSubmissionRepository submissions, SnapshotSubmissionMapper mapper,
-    ArchiveAuthenticationOptions options) : SnapshotSubmissionControllerBase(submissions, mapper, options)
+    ArchiveAuthenticationOptions options, SnapshotPreviewTicketService previewTickets,
+    IAuthorizationService authorization)
+    : SnapshotSubmissionControllerBase(submissions, mapper, options, previewTickets)
 {
     [HttpGet, EndpointName("ListAdminSnapshots"), EndpointSummary("Lists snapshot records for administration.")]
     [ProducesResponseType<SnapshotSubmissionListResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
@@ -42,10 +46,21 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     public async Task<IActionResult> Preview(Guid id, CancellationToken token) => Screenshot(await Submissions.ScreenshotForReviewAsync(id, token));
 
     [HttpGet("{id:guid}/content/{**path}"), EndpointName("GetSnapshotContentForReview"), EndpointSummary("Reads private archived content for review.")]
+    [AllowAnonymous]
     [ProducesResponseType<Stream>(200, "application/octet-stream"), ProducesResponseType<Stream>(206, "application/octet-stream")]
     [ProducesResponseType<ProblemDetails>(400), ProducesResponseType<ProblemDetails>(404)]
-    public async Task<IActionResult> Content(Guid id, string? path, CancellationToken token) =>
-        base.Content(await Submissions.OpenContentForReviewAsync(id, path, token));
+    public async Task<IActionResult> Content(Guid id, string? path, CancellationToken token)
+    {
+        var canReview = User.Identity?.IsAuthenticated == true &&
+                        (await authorization.AuthorizeAsync(User, null, ArchivePermissions.AccessAdminPortal)).Succeeded &&
+                        (await authorization.AuthorizeAsync(User, null, ArchivePermissions.AccessAdminSnapshots)).Succeeded;
+        if (!canReview && !PreviewTickets.IsValid(Request.Cookies[SnapshotPreviewTicketService.CookieName], id,
+                SnapshotPreviewScope.Admin))
+            return User.Identity?.IsAuthenticated == true ? Forbid() : Unauthorized();
+
+        var content = await Submissions.OpenContentForReviewAsync(id, path, token);
+        return base.Content(id, path, content, SnapshotPreviewScope.Admin, issuePreviewCookie: canReview);
+    }
 
     [HttpPost("{id:guid}/review"), Consumes("application/json"), EndpointName("ReviewSnapshot"), EndpointSummary("Approves or rejects a captured snapshot with an optional reason.")]
     [EndpointDescription("Requires admin.access and admin.snapshots.access, the configured frontend Origin, and exactly one strong If-Match from GET on this resource.")]

@@ -123,7 +123,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
                 return;
 
             var contentType = response.Headers.TryGetValue("content-type", out var header)
-                ? header.Split(';', 2)[0].Trim()
+                ? header.Trim()
                 : "application/octet-stream";
             if (!IsArchivableContentType(contentType))
                 return;

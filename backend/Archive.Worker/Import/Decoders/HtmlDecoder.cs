@@ -1,5 +1,5 @@
-using System.Text;
 using Archive.Core.Entities;
+using Archive.Core.Storage;
 
 namespace Archive.Worker.Import.Decoders;
 
@@ -12,6 +12,6 @@ public sealed class HtmlDecoder : IUploadedDocumentDecoder
         var bytes = await ImportStream.ReadAllBytesAsync(source, limits.MaxBytes, cancellationToken);
         if (bytes.Length == 0)
             throw new InvalidDataException("The uploaded HTML is empty.");
-        return new ImportedPage(Encoding.UTF8.GetString(bytes), null, [], []);
+        return new ImportedPage(SnapshotTextEncoding.Decode(bytes, "text/html", out _), null, [], []);
     }
 }

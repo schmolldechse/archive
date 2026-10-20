@@ -1,4 +1,5 @@
 using Archive.Core.Entities;
+using Archive.Core.Storage;
 using MimeKit;
 
 namespace Archive.Worker.Import.Decoders;
@@ -33,6 +34,11 @@ public sealed class MhtmlDecoder : IUploadedDocumentDecoder
                     !string.Equals(x.ContentLocation?.Scheme, "chrome-error", StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidDataException("The MHTML contains no usable HTML root.");
             var rootText = root as TextPart ?? throw new InvalidDataException("The MHTML root cannot be decoded as text.");
+            await using var rootBytes = new MemoryStream();
+            if (root.Content is null)
+                throw new InvalidDataException("The MHTML root has no content.");
+            await root.Content.DecodeToAsync(rootBytes, cancellationToken);
+            var html = SnapshotTextEncoding.Decode(rootBytes.ToArray(), "text/html", out _, root.ContentType.Charset);
             var resources = new List<ImportedResource>();
             var frames = new List<ImportedPage>();
             var index = 0;
@@ -58,7 +64,7 @@ public sealed class MhtmlDecoder : IUploadedDocumentDecoder
                 resources.Add(new ImportedResource(key, part.ContentType.MimeType, decoded.ToArray(),
                     part.ContentType.Charset, cid is null ? null : [cid]));
             }
-            return new ImportedPage(rootText.Text, root.ContentLocation?.ToString() ?? declaredRoot,
+            return new ImportedPage(html, root.ContentLocation?.ToString() ?? declaredRoot,
                 resources, frames);
         }
         catch (Exception exception) when (exception is FormatException or ParseException)

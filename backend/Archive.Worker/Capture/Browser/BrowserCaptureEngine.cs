@@ -1,4 +1,5 @@
 using Archive.Core.Processing;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -245,9 +246,9 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         IReadOnlyDictionary<string, CapturedResource> captured, CancellationToken cancellationToken, bool incomplete = false)
     {
         var writer = new SnapshotObjectWriter(objectStore, snapshotId, _limits.MaxStorageBytes, logger);
-        var contentBase = $"/api/snapshots/{snapshotId:N}/content/";
-        var map = captured.Values.ToDictionary(x => x.Url, x => $"{contentBase}assets/{Hash(x.Url)}", StringComparer.Ordinal);
-        var rewrittenHtml = RewriteReferences(html, map, originalUrl, contentBase);
+        const string contentBase = "./";
+        var map = captured.Values.ToDictionary(x => x.Url, x => $"assets/{Hash(x.Url)}", StringComparer.Ordinal);
+        var rewrittenHtml = RewriteReferences(html, map, originalUrl, contentBase, htmlDocument: true);
         var htmlKey = writer.GetObjectKey("index.html");
         var screenshotKey = writer.GetObjectKey("screenshot.png");
 
@@ -260,18 +261,41 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             foreach (var resource in captured.Values)
             {
                 writer.EnsureCapacity(resource.Body.LongLength);
-                var body = resource.ContentType.Equals("text/css", StringComparison.OrdinalIgnoreCase)
-                    ? Encoding.UTF8.GetBytes(RewriteReferences(Encoding.UTF8.GetString(resource.Body), map, resource.Url, contentBase))
-                    : resource.Body;
-                await writer.WriteAsync($"assets/{Hash(resource.Url)}", body, resource.ContentType, cancellationToken);
+                var assetPath = $"assets/{Hash(resource.Url)}";
+                var isCss = resource.ContentType.StartsWith("text/css", StringComparison.OrdinalIgnoreCase);
+                var isHtml = resource.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+                var body = resource.Body;
+                var contentType = resource.ContentType;
+                if (isCss || isHtml)
+                {
+                    var relativeMap = isHtml
+                        ? map
+                        : map.ToDictionary(pair => pair.Key,
+                            pair => SnapshotResourcePath.RelativeTo(assetPath, pair.Value), StringComparer.Ordinal);
+                    var text = SnapshotTextEncoding.Decode(resource.Body, resource.ContentType, out _);
+                    var resourceBase = isHtml ? SnapshotResourcePath.HtmlBaseFor(assetPath) : contentBase;
+                    body = Encoding.UTF8.GetBytes(RewriteReferences(text, relativeMap, resource.Url, resourceBase,
+                        htmlDocument: isHtml));
+                    contentType = isHtml ? "text/html; charset=utf-8" : "text/css; charset=utf-8";
+                }
+                await writer.WriteAsync(assetPath, body, contentType, cancellationToken);
             }
 
             var manifest = new
             {
                 version = 1,
+                resourceReferenceMode = "relative-v1",
                 htmlObjectKey = htmlKey,
                 screenshotObjectKey = screenshotKey,
-                resources = captured.Values.Select(x => new { url = x.Url, contentType = x.ContentType, objectKey = writer.GetObjectKey($"assets/{Hash(x.Url)}") }),
+                resources = captured.Values.Select(x => new
+                {
+                    url = x.Url,
+                    contentType = x.ContentType.StartsWith("text/css", StringComparison.OrdinalIgnoreCase)
+                        ? "text/css; charset=utf-8"
+                        : x.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase)
+                            ? "text/html; charset=utf-8" : x.ContentType,
+                    objectKey = writer.GetObjectKey($"assets/{Hash(x.Url)}")
+                }),
                 storageBytes = writer.StorageBytes,
                 incomplete
             };
@@ -286,45 +310,94 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         }
     }
 
-    private static string RewriteReferences(string html, IReadOnlyDictionary<string, string> map, string? originalUrl, string contentBase)
+    private static string RewriteReferences(string html, IReadOnlyDictionary<string, string> map, string? originalUrl,
+        string contentBase, bool htmlDocument)
     {
         var rewritten = html;
+        var resolutionUrl = htmlDocument
+            ? SnapshotResourcePath.ResolveDocumentBase(html, originalUrl)
+            : originalUrl;
         foreach (var item in map.OrderByDescending(x => x.Key.Length))
         {
             rewritten = rewritten.Replace(item.Key, item.Value, StringComparison.Ordinal);
             rewritten = rewritten.Replace(item.Key.Replace("&", "&amp;", StringComparison.Ordinal), item.Value, StringComparison.Ordinal);
         }
 
-        if (!string.IsNullOrWhiteSpace(originalUrl) && Uri.TryCreate(originalUrl, UriKind.Absolute, out var baseUri))
+        if (!string.IsNullOrWhiteSpace(resolutionUrl) && Uri.TryCreate(resolutionUrl, UriKind.Absolute, out var baseUri))
         {
-            rewritten = Regex.Replace(rewritten, "(?<prefix>\\b(?:src|href|poster)\\s*=\\s*)(?<quote>[\\\"'])(?<value>.*?)(?:\\k<quote>)", match =>
+            if (htmlDocument)
             {
-                var value = match.Groups["value"].Value;
-                if (!Uri.TryCreate(baseUri, value, out var absolute) || !map.TryGetValue(absolute.ToString(), out var replacement))
-                    return match.Value;
-                return $"{match.Groups["prefix"].Value}{match.Groups["quote"].Value}{replacement}{match.Groups["quote"].Value}";
-            }, RegexOptions.IgnoreCase);
+                rewritten = Regex.Replace(rewritten, "(?<prefix>\\b(?:src|href|poster|data-[\\w-]+|srcset)\\s*=\\s*)(?<quote>[\\\"'])(?<value>.*?)(?:\\k<quote>)", match =>
+                {
+                    var value = match.Groups["value"].Value;
+                    if (match.Groups["prefix"].Value.Contains("srcset", StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = SnapshotSourceSet.Rewrite(value, candidate =>
+                        {
+                            var decoded = WebUtility.HtmlDecode(candidate);
+                            if (map.Values.Contains(decoded, StringComparer.Ordinal))
+                                return decoded;
+                            return TryResolveCapturedUrl(baseUri, decoded, map, out var candidateReplacement)
+                                ? candidateReplacement : null;
+                        });
+                        return $"{match.Groups["prefix"].Value}{match.Groups["quote"].Value}{value}{match.Groups["quote"].Value}";
+                    }
+                    if (!TryResolveCapturedUrl(baseUri, value, map, out var replacement))
+                        return match.Value;
+                    return $"{match.Groups["prefix"].Value}{match.Groups["quote"].Value}{replacement}{match.Groups["quote"].Value}";
+                }, RegexOptions.IgnoreCase);
+            }
+
+            rewritten = Regex.Replace(rewritten,
+                "(?<prefix>@import\\s*)(?<quote>[\\\"'])(?<value>[^\\\"']+)(?:\\k<quote>)", match =>
+                {
+                    if (!TryResolveCapturedUrl(baseUri, match.Groups["value"].Value, map, out var replacement))
+                        return match.Value;
+                    return $"{match.Groups["prefix"].Value}{match.Groups["quote"].Value}{replacement}{match.Groups["quote"].Value}";
+                }, RegexOptions.IgnoreCase);
 
             rewritten = Regex.Replace(rewritten, "url\\(\\s*[\\\"'](?<value>[^\\\"']+)[\\\"']\\s*\\)", match =>
             {
-                if (!Uri.TryCreate(baseUri, match.Groups["value"].Value, out var absolute) || !map.TryGetValue(absolute.ToString(), out var replacement))
+                if (!TryResolveCapturedUrl(baseUri, match.Groups["value"].Value, map, out var replacement))
                     return match.Value;
                 return $"url('{replacement}')";
             }, RegexOptions.IgnoreCase);
 
             rewritten = Regex.Replace(rewritten, @"url\(\s*(?<value>[^)\s]+)\s*\)", match =>
             {
-                if (!Uri.TryCreate(baseUri, match.Groups["value"].Value, out var absolute) || !map.TryGetValue(absolute.ToString(), out var replacement))
+                if (!TryResolveCapturedUrl(baseUri, match.Groups["value"].Value, map, out var replacement))
                     return match.Value;
                 return $"url('{replacement}')";
             }, RegexOptions.IgnoreCase);
         }
 
+        if (!htmlDocument)
+            return rewritten;
+
         var localBase = $"<base href=\"{contentBase}\">";
-        rewritten = Regex.Replace(rewritten, "<base\\b[^>]*>", localBase, RegexOptions.IgnoreCase);
-        return rewritten.Contains("<base ", StringComparison.OrdinalIgnoreCase)
-            ? rewritten
-            : rewritten.Replace("<head>", $"<head>{localBase}", StringComparison.OrdinalIgnoreCase);
+        rewritten = Regex.Replace(rewritten, "<base\\b[^>]*>", string.Empty, RegexOptions.IgnoreCase);
+        if (Regex.IsMatch(rewritten, "<head\\b", RegexOptions.IgnoreCase))
+            return Regex.Replace(rewritten, "<head\\b[^>]*>", match => match.Value + localBase,
+                RegexOptions.IgnoreCase);
+        if (Regex.IsMatch(rewritten, "<html\\b", RegexOptions.IgnoreCase))
+            return Regex.Replace(rewritten, "<html\\b[^>]*>", match => match.Value + "<head>" + localBase + "</head>",
+                RegexOptions.IgnoreCase);
+        return "<head>" + localBase + "</head>" + rewritten;
+    }
+
+    private static bool TryResolveCapturedUrl(Uri baseUri, string rawValue,
+        IReadOnlyDictionary<string, string> map, out string replacement)
+    {
+        var value = WebUtility.HtmlDecode(rawValue);
+        if (!Uri.TryCreate(baseUri, value, out var absolute))
+        {
+            replacement = string.Empty;
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(absolute.Fragment))
+            absolute = new UriBuilder(absolute) { Fragment = string.Empty }.Uri;
+        return map.TryGetValue(absolute.ToString(), out replacement!);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

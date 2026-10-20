@@ -68,12 +68,12 @@ public sealed class OfflineImportEngine(
                     exception);
             }
             progress?.Report(ProgressStep.LoadingPage);
-            var normalized = OfflinePageNormalizer.Normalize(imported, job.Id);
+            var normalized = OfflinePageNormalizer.Normalize(imported);
             if (normalized.Assets.Count > _importLimits.MaxResources + _importLimits.MaxObjects)
                 throw new CaptureDiscardedException("Die Datei enthält zu viele eingebettete Inhalte.");
 
             progress?.Report(ProgressStep.LoadingDynamicContent);
-            var screenshot = await ScreenshotAsync(normalized, job.Id, timeout.Token);
+            var screenshot = await ScreenshotAsync(normalized, timeout.Token);
             progress?.Report(ProgressStep.SavingSnapshot);
             var result = await StoreAsync(job, imported, normalized, screenshot.Bytes, original,
                 screenshot.MissingUrls, timer.ElapsedMilliseconds, timeout.Token);
@@ -102,7 +102,7 @@ public sealed class OfflineImportEngine(
         }
     }
 
-    private async Task<(byte[] Bytes, IReadOnlyList<string> MissingUrls)> ScreenshotAsync(NormalizedPage normalized, Guid id,
+    private async Task<(byte[] Bytes, IReadOnlyList<string> MissingUrls)> ScreenshotAsync(NormalizedPage normalized,
         CancellationToken cancellationToken)
     {
         using var playwright = await Playwright.CreateAsync();
@@ -120,8 +120,7 @@ public sealed class OfflineImportEngine(
             ViewportSize = new ViewportSize { Width = 1440, Height = 900 },
             Locale = "de-DE"
         });
-        var rootPath = $"/api/snapshots/{id}/content/";
-        var assets = normalized.Assets.ToDictionary(x => rootPath + x.Path, StringComparer.Ordinal);
+        var assets = normalized.Assets.ToDictionary(x => "/" + x.Path, StringComparer.Ordinal);
         var missing = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
         await context.RouteAsync("**/*", async route =>
         {
@@ -142,8 +141,8 @@ public sealed class OfflineImportEngine(
             }
         });
         var page = await context.NewPageAsync();
-        var html = normalized.Html.Replace($"<base href=\"{rootPath}\">",
-            $"<base href=\"http://archive.local{rootPath}\">", StringComparison.Ordinal);
+        var html = normalized.Html.Replace("<base href=\"./\">",
+            "<base href=\"http://archive.local/\">", StringComparison.Ordinal);
         await page.SetContentAsync(html, new PageSetContentOptions { WaitUntil = WaitUntilState.Load })
             .WaitAsync(cancellationToken);
         var bytes = await page.ScreenshotAsync(new PageScreenshotOptions
@@ -177,6 +176,7 @@ public sealed class OfflineImportEngine(
             var manifest = new
             {
                 version = 2,
+                resourceReferenceMode = "relative-v1",
                 sourceType = job.SourceType.ToString(),
                 originalUrl = imported.BaseUrl ?? job.OriginUrl,
                 sourceSizeBytes = original.LongLength,

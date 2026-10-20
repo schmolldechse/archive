@@ -32,6 +32,16 @@ internal sealed class S3ArchiveObjectStore(IAmazonS3 client, ObjectStorageOption
         }
     }
 
+    public Task CopyAsync(string sourceKey, string destinationKey, CancellationToken cancellationToken = default) =>
+        client.CopyObjectAsync(new CopyObjectRequest
+        {
+            SourceBucket = _bucket,
+            SourceKey = sourceKey,
+            DestinationBucket = _bucket,
+            DestinationKey = destinationKey,
+            MetadataDirective = S3MetadataDirective.COPY
+        }, cancellationToken);
+
     public Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
         client.DeleteObjectAsync(_bucket, key, cancellationToken);
 }

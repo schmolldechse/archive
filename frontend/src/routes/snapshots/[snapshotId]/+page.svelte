@@ -28,11 +28,12 @@
 		<div class="archived-page__information">
 			<SnapshotInformationDialog snapshot={data.snapshot} />
 		</div>
+		<!-- Same-origin is required for scoped preview cookies; scripts and forms remain sandboxed. -->
 		<iframe
 			src={data.snapshot.contentUrl ?? undefined}
 			title={`Archived page: ${data.snapshot.title}`}
-			sandbox=""
-			referrerpolicy="no-referrer"
+			sandbox="allow-same-origin"
+			referrerpolicy="strict-origin-when-cross-origin"
 		></iframe>
 	</main>
 </div>
