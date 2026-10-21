@@ -2,5 +2,4 @@
   <Project Path="Archive.Api/Archive.Api.csproj" />
   <Project Path="Archive.Core/Archive.Core.csproj" />
   <Project Path="Archive.Worker/Archive.Worker.csproj" />
-  <Project Path="Archive.SnapshotMigration/Archive.SnapshotMigration.csproj" />
 </Solution>
