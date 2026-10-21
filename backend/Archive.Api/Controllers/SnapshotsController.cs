@@ -22,11 +22,13 @@ public sealed partial class SnapshotsController(
     ISnapshotProcessingRepository processing) : ControllerBase
 {
     // Allow the configured viewer to embed archived documents without relaxing their sandbox.
-    private string ArchivedContentPolicy(string origin) =>
+    private string ArchivedContentPolicy(string origin, bool isRootHtml) =>
         $"default-src 'none'; img-src {origin} data:; style-src {origin} 'unsafe-inline' data:; " +
         $"font-src {origin} data:; media-src {origin} data:; frame-src {origin}; " +
         "script-src 'none'; connect-src 'none'; object-src 'none'; " +
-        $"form-action 'none'; base-uri {origin}; frame-ancestors 'self' {authenticationOptions.FrontendOrigin.TrimEnd('/')}; sandbox";
+        $"form-action 'none'; base-uri {origin}; " +
+        (isRootHtml ? $"frame-ancestors 'self' {authenticationOptions.FrontendOrigin.TrimEnd('/')}; " : "") +
+        "sandbox";
 
     private string ArchivedContentOrigin()
     {
@@ -98,14 +100,14 @@ public sealed partial class SnapshotsController(
         {
             // URL captures are untrusted too, and content paths can be opened outside the preview iframe.
             Response.Headers.XContentTypeOptions = "nosniff";
-            Response.Headers.ContentSecurityPolicy = ArchivedContentPolicy(ArchivedContentOrigin());
+            Response.Headers.ContentSecurityPolicy = ArchivedContentPolicy(ArchivedContentOrigin(), IsRootHtml(path, stored.ContentType));
             Response.Headers["Referrer-Policy"] = "no-referrer";
             if (stored.IsOriginalSource)
             {
                 Response.Headers.ContentDisposition = "attachment";
                 return File(stored.Content, "application/octet-stream", enableRangeProcessing: true);
             }
-            return File(stored.Content, stored.ContentType, enableRangeProcessing: true);
+            return File(stored.Content, stored.ContentType ?? "application/octet-stream", enableRangeProcessing: true);
         }
         catch
         {
@@ -113,6 +115,10 @@ public sealed partial class SnapshotsController(
             throw;
         }
     }
+
+    private static bool IsRootHtml(string? path, string? contentType) =>
+        (string.IsNullOrWhiteSpace(path) || string.Equals(path.Trim('/'), "index.html", StringComparison.OrdinalIgnoreCase)) &&
+        contentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true;
 
     [HttpGet("{snapshotId:guid}/screenshot")]
     [EndpointName("GetSnapshotScreenshot")]

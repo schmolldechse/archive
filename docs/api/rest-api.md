@@ -536,7 +536,7 @@ Liefert die private Vorschau der eigenen gespeicherten Einreichung als `image/pn
 
 ### `GET /api/users/snapshots/{id}/content/{**path}`
 
-Liefert gespeicherte Inhalte der eigenen Einreichung vor oder nach der Moderation. Semantik, Content-Security-Policy, Range-Unterstützung und Pfadvalidierung entsprechen dem öffentlichen Content-Endpoint; die Eigentümerschaft bildet hier die Sichtbarkeitsgrenze.
+Liefert gespeicherte Inhalte der eigenen Einreichung vor oder nach der Moderation. Eine gültige Session ist für die Startseite und jede eingebettete Ressource erforderlich; die Eigentümerschaft wird bei jedem Request erneut geprüft. Die Content-Security-Policy beschränkt Ressourcen und Unterframes auf den Content-Pfad desselben Snapshots. Dokumentnavigationen müssen aus dem konfigurierten Frontend oder aus demselben Snapshot stammen. Dafür verwendet die private Antwort `Referrer-Policy: same-origin`; Range-Unterstützung und Pfadvalidierung entsprechen dem öffentlichen Content-Endpoint.
 
 ### `POST /api/users/snapshots/{id}/resubmit`
 
@@ -724,7 +724,7 @@ Liefert die private gespeicherte Vorschau als `image/png`. Fehlt die Einreichung
 
 ### `GET /api/admin/snapshots/{id}/content/{**path}`
 
-Liefert gespeicherte Inhalte für die Moderationsprüfung. Semantik, Sicherheitsheader, Range-Unterstützung und Pfadvalidierung entsprechen dem öffentlichen Content-Endpoint, die Admin-Berechtigungen bilden die Sichtbarkeitsgrenze.
+Liefert gespeicherte Inhalte für die Moderationsprüfung. Die Session und beide Admin-Berechtigungen werden für die Startseite und jede eingebettete Ressource geprüft. Ressourcen, Unterframes und spätere Dokumentnavigationen bleiben auf den Content-Pfad desselben Snapshots begrenzt. Die private Antwort verwendet dafür `Referrer-Policy: same-origin`; Range-Unterstützung und Pfadvalidierung entsprechen dem öffentlichen Content-Endpoint.
 
 ### `POST /api/admin/snapshots/{id}/review`
 

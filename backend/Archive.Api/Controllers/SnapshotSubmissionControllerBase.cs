@@ -46,9 +46,16 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         _ => SnapshotProblem(409, "Action unavailable", "This snapshot is no longer eligible for this action.", "snapshot_not_reviewable")
     };
 
+    /// <summary>Serves a private screenshot only to requests from the configured frontend.</summary>
     protected IActionResult Screenshot(ArchiveObject? stored)
     {
         if (stored is null) return NotFound();
+        if (!HasTrustedFrontendRequest())
+        {
+            stored.Content.Dispose();
+            return NotFound();
+        }
+
         try
         {
             Response.Headers.XContentTypeOptions = "nosniff";
@@ -57,8 +64,8 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         catch { stored.Content.Dispose(); throw; }
     }
 
-    /// <summary>Serves private archived content within the same sandbox as public archived content.</summary>
-    protected IActionResult Content(SnapshotContentResult result)
+    /// <summary>Serves controller-authorized private content in a sandbox scoped to this snapshot's resources.</summary>
+    protected IActionResult Content(Guid snapshotId, string routeBase, SnapshotContentResult result)
     {
         if (result is SnapshotContentResult.NotFound) return NotFound();
         if (result is SnapshotContentResult.InvalidPath) return BadRequest();
@@ -66,14 +73,27 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         var stored = ((SnapshotContentResult.Found)result).Resource;
         try
         {
+            if (RequiresTrustedPreviewNavigationSource(stored.ContentType) &&
+                !HasTrustedPreviewNavigationSource(snapshotId, routeBase))
+            {
+                stored.Content.Dispose();
+                return NotFound();
+            }
+
             var apiOrigin = new Uri(options.PublicApiOrigin).GetLeftPart(UriPartial.Authority);
+            var contentBaseUrl = $"{apiOrigin}/{routeBase.Trim('/')}/{snapshotId:D}/content/";
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers.ContentSecurityPolicy =
-                $"default-src 'none'; img-src {apiOrigin} data:; style-src {apiOrigin} 'unsafe-inline' data:; " +
-                $"font-src {apiOrigin} data:; media-src {apiOrigin} data:; frame-src {apiOrigin}; " +
+                $"default-src 'none'; img-src {contentBaseUrl} data:; style-src {contentBaseUrl} 'unsafe-inline' data:; " +
+                $"font-src {contentBaseUrl} data:; media-src {contentBaseUrl} data:; frame-src {contentBaseUrl}; " +
                 "script-src 'none'; connect-src 'none'; object-src 'none'; form-action 'none'; " +
-                $"base-uri {apiOrigin}; frame-ancestors 'self' {options.FrontendOrigin.TrimEnd('/')}; sandbox";
-            Response.Headers["Referrer-Policy"] = "no-referrer";
+                $"base-uri {contentBaseUrl}; " +
+                (stored.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true
+                    ? $"frame-ancestors 'self' {options.FrontendOrigin.TrimEnd('/')}; " : "") +
+                "sandbox allow-same-origin";
+            // Full same-origin referrers bind later frame navigations to the current snapshot.
+            Response.Headers["Referrer-Policy"] = "same-origin";
+            Response.Headers.CacheControl = "private, no-store";
             if (stored.IsOriginalSource)
             {
                 Response.Headers.ContentDisposition = "attachment";
@@ -90,4 +110,39 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
 
     private ObjectResult SnapshotProblem(int status, string title, string detail, string code) =>
         Problem(statusCode: status, title: title, detail: detail, extensions: new Dictionary<string, object?> { ["code"] = code });
+
+    /// <summary>Recognizes browser navigations and fails closed for HTML when fetch metadata is unavailable.</summary>
+    private bool RequiresTrustedPreviewNavigationSource(string? contentType) =>
+        string.Equals(Request.Headers["Sec-Fetch-Mode"].ToString(), "navigate", StringComparison.OrdinalIgnoreCase) ||
+        contentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>Allows the initial frontend frame and later navigations originating within the same snapshot.</summary>
+    private bool HasTrustedPreviewNavigationSource(Guid snapshotId, string routeBase)
+    {
+        if (!Uri.TryCreate(Request.Headers.Referer.ToString(), UriKind.Absolute, out var referer))
+            return false;
+        if (HasOrigin(referer, options.FrontendOrigin))
+            return true;
+        if (!HasOrigin(referer, options.PublicApiOrigin))
+            return false;
+
+        var expectedPath = $"/{routeBase.Trim('/')}/{snapshotId:D}/content";
+        return referer.AbsolutePath.Equals(expectedPath, StringComparison.OrdinalIgnoreCase) ||
+               referer.AbsolutePath.StartsWith(expectedPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Allows private screenshot fetches from the configured application origin only.</summary>
+    private bool HasTrustedFrontendRequest()
+    {
+        if (string.Equals(Request.Headers.Origin.ToString(), options.FrontendOrigin.TrimEnd('/'), StringComparison.Ordinal))
+            return true;
+
+        return Uri.TryCreate(Request.Headers.Referer.ToString(), UriKind.Absolute, out var referer) &&
+               HasOrigin(referer, options.FrontendOrigin);
+    }
+
+    private static bool HasOrigin(Uri candidate, string configuredOrigin) =>
+        Uri.TryCreate(configuredOrigin, UriKind.Absolute, out var configured) &&
+        string.Equals(candidate.GetLeftPart(UriPartial.Authority), configured.GetLeftPart(UriPartial.Authority),
+            StringComparison.OrdinalIgnoreCase);
 }

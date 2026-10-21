@@ -1,6 +1,5 @@
-using System.Text;
-using System.Text.RegularExpressions;
 using Archive.Core.Entities;
+using Archive.Core.Storage;
 
 namespace Archive.Worker.Import.Decoders;
 
@@ -66,45 +65,8 @@ public sealed class WebArchiveDecoder : IUploadedDocumentDecoder
         return new ImportedPage(html, baseUrl, resources, frames, frameName);
     }
 
-    private static string DecodeText(byte[] bytes, string? encodingName)
-    {
-        try
-        {
-            Encoding encoding;
-            var offset = 0;
-            if (!string.IsNullOrWhiteSpace(encodingName))
-                encoding = Encoding.GetEncoding(encodingName);
-            else if (bytes.AsSpan().StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
-            {
-                encoding = Encoding.UTF8;
-                offset = 3;
-            }
-            else if (bytes.AsSpan().StartsWith(new byte[] { 0xFF, 0xFE }))
-            {
-                encoding = Encoding.Unicode;
-                offset = 2;
-            }
-            else if (bytes.AsSpan().StartsWith(new byte[] { 0xFE, 0xFF }))
-            {
-                encoding = Encoding.BigEndianUnicode;
-                offset = 2;
-            }
-            else
-            {
-                var head = Encoding.ASCII.GetString(bytes, 0, Math.Min(bytes.Length, 4_096));
-                var charset = Regex.Match(head, "<meta\\b[^>]*\\bcharset\\s*=\\s*[\"']?(?<name>[A-Za-z0-9._-]+)",
-                    RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-                encoding = charset.Success ? Encoding.GetEncoding(charset.Groups["name"].Value) : Encoding.UTF8;
-            }
-            encoding = (Encoding)encoding.Clone();
-            encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
-            return encoding.GetString(bytes, offset, bytes.Length - offset).TrimStart('\uFEFF');
-        }
-        catch (Exception exception) when (exception is ArgumentException or DecoderFallbackException or NotSupportedException)
-        {
-            throw new InvalidDataException("The Webarchive text encoding is invalid or unsupported.", exception);
-        }
-    }
+    private static string DecodeText(byte[] bytes, string? encodingName) =>
+        SnapshotTextEncoding.Decode(bytes, "text/html", out _, encodingName);
 
     private static Dictionary<string, object?>? GetDictionary(Dictionary<string, object?> source, string key,
         bool required = false)
