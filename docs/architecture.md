@@ -197,5 +197,4 @@ The worker separately restricts what it captures. URL normalization accepts HTTP
 
 - [Development](development.md)
 - [Configuration](configuration.md)
-- [API](api.md)
 - [Deployment](deployment.md)

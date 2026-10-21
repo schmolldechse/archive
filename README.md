@@ -50,7 +50,6 @@ Start with [Development](docs/development.md). It covers configuration, process 
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)
 - [Configuration](docs/configuration.md)
-- [API](docs/api.md)
 - [Deployment](docs/deployment.md)
 - [Bot identity worker](cloudflare/archive-bot-identity/README.md)
 

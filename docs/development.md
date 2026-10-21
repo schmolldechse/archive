@@ -224,4 +224,4 @@ The repository currently contains no automated test projects or CI workflow. For
 | Login redirects fail | Match the registered callback URI, `Authentication:PublicApiOrigin`, `Authentication:FrontendOrigin`, and frontend URL. |
 | Frontend server loads fail in containers | Set `INTERNAL_API_BASE_URL` to the API service address while keeping `PUBLIC_API_BASE_URL` browser-reachable. |
 
-See [Configuration](configuration.md) for every setting and [API](api.md) for the HTTP contract.
+See [Configuration](configuration.md) for every setting. The live OpenAPI document and Scalar reference remain the field-level HTTP contract.
