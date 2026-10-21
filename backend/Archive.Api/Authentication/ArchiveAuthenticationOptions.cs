@@ -14,14 +14,46 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
     [Required]
     public string FrontendOrigin { get; init; } = "http://localhost:5173";
 
+    /// <summary>Shared parent domain for the frontend and API session cookie when their hosts differ.</summary>
     public string? SessionCookieDomain { get; init; }
 
+    /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (!IsOrigin(PublicApiOrigin))
+        var hasApiOrigin = TryReadOrigin(PublicApiOrigin, out var apiOrigin);
+        var hasFrontendOrigin = TryReadOrigin(FrontendOrigin, out var frontendOrigin);
+        if (!hasApiOrigin)
             yield return new ValidationResult("PublicApiOrigin must be an absolute HTTP or HTTPS origin.", [nameof(PublicApiOrigin)]);
-        if (!IsOrigin(FrontendOrigin))
+        if (!hasFrontendOrigin)
             yield return new ValidationResult("FrontendOrigin must be an absolute HTTP or HTTPS origin.", [nameof(FrontendOrigin)]);
+        if (!hasApiOrigin || !hasFrontendOrigin)
+            yield break;
+
+        if (!string.Equals(apiOrigin!.Scheme, frontendOrigin!.Scheme, StringComparison.OrdinalIgnoreCase))
+            yield return new ValidationResult(
+                "PublicApiOrigin and FrontendOrigin must use the same scheme so session cookies remain same-site.",
+                [nameof(PublicApiOrigin), nameof(FrontendOrigin)]);
+
+        if (string.IsNullOrWhiteSpace(SessionCookieDomain))
+        {
+            if (!string.Equals(apiOrigin.Host, frontendOrigin.Host, StringComparison.OrdinalIgnoreCase))
+                yield return new ValidationResult(
+                    "SessionCookieDomain is required when PublicApiOrigin and FrontendOrigin use different hosts.",
+                    [nameof(SessionCookieDomain), nameof(PublicApiOrigin), nameof(FrontendOrigin)]);
+            yield break;
+        }
+
+        var cookieDomain = SessionCookieDomain.Trim().TrimStart('.');
+        if (cookieDomain.EndsWith('.') || !cookieDomain.Contains('.') || Uri.CheckHostName(cookieDomain) != UriHostNameType.Dns)
+        {
+            yield return new ValidationResult("SessionCookieDomain must be a valid shared DNS domain.", [nameof(SessionCookieDomain)]);
+            yield break;
+        }
+
+        if (!DomainMatches(apiOrigin.Host, cookieDomain) || !DomainMatches(frontendOrigin.Host, cookieDomain))
+            yield return new ValidationResult(
+                "SessionCookieDomain must include both PublicApiOrigin and FrontendOrigin.",
+                [nameof(SessionCookieDomain), nameof(PublicApiOrigin), nameof(FrontendOrigin)]);
     }
 
     public string FrontendUrl(string? path) => FrontendOrigin.TrimEnd('/') + LocalReturnUrl(path);
@@ -43,7 +75,19 @@ public sealed class ArchiveAuthenticationOptions : IValidatableObject
         return parsed.PathAndQuery;
     }
 
-    private static bool IsOrigin(string origin) =>
-        Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" &&
-        uri.AbsolutePath == "/" && uri.Query.Length == 0 && uri.Fragment.Length == 0 && uri.UserInfo.Length == 0;
+    /// <summary>Parses an HTTP origin without accepting paths, query strings, fragments or credentials.</summary>
+    private static bool TryReadOrigin(string origin, out Uri? uri)
+    {
+        if (Uri.TryCreate(origin, UriKind.Absolute, out uri) && uri.Scheme is "http" or "https" &&
+            uri.AbsolutePath == "/" && uri.Query.Length == 0 && uri.Fragment.Length == 0 && uri.UserInfo.Length == 0)
+            return true;
+
+        uri = null;
+        return false;
+    }
+
+    /// <summary>Checks whether a host is the configured cookie domain or one of its subdomains.</summary>
+    private static bool DomainMatches(string host, string domain) =>
+        string.Equals(host, domain, StringComparison.OrdinalIgnoreCase) ||
+        host.EndsWith('.' + domain, StringComparison.OrdinalIgnoreCase);
 }

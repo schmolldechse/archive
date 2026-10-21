@@ -5,7 +5,6 @@ using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
 using Archive.Api.Serialization;
-using Archive.Api.Snapshots;
 using Archive.Core;
 using Archive.Core.Options;
 using Microsoft.AspNetCore.Http.Features;
@@ -55,7 +54,6 @@ builder.Services.AddSingleton<UserAccessMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddSingleton<SnapshotSubmissionMapper>();
-builder.Services.AddSingleton<SnapshotPreviewTicketService>();
 builder.Services.AddScoped<ExistingArchiveUserFilter>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 

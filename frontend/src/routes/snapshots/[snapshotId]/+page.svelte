@@ -28,7 +28,7 @@
 		<div class="archived-page__information">
 			<SnapshotInformationDialog snapshot={data.snapshot} />
 		</div>
-		<!-- Same-origin is required for scoped preview cookies; scripts and forms remain sandboxed. -->
+		<!-- Preserve the API origin for session-authenticated resources; scripts and forms remain sandboxed. -->
 		<iframe
 			src={data.snapshot.contentUrl ?? undefined}
 			title={`Archived page: ${data.snapshot.title}`}
