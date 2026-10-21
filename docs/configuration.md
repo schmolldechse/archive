@@ -1,0 +1,139 @@
+# Configuration
+
+The API and worker use ASP.NET configuration. A key such as `Authentication:Google:ClientId` becomes `Authentication__Google__ClientId` when supplied as an environment variable. JSON settings, environment variables, and command-line configuration follow the normal .NET precedence rules.
+
+SvelteKit reads browser-visible variables beginning with `PUBLIC_` and server-only variables through its private environment module. Production Compose maps uppercase deployment variables to the names consumed by each process.
+
+## API
+
+### Origins and authentication
+
+| .NET key | Production Compose input | Default/example | Effect |
+| --- | --- | --- | --- |
+| `PublicBaseUrl` | `ARCHIVE_PUBLIC_BASE_URL` | API request origin when unset | Base used to generate public snapshot resource URLs. Must be an HTTP(S) URL without credentials, query, or fragment. |
+| `Authentication:PublicApiOrigin` | `PUBLIC_API_BASE_URL` | `http://localhost:5200` | Browser-visible API origin and OAuth callback base. |
+| `Authentication:FrontendOrigin` | `ORIGIN` | `http://localhost:5173` | Allowed credentialed CORS origin and post-login destination. |
+| `Authentication:SessionCookieDomain` | `AUTHENTICATION_SESSION_COOKIE_DOMAIN` | unset for one host | Shared DNS domain when frontend and API use different hosts. |
+| `Authentication:Google:ClientId` | `AUTHENTICATION_GOOGLE_CLIENT_ID` | none | Google OAuth client ID; required at API startup. |
+| `Authentication:Google:ClientSecret` | `AUTHENTICATION_GOOGLE_CLIENT_SECRET` | none | Google OAuth client secret; required at API startup. |
+
+Outside Development, the public API and frontend origins must use HTTPS. Both origins must use the same scheme. If their hosts differ, `SessionCookieDomain` must be a parent domain that includes both.
+
+Register this callback with Google:
+
+```text
+{Authentication:PublicApiOrigin}/api/auth/callback/google
+```
+
+The application session cookie is HTTP-only, uses `SameSite=Lax`, and expires after 12 hours without sliding renewal. Production persists its data-protection keys in the API `key-ring` directory.
+
+### Database, storage, and cleanup
+
+| .NET key | Production Compose input | Default/example | Consumer and effect |
+| --- | --- | --- | --- |
+| `ConnectionStrings:DefaultConnection` | Constructed from `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | local PostgreSQL on port 5432 | API and worker PostgreSQL connection. |
+| `Database:Initialize` | fixed by host/Compose | API host default `true`; production worker `false` | Applies pending EF Core migrations during host startup. |
+| `ObjectStorage:ServiceUrl` | fixed to `http://minio:9000` | `http://localhost:9000` | S3-compatible endpoint. |
+| `ObjectStorage:AccessKey` | `OBJECT_STORAGE_ACCESS_KEY` | none | S3 access key; must be supplied together with the secret. |
+| `ObjectStorage:SecretKey` | `OBJECT_STORAGE_SECRET_KEY` | none | S3 secret key; must be supplied together with the access key. |
+| `ObjectStorage:Bucket` | `OBJECT_STORAGE_BUCKET` | `snapshots` | Bucket used by API and worker. |
+| `Processing:TerminalRetentionSeconds` | `PROCESSING_TERMINAL_RETENTION_SECONDS` | `60` | Seconds a terminal processing record remains available; 5–3600. |
+| `Processing:CleanupIntervalSeconds` | `PROCESSING_CLEANUP_INTERVAL_SECONDS` | `30` | API cleanup-loop interval; 1–3600 seconds. |
+| `Processing:CleanupBatchSize` | `PROCESSING_CLEANUP_BATCH_SIZE` | `100` | Maximum expired rows removed per API cleanup pass; 1–1000. |
+
+Only the API cleanup service uses cleanup interval and batch size. Both API and worker use terminal retention when they calculate transient processing expiry.
+
+## Shared capture limits
+
+These keys live under `Archive` and are consumed by submission validation or worker capture/import.
+
+| .NET key | Default | Effect |
+| --- | --- | --- |
+| `Archive:MaxUploadBytes` | `250000000` | Maximum original upload bytes. The API permits an additional 1,000,000 bytes of multipart framing. |
+| `Archive:MaxDurationSeconds` | `120` | Overall URL or import capture deadline. |
+| `Archive:MaxStorageBytes` | `250000000` | Maximum bytes written for a stored snapshot. |
+| `Archive:MaxResources` | `500` | Maximum captured or imported resource count. |
+| `Archive:MaxScrollRounds` | `24` | Maximum scrolling passes used to reveal dynamic page content. |
+| `Archive:QuietPeriodMilliseconds` | `1000` | Network/content quiet period used before capture completion. |
+| `Archive:MaxImportDepth` | `32` | Maximum nested object depth while parsing imports. |
+| `Archive:MaxImportObjects` | `100000` | Maximum object count while parsing imports. |
+
+The checked-in appsettings files explicitly list the first six values. The import limits use the option-class defaults unless overridden.
+
+## Worker
+
+### Browser capture
+
+| .NET key | Production Compose input | Default | Effect |
+| --- | --- | --- | --- |
+| `Archive:Browser:Headless` | `ARCHIVE_BROWSER_HEADLESS` | `true` | Runs Chromium without a visible window. The production container still provides a virtual display. |
+| `Archive:Browser:UserAgent` | `ARCHIVE_BROWSER_USER_AGENT` | `ArchiveBot/1.0` | ASCII user agent sent by the browser and crawl-policy client. |
+| `Archive:Browser:ChallengeTimeoutSeconds` | not mapped by Compose | `45` | Maximum challenge wait; 1–300 seconds. |
+| `Archive:Browser:ChallengeReloadAttempts` | not mapped by Compose | `1` | Reload attempts for a detected challenge; 1–3. |
+
+### Crawl policy
+
+| .NET key | Production Compose input | Default | Effect |
+| --- | --- | --- | --- |
+| `Archive:CrawlPolicy:Enabled` | `ARCHIVE_CRAWL_POLICY_ENABLED` | `true` | Enables robots policy checks and host pacing. |
+| `Archive:CrawlPolicy:UserAgentToken` | `ARCHIVE_CRAWL_USER_AGENT_TOKEN` | `VoldechseArchiveBot` | Token used to select the applicable robots group. |
+| `Archive:CrawlPolicy:MinimumHostDelaySeconds` | `ARCHIVE_MINIMUM_HOST_DELAY_SECONDS` | `2` | Minimum delay per origin; an applicable longer `crawl-delay` wins. |
+| `Archive:CrawlPolicy:RequestTimeoutSeconds` | not mapped by Compose | `10` | Timeout for policy retrieval; 1–60 seconds. |
+| `Archive:CrawlPolicy:MaxRobotsBytes` | not mapped by Compose | `1000000` | Maximum accepted `robots.txt` size; 1,024–5,000,000 bytes. |
+
+When policy checking is enabled, a missing `robots.txt` allows capture, an HTTP 401 or 403 denies it, and other unsuccessful responses fail the capture rather than assuming permission.
+
+### Web Bot Auth
+
+| .NET key | Production Compose input | Default | Effect |
+| --- | --- | --- | --- |
+| `Archive:WebBotAuth:Enabled` | `ARCHIVE_WEB_BOT_AUTH_ENABLED` | `false` | Enables Ed25519 HTTP Message Signatures on eligible bot requests. |
+| `Archive:WebBotAuth:SignatureAgent` | `ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT` | production example `https://archive.voldechse.wtf` | HTTPS origin that identifies the signer and serves the key directory. |
+| `Archive:WebBotAuth:PrivateKeyPath` | fixed to `/run/secrets/web-bot-auth-private-key.pem` | empty | PKCS#8 private key file read by the worker. |
+| `Archive:WebBotAuth:SignatureLifetimeSeconds` | not mapped by Compose | `60` | Signature validity; 10–300 seconds. |
+
+`ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` is a Compose-only host path. The directory is mounted read-only at `/run/secrets`; it is not read by .NET configuration.
+
+When Web Bot Auth is enabled, `SignatureAgent` and `PrivateKeyPath` are required. `SignatureAgent` must be an HTTPS origin with no credentials, path, query, or fragment. Its origin must match the bot identity deployment described in [Bot identity worker](../cloudflare/archive-bot-identity/README.md).
+
+## Frontend
+
+| Variable | Visibility | Development value | Effect |
+| --- | --- | --- | --- |
+| `PUBLIC_API_BASE_URL` | Browser and server | `http://localhost:5200` | Browser-reachable API origin. Trailing slashes are removed. |
+| `INTERNAL_API_BASE_URL` | Server only | unset | Optional API origin for SvelteKit server loads, normally `http://api:8080` in Compose. |
+| `ORIGIN` | Server/runtime | `http://localhost:5173` implicitly in dev | Canonical SvelteKit origin; required by the production container. |
+| `HOST` | Server/runtime | Vite default | Bind address; production sets `0.0.0.0`. |
+| `PORT` | Server/runtime | `5173` for Vite | Bun-adapter listen port; production sets `3000`. |
+
+Never set `INTERNAL_API_BASE_URL` to an address the browser must use. It is intentionally accessed only by server-side code.
+
+## Production Compose inputs
+
+`deploy/production/.env.example` is the input contract for the four Compose fragments.
+
+| Variable | Used by |
+| --- | --- |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | PostgreSQL and constructed API/worker connection strings |
+| `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OBJECT_STORAGE_BUCKET` | MinIO initialization, API, and worker |
+| `ORIGIN` | Frontend runtime and API frontend origin |
+| `PUBLIC_API_BASE_URL` | Frontend browser URL and API authentication origin |
+| `ARCHIVE_PUBLIC_BASE_URL` | Public snapshot URLs generated by the API |
+| `AUTHENTICATION_GOOGLE_CLIENT_ID`, `AUTHENTICATION_GOOGLE_CLIENT_SECRET` | API Google provider |
+| `AUTHENTICATION_SESSION_COOKIE_DOMAIN` | API session sharing across frontend/API hosts |
+| `PROCESSING_TERMINAL_RETENTION_SECONDS` | API and worker |
+| `PROCESSING_CLEANUP_INTERVAL_SECONDS`, `PROCESSING_CLEANUP_BATCH_SIZE` | API cleanup loop |
+| `ARCHIVE_BROWSER_HEADLESS`, `ARCHIVE_BROWSER_USER_AGENT` | Worker browser |
+| `ARCHIVE_CRAWL_POLICY_ENABLED`, `ARCHIVE_CRAWL_USER_AGENT_TOKEN`, `ARCHIVE_MINIMUM_HOST_DELAY_SECONDS` | Worker crawl policy |
+| `ARCHIVE_WEB_BOT_AUTH_ENABLED`, `ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT`, `ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` | Worker signing and key mount |
+
+## Values that must agree
+
+- `Authentication:PublicApiOrigin`, frontend `PUBLIC_API_BASE_URL`, the external API route, and the Google callback origin must describe the same browser-visible API.
+- `Authentication:FrontendOrigin`, frontend `ORIGIN`, and the external frontend route must describe the same origin.
+- When the two origins use sibling hosts, `Authentication:SessionCookieDomain` must include both.
+- API and worker must use the same PostgreSQL database, object-storage endpoint, credentials, bucket, and terminal retention.
+- The MinIO initializer must create the same bucket named by API and worker configuration.
+- The Web Bot Auth signature agent must be the HTTPS origin serving the matching public key directory.
+
+See [Development](development.md) for local files and [Deployment](deployment.md) for the Compose mapping.

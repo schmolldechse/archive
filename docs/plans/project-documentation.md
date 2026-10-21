@@ -2,7 +2,7 @@
 
 Date: 2026-10-21
 
-Status: proposal awaiting approval. No README, product documentation, application code, configuration, database, or stored snapshot has been changed.
+Status: approved and implemented on 2026-10-21. The implementation changed documentation only; application code, runtime configuration, database state, and stored snapshots were not changed.
 
 ## 1. Objective and decision
 
@@ -178,7 +178,7 @@ Planned contents:
 - starting API, worker, and frontend as separate processes, with ports `5200`, worker background execution, and `5173` respectively;
 - the required startup order: PostgreSQL/object storage, API migration and health check, worker, then frontend;
 - the local API and frontend origins and the reason they must match authentication/CORS configuration;
-- optional Google sign-in setup and the callback path derived from the configured public API origin;
+- required Google sign-in setup and the callback path derived from the configured public API origin;
 - EF Core migration commands and the rule that migrations live in `Archive.Core` while the API owns normal startup application;
 - regeneration of `frontend/src/lib/api/` from the development OpenAPI document with `bun run generate:api` while the API is running;
 - Storybook commands for reusable frontend components;
@@ -403,6 +403,6 @@ Accuracy takes precedence over apparent completeness. Unsupported procedures, in
 
 ## 9. Scope boundary and approval gate
 
-This proposal is the only change prepared before approval. It does not implement the README or documentation suite and does not alter product behavior.
+This proposal was approved before implementation. The completed scope is limited to the Markdown paths listed in section 5 and this status update. It does not alter product behavior.
 
-After explicit approval, implementation is limited to the Markdown paths listed in section 5. Any need for source code, Compose, environment-example, package, migration, or generated-file changes will be reported as a separate decision before such a change is made.
+Any future need for source code, Compose, environment-example, package, migration, or generated-file changes remains a separate decision.
