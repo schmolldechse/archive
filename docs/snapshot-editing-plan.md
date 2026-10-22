@@ -1,7 +1,7 @@
 # Lösungsvorschlag: Snapshot-Bearbeitung und erweiterbare Historie
 
-- Status: zur Freigabe, keine Implementierung
-- Arbeitsbranch: `feat/snapshot-editing`
+- Status: implementiert und lokal verifiziert
+- Arbeitsbranch: `codex/feat/snapshot-editing`
 - Ausgangsbasis: lokaler `master` nach Fast-Forward auf `origin/master` (`efdbef5`)
 
 ## 1. Zielbild
@@ -199,14 +199,9 @@ Owner- und Admin-Historien erhalten beide URLs. Die öffentliche Projektion entf
 
 #### `snapshot.attribution_updated`, Version 1
 
-```json
-{
-  "previousOwnerHandle": "first-owner",
-  "ownerHandle": null
-}
-```
+Die persistierte Eventnutzlast enthält `previousUserId` und `userId` als nullable interne UUIDs. Damit bleibt die historische Referenz stabil, wenn ein Benutzer seinen Handle ändert. `null` steht für „Anonymous / no account attached“.
 
-`null` steht für „Anonymous / no account attached“. Interne UUIDs werden nicht in Eventdaten oder API-Verträge aufgenommen. Die öffentliche Projektion zeigt nur die neue Attribution; Admin- und Owner-Historie dürfen vorherigen und neuen Handle zeigen.
+Diese interne Form ist niemals Teil des HTTP-Vertrags: Beim Lesen löst das Repository die UUIDs gegen das aktuelle öffentliche Benutzerprofil auf. Die API ersetzt die interne Nutzlast vollständig durch `previousUser` und `user` vom Typ `PublicUserResponse`, der Handle, Anzeigename, Rolle und öffentliche Profilbild-URL, aber keine interne ID enthält. Die öffentliche Projektion zeigt nur eine weiterhin aktuelle Attribution und unterscheidet über `removed` und `redacted` zwischen einer ausdrücklich entfernten und einer aus Datenschutzgründen nicht aufgelösten historischen Zuordnung; Admin- und Owner-Historie dürfen vorheriges und neues öffentliches Profil zeigen. Auch unbekannte Eventversionen dürfen die interne Roh-Nutzlast nicht passieren.
 
 ### 6.2 Bestehende Events bereinigen
 
@@ -222,27 +217,24 @@ Eventnamen werden in `SnapshotHistoryTypes` zentralisiert und sowohl von Payload
 
 ### 7.1 Event-Registry statt zentraler Fallunterscheidung
 
-Die heutige Kombination aus `frontend/src/lib/submission-history.ts` und mehreren `switch`-Blöcken in `SnapshotHistory.svelte` wird ersetzt durch:
+Die bisherige Kombination aus `frontend/src/lib/submission-history.ts` und mehreren `switch`-Blöcken in `SnapshotHistory.svelte` wird ersetzt durch:
 
 ```text
-frontend/src/lib/components/history/
-├── SnapshotHistory.svelte
+frontend/src/lib/components/
+├── submissions/SnapshotHistory.svelte
+└── history/
 ├── SnapshotHistoryEvent.svelte
-├── history-event-registry.ts
-├── events/
-│   ├── SubmittedHistoryEvent.svelte
-│   ├── StoredHistoryEvent.svelte
-│   ├── ProcessingFinishedHistoryEvent.svelte
-│   ├── ModeratedHistoryEvent.svelte
-│   ├── ResubmittedHistoryEvent.svelte
-│   ├── DetailsUpdatedHistoryEvent.svelte
-│   ├── SourceUpdatedHistoryEvent.svelte
-│   ├── AttributionUpdatedHistoryEvent.svelte
-│   └── UnknownHistoryEvent.svelte
-└── payloads.ts
+├── history-events.ts
+└── events/
+    ├── HistorySummary.svelte
+    ├── HistoryCapture.svelte
+    ├── HistoryModerated.svelte
+    ├── HistoryDetailsUpdated.svelte
+    ├── HistorySourceUpdated.svelte
+    └── HistoryAttributionUpdated.svelte
 ```
 
-`history-event-registry.ts` ordnet `type + version` einer Komponente, Kategorie, Tonalität und einem Lucide-Icon zu. `payloads.ts` enthält enge Runtime-Typeguards für das weiterhin offene `data`-Objekt. Die Timeline-Komponente verantwortet nur Reihenfolge, Zeit, Actor, Rail und Pagination; Event-Komponenten verantworten Überschrift und Zusatzinformationen. Ein unbekannter Typ oder eine unbekannte Version wird neutral als „Snapshot event“ angezeigt und niemals als Raw JSON ausgegeben.
+`history-events.ts` ordnet `type + version` einer Komponente, Kategorie und Tonalität zu und enthält enge Runtime-Typeguards für das weiterhin offene `data`-Objekt. Die Timeline-Komponente verantwortet nur Reihenfolge, Zeit, Actor, Rail und Pagination; Event-Komponenten verantworten Überschrift und Zusatzinformationen. Ein unbekannter Typ oder eine unbekannte Version wird neutral als „Snapshot event“ angezeigt und niemals als Raw JSON ausgegeben.
 
 Diese Struktur macht einen neuen Eventtyp zu einer lokalen Ergänzung aus Payload-Guard, Komponente und einem Registry-Eintrag, ohne die zentrale Timeline umzubauen.
 
@@ -256,12 +248,12 @@ Diese Struktur macht einen neuen Eventtyp zu einer lokalen Ergänzung aus Payloa
 - Tab **Info** mit `Info`-Icon und dem vorhandenen `SnapshotMetadata`-Inhalt;
 - Tab **History** mit `History`-Icon und einer kompakten Variante der gemeinsamen Timeline;
 - aktive Auswahl durch Register Blue, 3-px-Unterkante, Icon und `aria-selected`, nicht nur durch Farbe;
-- History wird beim ersten Öffnen des Tabs browserseitig geladen;
+- die sichtbare History wird gemeinsam mit dem Snapshot serverseitig über exakt denselben Scope geladen;
 - ältere Seiten werden über **Load older events** angehängt, statt die Preview-URL mit Pagination-Parametern neu zu laden;
 - Loading-, Empty- und Error-State sind fokussierbar, knapp und ohne dekorative Animation;
 - der vollständige Link bleibt umbrechbar und kopierbar.
 
-`+page.server.ts` merkt sich beim Auflösen des Snapshots zusätzlich den wirksamen Scope (`public`, `users` oder `admin`) und liefert nur den passenden relativen History-Pfad an die Komponente. Private Requests laufen mit `credentials: "include"`; ein Scope-Fallback im Browser findet nicht statt.
+`+page.server.ts` merkt sich beim Auflösen des Snapshots zusätzlich den wirksamen Scope (`public`, `users` oder `admin`) und lädt die passende History serverseitig. Private Requests leiten das Session-Cookie ausschließlich an den konfigurierten API-Origin weiter; ein Scope-Fallback im Browser findet nicht statt.
 
 ### 7.3 Bearbeitungsformular
 
@@ -275,7 +267,7 @@ Diese Struktur macht einen neuen Eventtyp zu einer lokalen Ergänzung aus Payloa
 - Nach Erfolg werden Detail, ETag und History lokal aktualisiert oder über `invalidate("app:submissions")` neu geladen; Fokus wandert zur Statusmeldung.
 - Die Überschrift und URL im Seitentitel werden nach einem erfolgreichen Save aktualisiert.
 
-Für Administratoren ergänzt `SnapshotOwnerField.svelte` eine zugängliche Suche mit Listbox-Semantik, Tastatursteuerung, sichtbarer aktueller Auswahl und **Remove attribution**. Es werden keine internen IDs angezeigt oder versendet.
+Für Administratoren ergänzt das gemeinsame Formular eine zugängliche Kandidatenliste mit sichtbarer aktueller Auswahl und **Remove attribution**. Es werden keine internen IDs angezeigt oder versendet.
 
 ## 8. Gestaltung und Barrierefreiheit
 
@@ -293,7 +285,7 @@ Die Umsetzung folgt dem Skill `designing-editorial-interfaces` und dem vorhanden
 - `prefers-reduced-motion` bleibt wirksam;
 - die archivierte Webseite im `iframe` wird auch im Dark Mode niemals eingefärbt.
 
-Visuelle Prüfung erfolgt nach Implementierungsfreigabe streng in Light und Dark Mode, jeweils mindestens bei Desktop- und Mobile-Größe. Zusätzlich werden Tastaturbedienung, Fokusreihenfolge, Dialog-Fokusfalle, Tab-Pfeiltasten, lange URLs, lange Titel, 30 Tags, leere History und paginierte History geprüft.
+Visuelle Prüfung erfolgt streng in Light und Dark Mode, jeweils mindestens bei Desktop- und Mobile-Größe. Zusätzlich werden Tastaturbedienung, Fokusreihenfolge, Dialog-Fokusfalle, Tab-Pfeiltasten, lange URLs, lange Titel, 30 Tags, leere History und paginierte History geprüft.
 
 ## 9. Voraussichtlich betroffene Dateien
 
@@ -318,9 +310,7 @@ Visuelle Prüfung erfolgt nach Implementierungsfreigabe streng in Light und Dark
 - `frontend/src/lib/components/history/` – Registry, Timeline und Event-Komponenten;
 - `frontend/src/lib/components/submissions/SubmissionDetail.svelte` – Edit-Workflow;
 - `frontend/src/lib/components/submissions/SnapshotEditForm.svelte` – gemeinsames Formular;
-- `frontend/src/lib/components/submissions/SnapshotOwnerField.svelte` – administrative Attribution;
-- `frontend/src/lib/snapshot-editing.ts` und `snapshot-validation.ts` – Draft, Normalisierung, Validierung und HTTP-Fehlerabbildung;
-- passende Storybook-Stories für Eventdarstellungen, Edit-Formular und Owner-Suche.
+- `frontend/src/lib/components/tags/TagEditor.svelte` – wiederverwendbarer Disabled-Zustand während Speichervorgängen.
 
 ### Dokumentation
 
@@ -369,7 +359,7 @@ Nach Freigabe werden mindestens diese drei seriösen, öffentlich erreichbaren Q
 | --- | --- | --- |
 | einfach | [IANA Example Domains](https://www.iana.org/help/example-domains) | kleine, überwiegend statische Referenzseite einer Internet-Infrastrukturorganisation |
 | mittel | [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/) | umfangreiches Standarddokument mit Navigation, Ankern, Tabellen und zahlreichen internen Links |
-| komplex | [Bundesportal](https://verwaltung.bund.de/) | offizielle, moderne Verwaltungsoberfläche mit responsivem Layout und dynamischeren Ressourcen |
+| komplex | [Python Tutorial](https://docs.python.org/3/tutorial/index.html) | umfangreiche offizielle Dokumentation mit Navigation, Querverweisen, Syntaxdarstellung und zahlreichen Ressourcen |
 
 Für jede Quelle wird dieselbe Seite in drei Eingangsformen archiviert, also insgesamt mindestens neun Snapshots:
 
@@ -378,6 +368,10 @@ Für jede Quelle wird dieselbe Seite in drei Eingangsformen archiviert, also ins
 3. WebArchive-Datei als Apple-WebArchive-Property-List mit Hauptressource und zulässigen Subresources.
 
 Vor dem Capture werden Erreichbarkeit, Robots-Regeln und Nutzbarkeit ohne Anmeldung geprüft. Falls eine Quelle den automatisierten Abruf ausdrücklich ausschließt oder technisch blockiert, wird sie durch eine vergleichbar seriöse offizielle Quelle ersetzt und der Grund im Testprotokoll dokumentiert. Die erzeugten MHTML-/WebArchive-Dateien sind lokale Testartefakte und werden nur committed, wenn sie klein, lizenzrechtlich vertretbar und als dauerhafte Fixture wirklich notwendig sind; standardmäßig bleiben sie unversioniert.
+
+### 12.1 Ergebnis der lokalen Archivierungsprüfung
+
+Am 23. Oktober 2026 wurden alle drei Quellen als URL, MHTML und WebArchive eingereicht. Alle neun Verarbeitungen erreichten `COMPLETED`. Die generierten Dateiimporte bleiben als ignorierte lokale Testartefakte außerhalb des Git-Index. Zusätzlich wurden Owner- und Admin-Bearbeitung, erneute Freigabe, Attributionswechsel einschließlich Entfernung, ein absichtlich erzeugter ETag-Konflikt sowie die öffentliche History-Projektion geprüft. Die öffentliche Antwort enthielt weder interne Benutzer-IDs noch frühere Quell-URLs; nicht mehr aktuelle Attributionsziele wurden explizit als redigiert projiziert.
 
 ## 13. Verifikation und Abnahmekriterien
 
@@ -417,7 +411,7 @@ Da das Repository derzeit keine automatisierten Testprojekte besitzt, wird die R
 - Preview-Dialog und Tabs per Maus, Touch und Tastatur bedienen;
 - Fokus kehrt beim Schließen zum Info-Button zurück;
 - Pfeiltasten, Home/End und `aria-selected` der Tabs funktionieren;
-- History lädt einmal, kann ältere Events anhängen und zeigt Retry bei Fehlern;
+- History wird scope-sicher serverseitig geladen und zeigt bei mehr als 100 Events transparent an, dass nur die neuesten Einträge sichtbar sind;
 - Owner-Warnung ändert sich nur bei tatsächlicher URL-Differenz;
 - Admin-Owner-Suche ist mit Tastatur und Screenreader-Beschriftungen bedienbar;
 - lange URL, maximaler Titel, lange Beschreibung und 30 Tags brechen ohne horizontales Scrollen um;

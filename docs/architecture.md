@@ -44,8 +44,8 @@ Public search uses a SvelteKit remote function. Authenticated server loads forwa
 - transient processing status, events, and cancellation;
 - Google authentication and the application session;
 - profile completion and profile images;
-- owner-only submission details and resubmission;
-- administrative moderation and access management;
+- owner-only submission details, editing, and resubmission;
+- administrative snapshot editing, moderation, attribution, and access management;
 - OpenAPI and Scalar in Development;
 - `/healthz` for container and operator checks.
 
@@ -97,6 +97,14 @@ flowchart LR
 ```
 
 Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
+
+Owners may edit title, description, and tags without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the same fields and change or remove account attribution without changing moderation.
+
+### Snapshot history
+
+Lifecycle and edit events are append-only, versioned JSON envelopes. The API exposes audience-specific projections: owners and administrators receive the events permitted by their private routes, while public history includes only events suitable for an approved record and omits rejected decisions, review notes, previous source URLs, and actor identities.
+
+Attribution events persist nullable internal user IDs so a later handle change cannot break the reference. Reads resolve those IDs to the current public user contract; internal IDs are replaced before serialization and never leave the API. The frontend dispatches event types through an extensible component registry and renders unknown versions as a neutral record rather than raw JSON.
 
 ### Submission transaction
 
@@ -162,7 +170,7 @@ Roles provide defaults; individual `ALLOW` or `DENY` overrides take precedence. 
 | --- | --- |
 | `admin.access` | Enter the administration portal. |
 | `admin.users.access` | Read users, roles, and overrides. |
-| `admin.snapshots.access` | Read and moderate all submissions. |
+| `admin.snapshots.access` | Read, edit, reattribute, and moderate all submissions. |
 | `snapshots.publish_without_approval` | Publish the user's own completed captures without review. |
 | `users.assign_roles` | Change another user's role. |
 | `users.assign_permissions` | Change another user's overrides. |
@@ -179,6 +187,8 @@ Administrative access changes cannot target the current actor and cannot leave t
 | Any caller outside those rules | Any route | Not found, unauthenticated, or forbidden according to the route contract. |
 
 Private responses use `private, no-store`. Mutations for moderation, resubmission, roles, and permission overrides require the configured frontend origin and one strong `If-Match` value obtained from the corresponding detail response.
+
+Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 
 ## Archived-content isolation
 

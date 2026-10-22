@@ -209,6 +209,9 @@ The repository currently contains no automated test projects or CI workflow. For
 - open an approved snapshot through the public route;
 - open a pending or rejected snapshot through owner and authorized-reviewer routes;
 - exercise moderation or access writes with a fresh ETag;
+- edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
+- edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
+- compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
 - confirm archived HTML loads its local images, styles, fonts, and frames without executing scripts.
 
 ## Common startup failures
