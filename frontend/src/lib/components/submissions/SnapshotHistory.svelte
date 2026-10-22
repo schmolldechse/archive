@@ -1,62 +1,35 @@
 <script lang="ts">
 	import { page } from "$app/state";
-	import type { SnapshotHistoryItemResponse, SnapshotHistoryResponse } from "$api";
-	import { historyLabel, historyReason } from "$lib/submission-history";
+	import type { SnapshotHistoryResponse } from "$api";
 	import { pageHref } from "$lib/admin/navigation";
+	import { historyPresentation } from "$lib/components/history/history-events";
+	import SnapshotHistoryEvent from "$lib/components/history/SnapshotHistoryEvent.svelte";
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
-	import ArchiveAttribution from "$lib/components/archive/ArchiveAttribution.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
 
-	let { history }: { history: SnapshotHistoryResponse } = $props();
-
-	/** Groups versioned lifecycle events for quick scanning without hiding their full labels. */
-	function historyCategory(item: SnapshotHistoryItemResponse): string {
-		if (item.content.version !== 1) return "Record";
-		switch (item.content.type) {
-			case "snapshot.submitted":
-			case "snapshot.resubmitted":
-				return "Submission";
-			case "snapshot.stored":
-			case "snapshot.processing_finished":
-				return "Capture";
-			case "snapshot.moderated":
-				return "Moderation";
-			default:
-				return "Record";
-		}
-	}
-
-	/** Applies restrained semantic emphasis while leaving the event label as the primary signal. */
-	function historyTone(item: SnapshotHistoryItemResponse): string {
-		if (item.content.version !== 1) return "neutral";
-		if (item.content.type === "snapshot.stored") return "success";
-		if (item.content.type === "snapshot.processing_finished") return "warning";
-		if (item.content.type === "snapshot.submitted" || item.content.type === "snapshot.resubmitted") {
-			return "register";
-		}
-		if (item.content.type === "snapshot.moderated") {
-			const data = item.content.data;
-			if (data !== null && typeof data === "object" && !Array.isArray(data)) {
-				const status = (data as Record<string, unknown>).status;
-				if (status === "APPROVED") return "success";
-				if (status === "REJECTED") return "critical";
-			}
-		}
-		return "neutral";
-	}
+	let {
+		history,
+		title = "Snapshot history",
+		compact = false,
+		paginated = true
+	}: {
+		history: SnapshotHistoryResponse;
+		title?: string;
+		compact?: boolean;
+		paginated?: boolean;
+	} = $props();
 
 	const total = $derived(Number(history.total));
 </script>
 
-<section class="snapshot-history" aria-labelledby="snapshot-history-title">
+<section class="snapshot-history" class:compact aria-labelledby="snapshot-history-title">
 	<header class="history-header">
 		<div>
 			<p class="history-kicker">Record log</p>
-			<h2 id="snapshot-history-title">Snapshot history</h2>
+			<h2 id="snapshot-history-title">{title}</h2>
 		</div>
 		<p class="history-count" aria-label={`${total} history events`}>
-			<strong>{total}</strong>
-			<span>{total === 1 ? "event" : "events"}</span>
+			<strong>{total}</strong><span>{total === 1 ? "event" : "events"}</span>
 		</p>
 	</header>
 
@@ -65,28 +38,17 @@
 	{:else}
 		<ol class="history-list">
 			{#each history.items as item (item.sequence)}
-				<li class="history-item" data-tone={historyTone(item)}>
+				{@const presentation = historyPresentation(item)}
+				<li class="history-item" data-tone={presentation.tone}>
 					<div class="history-time"><ArchiveTimestamp value={item.createdAt} density="compact" /></div>
 					<div class="history-rail" aria-hidden="true"><span class="history-mark"></span></div>
-					<article class="history-event">
-						<p class="history-category">{historyCategory(item)}</p>
-						<h3>{historyLabel(item)}</h3>
-						{#if item.actor}
-							<div class="history-actor">
-								<ArchiveAttribution creator={item.actor} layout="compact" label="Actor" />
-							</div>
-						{/if}
-						{#if historyReason(item)}
-							<div class="history-note">
-								<p class="history-note__label">Review note</p>
-								<p class="history-note__text">{historyReason(item)}</p>
-							</div>
-						{/if}
-					</article>
+					<SnapshotHistoryEvent {item} />
 				</li>
 			{/each}
 		</ol>
-		{#if total > Number(history.pageSize)}
+		{#if !paginated && total > history.items.length}
+			<p class="history-truncated">Showing the {history.items.length} newest events.</p>
+		{:else if paginated && total > Number(history.pageSize)}
 			<div class="history-pagination">
 				<AdminPagination
 					{total}
@@ -143,6 +105,7 @@
 		padding: 0;
 	}
 	.history-item {
+		--history-tone: var(--marginal-note);
 		display: grid;
 		grid-template-columns: minmax(10rem, 0.8fr) 1.5rem minmax(0, 2fr);
 		gap: 0 1.25rem;
@@ -151,6 +114,18 @@
 	}
 	.history-item:last-child {
 		padding-bottom: 0.5rem;
+	}
+	.history-item[data-tone="register"] {
+		--history-tone: var(--register-mark);
+	}
+	.history-item[data-tone="success"] {
+		--history-tone: var(--preservation-green);
+	}
+	.history-item[data-tone="warning"] {
+		--history-tone: var(--warning-ochre);
+	}
+	.history-item[data-tone="critical"] {
+		--history-tone: var(--time-marker);
 	}
 	.history-time {
 		display: flex;
@@ -179,92 +154,66 @@
 		width: 0.75rem;
 		height: 0.75rem;
 		margin-top: 0.375rem;
-		border: 2px solid var(--border-trace);
+		border: 2px solid var(--history-tone);
 		border-radius: 50%;
 		background: var(--reading-room);
 	}
-	.history-item[data-tone="register"] .history-mark {
-		border-color: var(--register-mark);
-	}
-	.history-item[data-tone="success"] .history-mark {
-		border-color: var(--preservation-green);
-		background: var(--preservation-green);
-	}
-	.history-item[data-tone="warning"] .history-mark {
-		border-color: var(--warning-ochre);
-		background: var(--warning-ochre);
-	}
+	.history-item[data-tone="success"] .history-mark,
+	.history-item[data-tone="warning"] .history-mark,
 	.history-item[data-tone="critical"] .history-mark {
-		border-color: var(--time-marker);
-		background: var(--time-marker);
+		background: var(--history-tone);
 	}
-	.history-event {
+	.history-item :global(.history-event) {
 		grid-column: 3;
-		min-width: 0;
-		padding-bottom: 1.5rem;
-		border-bottom: 1px solid var(--border-trace);
 	}
-	.history-item:last-child .history-event {
+	.history-item:last-child :global(.history-event) {
 		border-bottom: 0;
 		padding-bottom: 0;
 	}
-	.history-category {
-		margin: 0 0 0.375rem;
-		color: var(--marginal-note);
-		font-size: 0.6875rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-	.history-item[data-tone="register"] .history-category {
-		color: var(--register-mark);
-	}
-	.history-item[data-tone="success"] .history-category {
-		color: var(--preservation-green);
-	}
-	.history-item[data-tone="warning"] .history-category,
-	.history-item[data-tone="critical"] .history-category {
-		color: var(--time-marker);
-	}
-	h3 {
-		margin: 0;
-		font: 500 1.375rem/1.3 var(--font-editorial);
-		letter-spacing: -0.005em;
-	}
-	.history-actor {
-		margin-top: 0.75rem;
-	}
-	.history-note {
-		max-width: 72ch;
-		margin-top: 1rem;
-		border-inline-start: 2px solid var(--border-trace);
-		padding: 0.625rem 0 0.625rem 1rem;
-	}
-	.history-note__label {
-		margin: 0 0 0.25rem;
-		color: var(--marginal-note);
-		font-size: 0.6875rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-	.history-note__text {
-		margin: 0;
-		font-size: 0.9375rem;
-		line-height: 1.55;
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-	}
-	.history-empty {
+	.history-empty,
+	.history-truncated {
 		margin: 0;
 		border-block: 1px solid var(--border-trace);
 		padding: 1.5rem 0;
 		color: var(--marginal-note);
 	}
+	.history-truncated {
+		border-block: 0;
+		border-top: 1px solid var(--border-trace);
+		font-size: 0.875rem;
+	}
 	.history-pagination {
 		border-top: 1px solid var(--border-trace);
 		margin-top: 1.25rem;
 		padding-top: 1.25rem;
+	}
+	.compact .history-header {
+		margin-bottom: 1.25rem;
+	}
+	.compact h2 {
+		font-size: 1.5rem;
+	}
+	.compact .history-item {
+		grid-template-columns: 1.25rem minmax(0, 1fr);
+		grid-template-rows: auto auto;
+		gap: 0.375rem 0.75rem;
+		padding-bottom: 1.25rem;
+	}
+	.compact .history-time {
+		grid-column: 2;
+		grid-row: 1;
+		justify-self: start;
+		padding-top: 0;
+	}
+	.compact .history-rail {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		justify-content: flex-start;
+		padding-inline-start: 0.25rem;
+	}
+	.compact .history-item :global(.history-event) {
+		grid-column: 2;
+		grid-row: 2;
 	}
 	@media (max-width: 48rem) {
 		.history-header {
@@ -278,17 +227,11 @@
 			gap: 0.5rem 0.75rem;
 			padding-bottom: 1.5rem;
 		}
-		.history-item:last-child {
-			padding-bottom: 0.25rem;
-		}
 		.history-time {
 			grid-column: 2;
 			grid-row: 1;
 			justify-self: start;
 			padding-top: 0;
-		}
-		.history-mark {
-			margin-top: 0.125rem;
 		}
 		.history-rail {
 			grid-column: 1;
@@ -299,13 +242,9 @@
 		.history-item:not(:last-child) .history-rail::after {
 			inset-block: 0.5rem -1.5rem;
 		}
-		.history-event {
+		.history-item :global(.history-event) {
 			grid-column: 2;
 			grid-row: 2;
-			padding-bottom: 1.25rem;
-		}
-		h3 {
-			font-size: 1.25rem;
 		}
 	}
 </style>

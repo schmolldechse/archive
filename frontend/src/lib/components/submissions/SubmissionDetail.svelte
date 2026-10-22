@@ -22,6 +22,7 @@
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
+	import SnapshotEditForm from "./SnapshotEditForm.svelte";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	let {
 		data
@@ -184,6 +185,32 @@
 			reloading = false;
 		}
 	}
+
+	/** Adopts the server representation and refreshes the history returned by the page load. */
+	async function snapshotSaved(updated: SnapshotSubmissionDetailResponse, updatedEtag: string): Promise<void> {
+		const sourceChanged = detail.snapshot.sourceUrl !== updated.snapshot.sourceUrl;
+		detail = updated;
+		etag = updatedEtag;
+		conflict = false;
+		message = "";
+		success = data.admin
+			? "Snapshot changes saved without changing its review status."
+			: sourceChanged
+				? "Snapshot source saved and sent for another review."
+				: "Snapshot details saved without changing its review status.";
+		await invalidate("app:submissions");
+		await tick();
+		successNotice?.focus();
+	}
+
+	/** Turns an optimistic-concurrency failure into a recoverable page-level state. */
+	async function snapshotConflict(): Promise<void> {
+		conflict = true;
+		success = "";
+		message = "This snapshot changed while you were editing it. Reload it before saving changes.";
+		await tick();
+		errorNotice?.focus();
+	}
 </script>
 
 <article class="submission-detail">
@@ -213,6 +240,14 @@
 	{#if success}<p bind:this={successNotice} tabindex="-1" class="detail-success" role="status">
 			<Check aria-hidden="true" />{success}
 		</p>{/if}
+	<SnapshotEditForm
+		{detail}
+		{etag}
+		admin={data.admin}
+		disabled={conflict || blocked || reloading || reviewing || saving}
+		onSaved={snapshotSaved}
+		onConflict={snapshotConflict}
+	/>
 	<div class="detail-columns">
 		<section class="detail-record" aria-labelledby="detail-record-title">
 			<h2 id="detail-record-title">Snapshot details</h2>

@@ -13,6 +13,7 @@
 		requirement,
 		tags,
 		error,
+		disabled = false,
 		onChange
 	}: {
 		id: string;
@@ -22,22 +23,26 @@
 		requirement?: "optional" | "required";
 		tags: string[];
 		error?: string;
+		disabled?: boolean;
 		onChange: (tags: string[]) => void;
 	} = $props();
 
 	let input = $state("");
 
 	function commit(values: string[]): void {
+		if (disabled) return;
 		const nextTags = normalizeTags([...tags, ...values]);
 		if (nextTags.length !== tags.length || nextTags.some((tag, index) => tag !== tags[index])) onChange(nextTags);
 	}
 
 	function commitInput(): void {
+		if (disabled) return;
 		if (input.trim()) commit([input]);
 		input = "";
 	}
 
 	function handleInput(event: Event): void {
+		if (disabled) return;
 		const value = (event.currentTarget as HTMLInputElement).value;
 		const parts = value.split(",");
 
@@ -51,6 +56,7 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent): void {
+		if (disabled) return;
 		if (event.key === "Enter" || event.key === ",") {
 			event.preventDefault();
 			commitInput();
@@ -64,7 +70,7 @@
 	}
 </script>
 
-<InputRoot {id} invalid={Boolean(error)} hasDescription={Boolean(description)} class="tag-editor">
+<InputRoot {id} invalid={Boolean(error)} hasDescription={Boolean(description)} {disabled} class="tag-editor">
 	<InputLabel
 		>{label}
 		{#if requirement}<span class="field-qualifier">{requirement === "required" ? "Required" : "Optional"}</span
@@ -90,6 +96,7 @@
 							type="button"
 							class="remove-tag"
 							aria-label={`Remove tag ${tag}`}
+							{disabled}
 							onclick={() => onChange(tags.filter((candidate) => candidate !== tag))}
 						>
 							<X aria-hidden="true" />

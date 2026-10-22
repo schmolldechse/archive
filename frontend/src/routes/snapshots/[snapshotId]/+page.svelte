@@ -26,7 +26,7 @@
 	</header>
 	<main id="main-content" class="archived-page__content">
 		<div class="archived-page__information">
-			<SnapshotInformationDialog snapshot={data.snapshot} />
+			<SnapshotInformationDialog snapshot={data.snapshot} history={data.history} historyUnavailable={!data.historyAvailable} />
 		</div>
 		<!-- Preserve the API origin for session-authenticated resources; scripts and forms remain sandboxed. -->
 		<iframe
