@@ -63,7 +63,8 @@ internal sealed partial class SnapshotProcessingRepository(
                 SetTerminal(processing, ProcessingStatus.Cancelled, now);
                 snapshot.CaptureStartedAt = processing.StartedAt;
                 snapshot.CaptureCompletedAt = now;
-                await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(), cancellationToken: token);
+                await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(ProcessingStatus.Cancelled),
+                    cancellationToken: token);
             }
             else if (processing.Status == ProcessingStatus.Running)
                 processing.CancelRequested = true;

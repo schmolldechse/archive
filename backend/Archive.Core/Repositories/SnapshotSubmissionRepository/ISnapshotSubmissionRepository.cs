@@ -19,4 +19,8 @@ public interface ISnapshotSubmissionRepository
     Task<SnapshotContentResult> OpenContentForReviewAsync(Guid id, string? path, CancellationToken token);
     Task<SnapshotReviewOutcome> ReviewAsync(Guid actorId, Guid id, string expectedTag, SnapshotModerationStatus decision, string? reason, CancellationToken token);
     Task<SnapshotReviewOutcome> ResubmitAsync(Guid userId, Guid id, string expectedTag, CancellationToken token);
+    Task<SnapshotUpdateResult> UpdateOwnAsync(Guid userId, Guid id, string expectedTag, SnapshotUpdate update,
+        CancellationToken token);
+    Task<SnapshotUpdateResult> UpdateForAdminAsync(Guid actorId, Guid id, string expectedTag,
+        SnapshotAdministrationUpdate update, CancellationToken token);
 }

@@ -78,7 +78,7 @@ internal sealed partial class SnapshotProcessingRepository
         SetTerminal(processing, status, await TimestampAsync(database, token));
         snapshot.CaptureStartedAt = processing.StartedAt;
         snapshot.CaptureCompletedAt = processing.CompletedAt;
-        await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(), cancellationToken: token);
+        await history.AppendAsync(snapshot, new SnapshotProcessingFinishedData(status), cancellationToken: token);
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
         return ProcessingCompletion.NotStored;
@@ -102,7 +102,7 @@ internal sealed partial class SnapshotProcessingRepository
             SnapshotHistoryData historyData = status == ProcessingStatus.Completed
                 ? new SnapshotStoredData(snapshot.Quality, snapshot.DurationMilliseconds,
                     snapshot.StorageBytes, snapshot.ResourceCount)
-                : new SnapshotProcessingFinishedData();
+                : new SnapshotProcessingFinishedData(status);
             await history.AppendAsync(snapshot, historyData, cancellationToken: token);
             await database.SaveChangesAsync(token);
             await transaction.CommitAsync(token);

@@ -12,7 +12,8 @@ public sealed class SnapshotSubmissionOperationTransformer : IOpenApiOperationTr
     {
         if (context.Description.ActionDescriptor is not ControllerActionDescriptor action ||
             !action.ControllerTypeInfo.IsSubclassOf(typeof(SnapshotSubmissionControllerBase))) return Task.CompletedTask;
-        if (action.MethodInfo.Name is "Get" or "Review" or "Resubmit" && operation.Responses?["200"] is OpenApiResponse response)
+        if (action.MethodInfo.Name is "Get" or "Review" or "Resubmit" or "Update" &&
+            operation.Responses?["200"] is OpenApiResponse response)
             response.Headers = new Dictionary<string, IOpenApiHeader>
             {
                 ["ETag"] = new OpenApiHeader

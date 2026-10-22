@@ -17,7 +17,8 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
     ISnapshotHistoryRepository history) : ISnapshotSubmissionRepository
 {
     private static readonly string[] ModerationEventTypes =
-        ["snapshot.submitted", "snapshot.moderated", "snapshot.resubmitted"];
+        [SnapshotHistoryTypes.Submitted, SnapshotHistoryTypes.Moderated, SnapshotHistoryTypes.Resubmitted,
+            SnapshotHistoryTypes.SourceUpdated];
 
     public Task<SnapshotSubmissionPage> SearchOwnAsync(Guid userId, string? text, SnapshotModerationStatus? status,
         int page, int pageSize, CancellationToken token) => SearchAsync(userId, text, status, null, page, pageSize, token);
@@ -94,7 +95,7 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 .Select(processing => (ProcessingStatus?)processing.Status).SingleOrDefaultAsync(token)
                 ?? ProcessingStatus.Failed;
         var decision = await database.SnapshotHistory.AsNoTracking().Where(entry => entry.SnapshotId == id
-                && entry.Content.GetProperty("type").GetString() == "snapshot.moderated")
+                && entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.Moderated)
             .OrderByDescending(entry => entry.Sequence).Select(entry => (JsonElement?)entry.Content).FirstOrDefaultAsync(token);
         var reason = decision is { } content
             ? SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(content).Reason
@@ -133,40 +134,9 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
     }
 
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>
-        HistoryAsync(id, userId, page, pageSize, token);
+        history.ReadOwnAsync(userId, id, page, pageSize, token);
 
     public Task<SnapshotHistoryPage?> HistoryForReviewAsync(Guid id, int page, int pageSize, CancellationToken token) =>
-        HistoryAsync(id, null, page, pageSize, token);
-
-    private async Task<SnapshotHistoryPage?> HistoryAsync(Guid id, Guid? ownerId, int page, int pageSize, CancellationToken token)
-    {
-        if (!await Scope(ownerId).AnyAsync(snapshot => snapshot.Id == id, token)) return null;
-        var query = database.SnapshotHistory.AsNoTracking().Where(entry => entry.SnapshotId == id);
-        if (ownerId is not null)
-            // Future types and versions must be explicitly approved before an owner can read them.
-            query = query.Where(entry => entry.Content.GetProperty("version").GetInt32() == 1 &&
-                (entry.Content.GetProperty("type").GetString() == "snapshot.submitted" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.moderated" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.resubmitted" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.stored" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.processing_finished"));
-        var total = await query.CountAsync(token);
-        var rows = await query.OrderByDescending(entry => entry.Sequence).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(entry => new
-            {
-                entry.Sequence,
-                entry.CreatedAt,
-                entry.Content,
-                // Both owner and moderator history show attribution for completed public profiles.
-                Actor = entry.Actor != null && entry.Actor.RegistrationCompletedAt != null &&
-                    entry.Actor.Handle != null && entry.Actor.DisplayName != null
-                    ? new PublicUser(entry.Actor.Handle, entry.Actor.DisplayName,
-                        entry.Actor.ProfileImage != null && entry.Actor.ProfileImage.Length > 0, entry.Actor.Role)
-                    : null
-            }).ToArrayAsync(token);
-        var items = rows.Select(row => new SnapshotHistoryItem(row.Sequence, row.CreatedAt,
-            row.Actor, SnapshotHistorySerializer.Deserialize(row.Content))).ToArray();
-        return new(items, total, page, pageSize);
-    }
+        history.ReadAdminAsync(id, page, pageSize, token);
 
 }

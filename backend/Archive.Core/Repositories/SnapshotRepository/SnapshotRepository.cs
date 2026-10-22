@@ -27,6 +27,10 @@ internal sealed partial class SnapshotRepository(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
+        CancellationToken cancellationToken = default) =>
+        history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
+
     public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default)
     {
         var snapshot = await database.Snapshots

@@ -5,6 +5,7 @@ using Archive.Api.Mapping;
 using Archive.Core.Authorization;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotSubmissionRepository;
+using Archive.Core.Repositories.UserRepository;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,7 +17,7 @@ namespace Archive.Api.Controllers.Admin;
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
 [ProducesResponseType<ProblemDetails>(401), ProducesResponseType<ProblemDetails>(403)]
 public sealed class SnapshotsController(ISnapshotSubmissionRepository submissions, SnapshotSubmissionMapper mapper,
-    ArchiveAuthenticationOptions options) : SnapshotSubmissionControllerBase(submissions, mapper, options)
+    ArchiveAuthenticationOptions options, IUserRepository users) : SnapshotSubmissionControllerBase(submissions, mapper, options)
 {
     [HttpGet, EndpointName("ListAdminSnapshots"), EndpointSummary("Lists snapshot records for administration.")]
     [ProducesResponseType<SnapshotSubmissionListResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
@@ -28,6 +29,30 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ProblemDetails>(404)]
     public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Get(Guid id, CancellationToken token) =>
         Detail(await Submissions.GetForReviewAsync(id, token), "api/admin/snapshots");
+
+    [HttpGet("owners"), EndpointName("ListSnapshotOwners"), EndpointSummary("Lists registered snapshot owner candidates.")]
+    [EndpointDescription("Requires snapshot administration access. Returns public user contracts only; internal user identifiers are never exposed.")]
+    [ProducesResponseType<SnapshotOwnerListResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
+    public async Task<ActionResult<SnapshotOwnerListResponse>> Owners([FromQuery] SnapshotOwnerQuery query,
+        CancellationToken token) =>
+        Ok(Mapper.ToOwnerResponse(await users.SearchAsync(query.Q, null, query.Page, query.PageSize, token)));
+
+    [HttpPut("{id:guid}"), Consumes("application/json"), EndpointName("UpdateSnapshotForAdmin"),
+     EndpointSummary("Updates a snapshot and its optional account attribution.")]
+    [EndpointDescription("Requires snapshot administration access, the configured frontend Origin and exactly one strong If-Match from GET. Administrative edits never change moderation status. A null createdByHandle removes account attribution.")]
+    [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
+    [ProducesResponseType<ProblemDetails>(401), ProducesResponseType<ProblemDetails>(403),
+     ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ProblemDetails>(409),
+     ProducesResponseType<ProblemDetails>(412), ProducesResponseType<ProblemDetails>(428)]
+    public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Update(Guid id,
+        [FromBody] UpdateSnapshotForAdminRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken token)
+    {
+        if (ValidateWrite(out var tag) is { } error) return error;
+        var outcome = await Submissions.UpdateForAdminAsync(User.ReadUserId(), id, tag, request.ToModel(), token);
+        if (UpdateOutcome(outcome) is { } failure) return failure;
+        return Detail(await Submissions.GetForReviewAsync(id, token), "api/admin/snapshots");
+    }
 
     [HttpGet("{id:guid}/history"), EndpointName("GetSnapshotHistoryForReview"), EndpointSummary("Reads general snapshot lifecycle history.")]
     [ProducesResponseType<SnapshotHistoryResponse>(200), ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ValidationProblemDetails>(400)]
