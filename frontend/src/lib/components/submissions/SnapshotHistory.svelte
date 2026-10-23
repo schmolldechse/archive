@@ -48,7 +48,7 @@
 				{@const dateTimeValue = createdAt.toISO() ?? item.createdAt}
 				<li class="history-item" data-tone={presentation.tone}>
 					<div class="history-time"><time class="history-timestamp" datetime={dateTimeValue}>{timestamp}</time></div>
-					<div class="history-rail" aria-hidden="true"><span class="history-mark"></span></div>
+					<div class="history-rail" aria-hidden="true"><span class="history-marker"></span></div>
 					<SnapshotHistoryEvent {item} {timestamp} {dateTimeValue} />
 				</li>
 			{/each}
@@ -121,7 +121,7 @@
 		display: grid;
 		grid-template-columns: minmax(10rem, 0.8fr) var(--history-rail-width) minmax(0, 2fr);
 		column-gap: var(--history-column-gap);
-		align-items: baseline;
+		align-items: start;
 		position: relative;
 		padding-bottom: 2rem;
 	}
@@ -143,14 +143,14 @@
 	.history-time {
 		display: flex;
 		grid-column: 1;
-		align-self: baseline;
+		align-self: start;
 		justify-self: end;
 	}
 	.history-timestamp {
 		color: var(--reading-ink);
 		font-size: 0.875rem;
 		font-weight: 500;
-		line-height: 1.4;
+		line-height: 1.25rem;
 		white-space: nowrap;
 	}
 	.history-rail {
@@ -164,16 +164,18 @@
 	.history-item:not(:last-child) .history-rail::after {
 		position: absolute;
 		inset-block: 0.625rem -2rem;
-		border-inline-start: 2px solid var(--border-trace);
+		border-inline-start: 1px solid var(--border-trace);
 		content: "";
 	}
-	.history-mark {
+	.history-marker {
 		position: relative;
 		z-index: 1;
-		width: 0.625rem;
-		height: 0.625rem;
-		margin-top: 0.4375rem;
-		border-radius: 50%;
+		box-sizing: border-box;
+		width: 0.875rem;
+		height: 0.875rem;
+		margin-top: 0.1875rem;
+		border: 2px solid var(--reading-room);
+		border-radius: 2px;
 		background: var(--history-tone);
 	}
 	.history-item :global(.history-event) {
@@ -213,7 +215,7 @@
 			inset-block: 0.625rem -1.5rem;
 		}
 	}
-	/* Keep narrow history embeds legible by moving the date into the event heading. */
+	/* Keep the timestamp beside the event type on narrow screens. */
 	@container (max-width: 32rem) {
 		.history-item {
 			--history-rail-width: 1.5rem;
@@ -226,6 +228,9 @@
 		}
 		.history-rail {
 			grid-column: 1;
+		}
+		.history-marker {
+			margin-top: 0.25rem;
 		}
 		.history-item :global(.history-event) {
 			grid-column: 2;
