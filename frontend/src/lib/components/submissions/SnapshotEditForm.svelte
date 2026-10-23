@@ -30,7 +30,7 @@
 		onSaved,
 		onConflict,
 		onCancel,
-		onSavingChange
+		onSavingChange = () => {}
 	}: {
 		detail: SnapshotSubmissionDetailResponse;
 		etag: string;
@@ -40,7 +40,7 @@
 		onSaved: (detail: SnapshotSubmissionDetailResponse, etag: string) => void;
 		onConflict: () => void;
 		onCancel: () => void;
-		onSavingChange: (saving: boolean) => void;
+		onSavingChange?: (saving: boolean) => void;
 	} = $props();
 
 	let saving = $state(false);

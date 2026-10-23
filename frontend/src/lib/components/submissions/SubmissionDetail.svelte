@@ -23,8 +23,6 @@
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
-	import SnapshotEditForm from "./SnapshotEditForm.svelte";
-	import { createSnapshotEditDraft, type SnapshotEditDraft } from "./snapshot-edit-draft";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	let {
 		data
@@ -38,9 +36,6 @@
 	} = $props();
 	let detail = $state.raw(untrack(() => data.detail));
 	let etag = $state(untrack(() => data.etag));
-	let editing = $state(false);
-	let editDraft = $state<SnapshotEditDraft>(untrack(() => createSnapshotEditDraft(data.detail)));
-	let editSaving = $state(false);
 	let saving = $state(false);
 	let reviewing = $state(false);
 	let reviewDecision = $state<typeof Status.APPROVED | typeof Status.REJECTED | null>(null);
@@ -50,7 +45,6 @@
 	let success = $state("");
 	let conflict = $state(false);
 	let blocked = $state(false);
-	let editButton = $state<HTMLButtonElement | HTMLAnchorElement | null>(null);
 	let errorNotice = $state<HTMLDivElement | null>(null);
 	let successNotice = $state<HTMLParagraphElement | null>(null);
 	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
@@ -74,22 +68,6 @@
 			detail.snapshot.quality !== null &&
 			(detail.moderation.status === Status.PENDING || detail.moderation.status === Status.RESUBMITTED)
 	);
-	const editingDisabled = $derived(conflict || blocked || reloading || reviewing || saving || editSaving);
-
-	/** Starts the editor with the latest values held by the page. */
-	function openEditor(): void {
-		editDraft = createSnapshotEditDraft(detail);
-		editing = true;
-	}
-
-	/** Discards unsaved changes and closes the inline editor. */
-	async function closeEditor(): Promise<void> {
-		editDraft = createSnapshotEditDraft(detail);
-		editing = false;
-		await tick();
-		editButton?.focus();
-	}
-
 	/** Updates the local record only after the server acknowledges the renewed review request. */
 	async function save() {
 		if (saving || reloading || conflict || blocked) return;
@@ -198,8 +176,6 @@
 			if (!response.ok || !response.headers.get("etag")) throw new Error("Reload failed");
 			detail = await response.json();
 			etag = response.headers.get("etag")!;
-			editDraft = createSnapshotEditDraft(detail);
-			editing = false;
 			conflict = false;
 			await invalidate("app:submissions");
 		} catch {
@@ -207,38 +183,6 @@
 		} finally {
 			reloading = false;
 		}
-	}
-
-	/** Adopts the server representation and refreshes the history returned by the page load. */
-	async function snapshotSaved(updated: SnapshotSubmissionDetailResponse, updatedEtag: string): Promise<void> {
-		const sourceChanged = detail.snapshot.sourceUrl !== updated.snapshot.sourceUrl;
-		detail = updated;
-		etag = updatedEtag;
-		editDraft = createSnapshotEditDraft(updated);
-		editing = false;
-		editSaving = false;
-		conflict = false;
-		message = "";
-		success = data.admin
-			? "Snapshot changes saved without changing its review status."
-			: sourceChanged
-				? "Snapshot source saved and sent for another review."
-				: "Snapshot details saved without changing its review status.";
-		await invalidate("app:submissions");
-		await tick();
-		successNotice?.focus();
-	}
-
-	/** Turns an optimistic-concurrency failure into a recoverable page-level state. */
-	async function snapshotConflict(): Promise<void> {
-		editDraft = createSnapshotEditDraft(detail);
-		editing = false;
-		editSaving = false;
-		conflict = true;
-		success = "";
-		message = "This snapshot changed while you were editing it. Reload it before saving changes.";
-		await tick();
-		errorNotice?.focus();
 	}
 </script>
 
@@ -259,15 +203,8 @@
 				><CopySourceButton value={detail.snapshot.sourceUrl} label={`Copy source URL for ${detail.snapshot.title}`} />
 			</div>{/if}
 		<div class="detail-command-bar" role="group" aria-label="Snapshot actions">
-			<Button
-				bind:ref={editButton}
-				variant="primary"
-				onclick={editing ? closeEditor : openEditor}
-				disabled={editingDisabled}
-				aria-expanded={editing}
-				aria-controls="snapshot-edit-region"
-			>
-				{#if editing}<X aria-hidden="true" />Close editor{:else}<Pencil aria-hidden="true" />Edit snapshot{/if}
+			<Button variant="primary" href={`${backHref}/${detail.snapshot.id}/edit`}>
+				<Pencil aria-hidden="true" />Edit snapshot
 			</Button>
 			{#if detail.snapshot.contentUrl}
 				<Button variant="secondary" href={`/snapshots/${detail.snapshot.id}`}>
@@ -286,21 +223,6 @@
 	{#if success}<p bind:this={successNotice} tabindex="-1" class="detail-success" role="status">
 			<Check aria-hidden="true" />{success}
 		</p>{/if}
-	<div id="snapshot-edit-region" hidden={!editing}>
-		{#if editing}
-			<SnapshotEditForm
-				{detail}
-				{etag}
-				bind:draft={editDraft}
-				admin={data.admin}
-				disabled={editingDisabled}
-				onCancel={closeEditor}
-				onSaved={snapshotSaved}
-				onConflict={snapshotConflict}
-				onSavingChange={(value) => (editSaving = value)}
-			/>
-		{/if}
-	</div>
 	<div class="detail-columns">
 		<section class="detail-record" aria-labelledby="detail-record-title">
 			<h2 id="detail-record-title">Snapshot details</h2>

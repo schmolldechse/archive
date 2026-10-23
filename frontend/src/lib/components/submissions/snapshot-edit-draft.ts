@@ -1,6 +1,6 @@
 import type { SnapshotSubmissionDetailResponse } from "$api";
 
-/** Editable snapshot fields shared between the detail header and its inline form. */
+/** Editable snapshot fields shared by the owner and administrator edit routes. */
 export interface SnapshotEditDraft {
 	title: string;
 	description: string;
