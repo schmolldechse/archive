@@ -50,15 +50,17 @@
 	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
 	const backHref = $derived(data.admin ? "/admin/snapshots" : "/account/submissions");
 	const technicalLabel = $derived(
-		detail.processingStatus === "COMPLETED" && detail.snapshot.quality === "INCOMPLETE"
-			? "Incomplete capture"
+		detail.processingStatus === "COMPLETED" && detail.snapshot.quality === null
+			? "Capture quality unavailable"
 			: processingLabel(detail.processingStatus)
 	);
 	/** Keeps capture quality visually independent from the snapshot's moderation decision. */
 	const captureVariant = $derived.by(() => {
 		if (detail.processingStatus === "FAILED" || detail.processingStatus === "ABORTED") return "critical" as const;
 		if (detail.processingStatus !== "COMPLETED") return "info" as const;
-		return detail.snapshot.quality === "COMPLETE" ? ("success" as const) : ("warning" as const);
+		if (detail.snapshot.quality === "COMPLETE") return "success" as const;
+		if (detail.snapshot.quality === "INCOMPLETE") return "warning" as const;
+		return "info" as const;
 	});
 	const canResubmit = $derived(
 		!data.admin && detail.processingStatus === "COMPLETED" && detail.moderation.status === Status.REJECTED
@@ -191,9 +193,17 @@
 	<header class="detail-heading">
 		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
 		<h1>{detail.snapshot.title}</h1>
-		<div class="detail-status">
-			<SnapshotModerationStatus status={detail.moderation.status} />
-			<Badge variant={captureVariant}>{technicalLabel}</Badge>
+		<div class="detail-status" role="group" aria-label="Snapshot status">
+			<div class="detail-status__item">
+				<span class="detail-status__label">Review</span>
+				<SnapshotModerationStatus status={detail.moderation.status} />
+			</div>
+			{#if detail.processingStatus !== "COMPLETED" || detail.snapshot.quality === null}
+				<div class="detail-status__item">
+					<span class="detail-status__label">Capture</span>
+					<Badge variant={captureVariant} size="compact">{technicalLabel}</Badge>
+				</div>
+			{/if}
 		</div>
 		{#if detail.snapshot.sourceUrl}<div class="detail-source">
 				<a href={detail.snapshot.sourceUrl} target="_blank" rel="noreferrer" title={detail.snapshot.sourceUrl}
@@ -344,9 +354,22 @@
 	.detail-status {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.75rem 1.5rem;
+		align-items: flex-start;
+		gap: 0.75rem 1.75rem;
 		margin-block: 1rem;
+	}
+	.detail-status__item {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.375rem 0.625rem;
+	}
+	.detail-status__label {
+		color: var(--marginal-note);
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 	}
 	.detail-source {
 		display: grid;
