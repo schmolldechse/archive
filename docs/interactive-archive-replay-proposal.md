@@ -13,7 +13,7 @@ Archive should be able to replay JavaScript that was captured with an approved s
 
 The proposed feature is an **offline interactive replay**, not a live proxy of the original website. It should support deterministic interactions whose code and resources were captured, such as disclosure controls, tabs, client-side filtering, local form validation, animations, canvas rendering, and bounded client-side routing. It must not reconnect an archived page to its original APIs, submit forms, open pop-ups, use browser storage, register service workers, access Archive sessions, or control the surrounding application.
 
-The feature must preserve the existing static playback path. A user explicitly opts into script execution for one viewer session, and can return to the static view at any time.
+The feature must preserve the existing static playback path as a compatibility fallback, not as an interaction gate. When an approved snapshot has a compatible replay artifact, the snapshot page loads that interactive replay immediately. There is no `Enable interaction` action, consent step, or static/interactive mode switch. Snapshots without a compatible replay artifact continue to open as static documents without presenting a disabled control.
 
 ## Current implementation and gap analysis
 
@@ -43,13 +43,13 @@ There are also compatibility gaps that become visible once execution is enabled:
 
 ### Core decision
 
-Add a versioned replay document and a dedicated public replay origin. Keep the current `contentUrl` as the static, script-disabled representation and add a nullable `interactiveContentUrl` for approved snapshots that have a compatible replay document.
+Add a versioned replay document and a dedicated public replay origin. Keep the current `contentUrl` as the static, script-disabled fallback and add a nullable `interactiveContentUrl` for approved snapshots that have a compatible replay document. The frontend selects `interactiveContentUrl` as the initial iframe source whenever it is present; otherwise it uses `contentUrl`.
 
 ```mermaid
 flowchart LR
     Reader[Reader] --> Frontend[Archive frontend]
-    Frontend -->|Static view by default| Static[API content route<br/>scripts disabled]
-    Frontend -->|Explicit Enable interaction| Replay[Dedicated replay origin]
+    Frontend -->|Compatible replay available| Replay[Dedicated replay origin]
+    Frontend -->|No compatible replay| Static[API content route<br/>scripts disabled]
     Replay -->|GET/HEAD only; no credentials| APIHost[Replay host branch in Archive.Api]
     APIHost --> Database[(PostgreSQL visibility check)]
     APIHost --> Objects[(MinIO/S3 snapshot objects)]
@@ -73,7 +73,7 @@ An iframe sandbox can prevent access to the parent, storage, forms, pop-ups, and
 
 Consequently:
 
-- public approved snapshots may offer opt-in interaction on a credential-free origin;
+- public approved snapshots automatically use interactive replay on a credential-free origin when a compatible replay artifact is available;
 - pending, rejected, resubmitted, owner-only, and administrator-only content remains static;
 - no private bearer token, session bridge, or replay cookie is introduced;
 - server-side remote-browser replay can be evaluated later if private interactive review becomes a requirement.
@@ -134,7 +134,7 @@ Interactive replay cannot promise perfect behavior or zero risk:
 - code that depends on live APIs, service workers, storage, authentication, cross-origin resources, `eval`, or uncaptured chunks will degrade;
 - a post-capture DOM may be initialized a second time when original scripts run again.
 
-These are reasons for a static default, an explicit user action, a visible stop action, a separate origin, and a public-only first release.
+These are reasons for a separate origin, strict sandboxing, a public-only first release, versioned compatibility metadata, and a retained static fallback. They do not require a user-facing activation step because the replay receives no Archive credentials or live-network capability.
 
 ## Capture and storage design
 
@@ -160,7 +160,7 @@ Add nullable `ReplayVersion` metadata to `Snapshot`:
 - `null`: no compatible interactive replay; this includes every existing snapshot;
 - `1`: replay document produced by the first normalizer version.
 
-The normalizer sets a replay version only when it finds executable content: a non-empty executable `<script>`, an executable script resource, or an inline event-handler attribute. A document without executable content keeps `ReplayVersion = null`, so the frontend does not show a meaningless interaction control.
+The normalizer sets a replay version only when it finds executable content: a non-empty executable `<script>`, an executable script resource, or an inline event-handler attribute. A document without executable content keeps `ReplayVersion = null`, so the frontend transparently renders the static document instead of routing it through the replay origin.
 
 The database migration does not backfill existing rows. Existing snapshots stay static and safe. Re-capture is the explicit upgrade path. This avoids claiming compatibility without reprocessing the source.
 
@@ -224,7 +224,7 @@ This rewriter is used for URL, MHTML, and WebArchive inputs. CSS rewriting remai
 
 ### Offline import execution
 
-Keep `JavaScriptEnabled = false` while the worker renders screenshots for uploaded HTML, MHTML, and WebArchive files. Uploaded documents are attacker-controlled, and executing them inside the worker is unnecessary for producing the replay artifact. Their scripts execute only after the snapshot is approved, only on the public replay origin, and only after a reader opts in.
+Keep `JavaScriptEnabled = false` while the worker renders screenshots for uploaded HTML, MHTML, and WebArchive files. Uploaded documents are attacker-controlled, and executing them inside the worker is unnecessary for producing the replay artifact. Their scripts execute only after the snapshot is approved and only on the public, credential-free replay origin.
 
 URL capture continues to execute the live page in the existing guarded Playwright context because that is already required to capture dynamic content. No new live-network permission is added.
 
@@ -294,51 +294,46 @@ Because this edits a public API contract, implementation must regenerate fronten
 3. commit the generated type changes;
 4. do not alter how `@hey-api/openapi-ts` or `frontend/openapi-ts.config.ts` reaches the OpenAPI document.
 
-## Frontend behavior and design
+## Frontend replay behavior and design
 
 ### Interaction model
 
-The snapshot page starts in static mode even when `interactiveContentUrl` is available.
+The snapshot page should feel like entering a Wayback Machine capture: the preserved page is immediately visible and its captured client-side behavior is available without an Archive-specific activation flow.
 
-Add a compact replay control to the fixed archive information area, outside the iframe:
+When `interactiveContentUrl` is non-null, it is the iframe's initial source. The page does not render an `Enable interaction`, `Stop interaction`, or `Return to static view` control. Archive chrome remains outside the iframe and does not intercept ordinary interaction with the preserved document.
 
-- state label: `Static view` or `Interactive replay`;
-- primary action in static state: `Enable interaction`;
-- secondary action in interactive state: `Return to static view`;
-- always-visible escape action in interactive state: `Stop interaction`;
-- concise explanation: `Archived scripts run in isolation. Live network access, forms, downloads, pop-ups and external navigation are restricted.`
+When `interactiveContentUrl` is null, the iframe uses `contentUrl`. This applies to existing snapshots, documents without executable content, unsupported replay versions, private views, and deployments where replay is disabled. The distinction may be reported passively in the existing snapshot information dialog as `Interactive replay` or `Static capture`; it must not become a prerequisite for using the page.
 
-Switching mode replaces the iframe node instead of mutating its sandbox tokens after load. Returning to static mode destroys the executing browsing context and reloads `contentUrl`.
-
-If `interactiveContentUrl` is null, no disabled or misleading control is shown. A failed replay load returns to static mode with a flat error message: `Interactive replay is unavailable. The static archive remains readable.`
+If the replay entry cannot be delivered, the viewer falls back to `contentUrl` where that failure can be detected safely. The only user-facing copy should be a flat status message such as `Interactive replay is unavailable. Showing the preserved static copy.` Individual missing scripts or assets degrade inside the replay and remain visible through capture diagnostics; they must never be fetched from the live web.
 
 ### Editorial design requirements
 
 The implementation follows the repository's editorial interface system:
 
 - Archive controls remain visually separate from the original page and never recolor archived content for dark mode.
-- The mode is communicated with text, icon/shape, and semantic state, not color alone.
-- Register Blue denotes the enable/stop interaction control; Time Copper remains reserved for snapshot time and selection.
-- Controls keep a minimum `44 × 44px` target and the existing `3px` focus outline.
+- Replay state, when shown in snapshot information, is communicated with concise text and semantic state rather than color alone.
+- Time Copper remains reserved for snapshot time and selection; replay status uses the existing neutral metadata treatment.
+- Existing Archive controls keep a minimum `44 × 44px` target and the existing `3px` focus outline.
 - The explanation uses Source Sans 3; URLs and technical replay version data use IBM Plex Mono only where needed.
 - No floating card, gradient, glass effect, oversized radius, animation loop, or decorative warning panel is introduced.
-- The control reflows at 320 CSS pixels and remains usable at 200% text zoom.
+- Archive chrome and passive replay metadata reflow at 320 CSS pixels and remain usable at 200% text zoom.
 - Archived content keeps a white/own-page background even when Archive uses Night Stacks.
-- Motion is limited to existing short state transitions and respects `prefers-reduced-motion`.
+- The archived page occupies the primary surface immediately; Archive must not add an interstitial, warning card, or activation overlay.
+- Motion in Archive chrome is limited to existing short state transitions and respects `prefers-reduced-motion`; preserved page motion is governed by the replay sandbox and captured code.
 
 The final copy remains English. The feature should not add promotional or anthropomorphic text.
 
 Expected frontend files:
 
 - `frontend/src/routes/snapshots/[snapshotId]/+page.svelte`
-  - own static/interactive state and replace the iframe;
-- a small reusable component under `frontend/src/lib/components/archive/`
-  - render replay state, explanation, and actions;
+  - select the interactive replay URL as the initial source and use static content as fallback;
+- the existing snapshot information components
+  - optionally report replay availability as passive provenance metadata;
 - `frontend/src/lib/api/types.gen.ts`
   - generated, never edited by hand;
-- optional Storybook story for the control states if it can be rendered independently.
+- optional Storybook story for passive replay-status and fallback states if they can be rendered independently.
 
-No application design change is complete until the integrated browser has been used to inspect light and dark themes at desktop and mobile widths, keyboard focus, 200% zoom, long titles/URLs, failed replay, static mode, and interactive mode.
+No application design change is complete until the integrated browser has been used to inspect light and dark themes at desktop and mobile widths, keyboard focus, 200% zoom, long titles/URLs, failed replay fallback, legacy static snapshots, and automatic interactive replay.
 
 ## Security verification
 
@@ -376,9 +371,9 @@ Fixtures cover:
 - timers, DOM mutation, animation, canvas, fragment navigation, and client-side filters;
 - nested archived frames;
 - graceful failure for live `fetch`, missing chunks, service workers, and storage;
-- static fallback and stopping an active replay.
+- automatic interactive startup and static fallback when replay is unavailable.
 
-Add focused worker tests for normalization and JavaScript reference rewriting, API integration tests for replay routing and headers, and browser tests for mode switching and isolation. The repository currently has no automated test projects, so the implementation should introduce small, responsibility-specific test projects rather than a broad test utility layer.
+Add focused worker tests for normalization and JavaScript reference rewriting, API integration tests for replay routing and headers, and browser tests for automatic replay selection, fallback, and isolation. The repository currently has no automated test projects, so the implementation should introduce small, responsibility-specific test projects rather than a broad test utility layer.
 
 ## Three-page acceptance archive
 
@@ -402,7 +397,7 @@ After implementation, archive at least these three pages so the required source 
 
 | Level | Candidate | Ingestion format | Expected proof |
 | --- | --- | --- | --- |
-| Simple | `https://example.com/` | WebArchive | static document remains readable; no interaction control if no executable content is detected |
+| Simple | `https://example.com/` | WebArchive | static document remains readable when no executable content is detected, without an interaction gate or disabled control |
 | Intermediate | `https://mdn.github.io/web-components-examples/expanding-list-web-component/` | MHTML | the captured custom element initializes and nested list branches expand and collapse without live requests |
 | Complex | `https://threejs.org/examples/webgl_animation_keyframes.html` | URL | captured module/resource graph starts and the archived animation renders without contacting the original host |
 
@@ -463,8 +458,8 @@ If an authenticated flow is required, pause and ask the user to sign in with the
 4. **API contract**
    - add nullable `interactiveContentUrl` with OpenAPI documentation;
    - run `bun --bun run generate:api` against the running backend without changing the generator configuration.
-5. **Frontend controls**
-   - implement static default, explicit opt-in, stop/static fallback, error handling, and iframe replacement;
+5. **Frontend replay selection**
+   - make compatible interactive replay the automatic initial source, retain transparent static fallback, and add restrained error handling without a mode gate;
    - keep all UI copy in English.
 6. **Validation environment**
    - inspect and, where confirmed, clean existing project containers/volumes;
@@ -473,7 +468,7 @@ If an authenticated flow is required, pause and ask the user to sign in with the
 7. **Acceptance archive and browser review**
    - capture the three-page minimum matrix;
    - execute interaction and hostile-capability probes;
-   - inspect desktop/mobile, light/dark, keyboard, zoom, failure, static, and interactive states in the integrated browser.
+   - inspect desktop/mobile, light/dark, keyboard, zoom, failure fallback, legacy static captures, and automatic interactive replay in the integrated browser.
 8. **Documentation and final checks**
    - update architecture, configuration, development, and deployment documentation;
    - run builds, tests, generated-type checks, formatting, and production frontend build;
@@ -492,7 +487,7 @@ The final implementation is expected to touch or add files in these areas:
 - `frontend/src/lib/api`
   - generated API types;
 - `frontend/src/lib/components/archive` and snapshot route
-  - replay control and iframe state;
+  - automatic replay URL selection, passive status metadata, and static fallback state;
 - test projects and browser fixtures
   - normalizer, policy, routing, security, and interaction coverage;
 - `docs/architecture.md`, `docs/configuration.md`, `docs/development.md`, and `docs/deployment.md`
@@ -526,7 +521,8 @@ Any introduced browser test command must be documented and run against the real 
 
 Implementation is complete only when all of the following are true:
 
-- static playback remains the default and existing snapshots still work unchanged;
+- compatible approved public snapshots open directly in interactive replay without an activation action;
+- static playback remains available as the transparent fallback and existing snapshots still work unchanged;
 - existing snapshots do not claim interactive support;
 - approved new URL, MHTML, and WebArchive captures can expose a versioned interactive replay;
 - private snapshots never expose or execute interactive replay;
@@ -544,7 +540,7 @@ Implementation is complete only when all of the following are true:
 
 ### Add `allow-scripts` to the existing iframe and API CSP
 
-Rejected. It would keep untrusted script delivery on the authenticated API origin, provide no explicit opt-in or compatibility version, and make direct replay URLs harder to isolate. Keeping `allow-same-origin` while adding scripts would also remove the opaque-origin defense.
+Rejected. It would keep untrusted script delivery on the authenticated API origin, provide no compatibility version or distinct static fallback, and make direct replay URLs harder to isolate. Keeping `allow-same-origin` while adding scripts would also remove the opaque-origin defense.
 
 ### Enable scripts for private owner and moderator previews
 
