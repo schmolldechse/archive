@@ -3,13 +3,8 @@
 	import { tick, untrack } from "svelte";
 	import type { SnapshotSubmissionDetailResponse } from "$api";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
-	import Breadcrumb from "$lib/components/ui/breadcrumb/Breadcrumb.svelte";
-	import BreadcrumbItem from "$lib/components/ui/breadcrumb/BreadcrumbItem.svelte";
-	import BreadcrumbLink from "$lib/components/ui/breadcrumb/BreadcrumbLink.svelte";
-	import BreadcrumbList from "$lib/components/ui/breadcrumb/BreadcrumbList.svelte";
-	import BreadcrumbPage from "$lib/components/ui/breadcrumb/BreadcrumbPage.svelte";
-	import BreadcrumbSeparator from "$lib/components/ui/breadcrumb/BreadcrumbSeparator.svelte";
 	import Button from "$lib/components/ui/Button.svelte";
+	import SnapshotBreadcrumb from "./SnapshotBreadcrumb.svelte";
 	import SnapshotEditForm from "./SnapshotEditForm.svelte";
 	import { createSnapshotEditDraft, type SnapshotEditDraft } from "./snapshot-edit-draft";
 
@@ -28,7 +23,6 @@
 	let message = $state("");
 	let errorNotice = $state<HTMLElement | null>(null);
 	const detailHref = $derived(`${data.admin ? "/admin/snapshots" : "/account/submissions"}/${data.detail.snapshot.id}`);
-	const listHref = $derived(data.admin ? "/admin/snapshots" : "/account/submissions");
 
 	/** Returns to the record after a successful edit so its updated history is immediately visible. */
 	async function saved(): Promise<void> {
@@ -64,18 +58,8 @@
 	<meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
-<main id="main-content" class="snapshot-edit-page">
-	<Breadcrumb aria-label="Snapshot editing path" class="page-breadcrumb">
-		<BreadcrumbList>
-			<BreadcrumbItem
-				><BreadcrumbLink href={listHref}>{data.admin ? "All snapshots" : "My submissions"}</BreadcrumbLink></BreadcrumbItem
-			>
-			<BreadcrumbSeparator />
-			<BreadcrumbItem><BreadcrumbLink href={detailHref}>{data.detail.snapshot.title}</BreadcrumbLink></BreadcrumbItem>
-			<BreadcrumbSeparator />
-			<BreadcrumbItem><BreadcrumbPage>Edit snapshot</BreadcrumbPage></BreadcrumbItem>
-		</BreadcrumbList>
-	</Breadcrumb>
+<main id="main-content" class="snapshot-edit-page" class:admin-layout={data.admin}>
+	<SnapshotBreadcrumb detail={data.detail} admin={data.admin} currentPage="Edit snapshot" />
 
 	<header class="edit-heading">
 		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
@@ -112,10 +96,12 @@
 		width: min(100%, 78rem);
 		min-height: 65vh;
 		margin-inline: auto;
-		padding: 1.25rem clamp(1rem, 4vw, 3rem) 4rem;
+		padding: 0 clamp(1rem, 4vw, 3rem) 4rem;
 	}
-	:global(.page-breadcrumb) {
-		margin-bottom: 2rem;
+	.snapshot-edit-page.admin-layout {
+		width: 100%;
+		margin-inline: 0;
+		padding-inline: 0;
 	}
 	.edit-heading {
 		padding-bottom: 1.5rem;
@@ -154,10 +140,5 @@
 	}
 	.edit-message p {
 		margin: 0 0 0.75rem;
-	}
-	@media (max-width: 40rem) {
-		:global(.page-breadcrumb) {
-			margin-bottom: 1.5rem;
-		}
 	}
 </style>

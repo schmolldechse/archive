@@ -9,7 +9,6 @@
 	} from "$api";
 	import { apiUrl } from "$lib/api-url";
 	import { processingLabel } from "$lib/submission-status";
-	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Check from "@lucide/svelte/icons/check";
@@ -24,6 +23,7 @@
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
+	import SnapshotBreadcrumb from "./SnapshotBreadcrumb.svelte";
 	let {
 		data
 	}: {
@@ -187,9 +187,7 @@
 </script>
 
 <article class="submission-detail">
-	<nav class="detail-path" aria-label="Submission navigation">
-		<a href={backHref}><ArrowLeft aria-hidden="true" />{data.admin ? "All snapshots" : "My submissions"}</a>
-	</nav>
+	<SnapshotBreadcrumb {detail} admin={data.admin} />
 	<header class="detail-heading">
 		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
 		<h1>{detail.snapshot.title}</h1>
@@ -326,23 +324,8 @@
 </article>
 
 <style>
-	.detail-path {
-		padding-top: 1.25rem;
-	}
-	.detail-path a {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-height: 2.75rem;
-		font-size: 0.875rem;
-		color: var(--marginal-note);
-	}
-	.detail-path :global(svg) {
-		width: 1rem;
-		height: 1rem;
-	}
 	.detail-heading {
-		padding-block: 1.5rem;
+		padding-bottom: 1.5rem;
 	}
 	.section-label {
 		text-transform: uppercase;
