@@ -13,6 +13,7 @@
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Check from "@lucide/svelte/icons/check";
+	import Pencil from "@lucide/svelte/icons/pencil";
 	import X from "@lucide/svelte/icons/x";
 	import Button from "$lib/components/ui/Button.svelte";
 	import Badge from "$lib/components/ui/Badge.svelte";
@@ -23,6 +24,7 @@
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
 	import SnapshotEditForm from "./SnapshotEditForm.svelte";
+	import { createSnapshotEditDraft, type SnapshotEditDraft } from "./snapshot-edit-draft";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	let {
 		data
@@ -36,6 +38,9 @@
 	} = $props();
 	let detail = $state.raw(untrack(() => data.detail));
 	let etag = $state(untrack(() => data.etag));
+	let editing = $state(false);
+	let editDraft = $state<SnapshotEditDraft>(untrack(() => createSnapshotEditDraft(data.detail)));
+	let editSaving = $state(false);
 	let saving = $state(false);
 	let reviewing = $state(false);
 	let reviewDecision = $state<typeof Status.APPROVED | typeof Status.REJECTED | null>(null);
@@ -45,6 +50,7 @@
 	let success = $state("");
 	let conflict = $state(false);
 	let blocked = $state(false);
+	let editButton = $state<HTMLButtonElement | HTMLAnchorElement | null>(null);
 	let errorNotice = $state<HTMLDivElement | null>(null);
 	let successNotice = $state<HTMLParagraphElement | null>(null);
 	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
@@ -68,6 +74,21 @@
 			detail.snapshot.quality !== null &&
 			(detail.moderation.status === Status.PENDING || detail.moderation.status === Status.RESUBMITTED)
 	);
+	const editingDisabled = $derived(conflict || blocked || reloading || reviewing || saving || editSaving);
+
+	/** Starts the editor with the latest values held by the page. */
+	function openEditor(): void {
+		editDraft = createSnapshotEditDraft(detail);
+		editing = true;
+	}
+
+	/** Discards unsaved changes and closes the inline editor. */
+	async function closeEditor(): Promise<void> {
+		editDraft = createSnapshotEditDraft(detail);
+		editing = false;
+		await tick();
+		editButton?.focus();
+	}
 
 	/** Updates the local record only after the server acknowledges the renewed review request. */
 	async function save() {
@@ -177,6 +198,8 @@
 			if (!response.ok || !response.headers.get("etag")) throw new Error("Reload failed");
 			detail = await response.json();
 			etag = response.headers.get("etag")!;
+			editDraft = createSnapshotEditDraft(detail);
+			editing = false;
 			conflict = false;
 			await invalidate("app:submissions");
 		} catch {
@@ -191,6 +214,9 @@
 		const sourceChanged = detail.snapshot.sourceUrl !== updated.snapshot.sourceUrl;
 		detail = updated;
 		etag = updatedEtag;
+		editDraft = createSnapshotEditDraft(updated);
+		editing = false;
+		editSaving = false;
 		conflict = false;
 		message = "";
 		success = data.admin
@@ -205,6 +231,9 @@
 
 	/** Turns an optimistic-concurrency failure into a recoverable page-level state. */
 	async function snapshotConflict(): Promise<void> {
+		editDraft = createSnapshotEditDraft(detail);
+		editing = false;
+		editSaving = false;
 		conflict = true;
 		success = "";
 		message = "This snapshot changed while you were editing it. Reload it before saving changes.";
@@ -218,8 +247,22 @@
 		<a href={backHref}><ArrowLeft aria-hidden="true" />{data.admin ? "All snapshots" : "My submissions"}</a>
 	</nav>
 	<header class="detail-heading">
-		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
-		<h1>{detail.snapshot.title}</h1>
+		<div class="detail-heading__main">
+			<div class="detail-heading__identity">
+				<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
+				<h1>{detail.snapshot.title}</h1>
+			</div>
+			<Button
+				bind:ref={editButton}
+				variant="secondary"
+				onclick={editing ? closeEditor : openEditor}
+				disabled={editingDisabled}
+				aria-expanded={editing}
+				aria-controls="snapshot-edit-region"
+			>
+				{#if editing}<X aria-hidden="true" />Close editor{:else}<Pencil aria-hidden="true" />Edit snapshot{/if}
+			</Button>
+		</div>
 		<div class="detail-status">
 			<SnapshotModerationStatus status={detail.moderation.status} />
 			<Badge variant={captureVariant}>{technicalLabel}</Badge>
@@ -240,14 +283,21 @@
 	{#if success}<p bind:this={successNotice} tabindex="-1" class="detail-success" role="status">
 			<Check aria-hidden="true" />{success}
 		</p>{/if}
-	<SnapshotEditForm
-		{detail}
-		{etag}
-		admin={data.admin}
-		disabled={conflict || blocked || reloading || reviewing || saving}
-		onSaved={snapshotSaved}
-		onConflict={snapshotConflict}
-	/>
+	<div id="snapshot-edit-region" hidden={!editing}>
+		{#if editing}
+			<SnapshotEditForm
+				{detail}
+				{etag}
+				bind:draft={editDraft}
+				admin={data.admin}
+				disabled={editingDisabled}
+				onCancel={closeEditor}
+				onSaved={snapshotSaved}
+				onConflict={snapshotConflict}
+				onSavingChange={(value) => (editSaving = value)}
+			/>
+		{/if}
+	</div>
 	<div class="detail-columns">
 		<section class="detail-record" aria-labelledby="detail-record-title">
 			<h2 id="detail-record-title">Snapshot details</h2>
@@ -370,7 +420,16 @@
 		height: 1rem;
 	}
 	.detail-heading {
-		padding-block: 1.5rem 2rem;
+		padding-block: 1.5rem;
+	}
+	.detail-heading__main {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1.5rem;
+	}
+	.detail-heading__identity {
+		min-width: 0;
 	}
 	.section-label {
 		text-transform: uppercase;
@@ -543,6 +602,11 @@
 		}
 		.detail-preview {
 			grid-row: 1;
+		}
+		.detail-heading__main {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 1rem;
 		}
 	}
 </style>
