@@ -1,6 +1,7 @@
 using Archive.Api.Authentication;
 using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Contracts.Snapshots.Search;
+using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Mapping;
 using Archive.Api.Options;
 using Archive.Api.Validation;
@@ -17,6 +18,7 @@ namespace Archive.Api.Controllers;
 public sealed partial class SnapshotsController(
     ISnapshotRepository snapshotRepository,
     SnapshotMapper mapper,
+    SnapshotSubmissionMapper submissionMapper,
     ArchiveApiOptions options,
     ArchiveAuthenticationOptions authenticationOptions,
     ISnapshotProcessingRepository processing) : ControllerBase
@@ -77,6 +79,21 @@ public sealed partial class SnapshotsController(
 
         var publicBaseUrl = (options.PublicBaseUrl ?? $"{Request.Scheme}://{Request.Host}").TrimEnd('/');
         return Ok(mapper.ToResponse(snapshot, publicBaseUrl));
+    }
+
+    [HttpGet("{snapshotId:guid}/history")]
+    [EndpointName("GetSnapshotHistory")]
+    [EndpointSummary("Gets public history for an approved snapshot.")]
+    [EndpointDescription("Returns a fail-closed, sanitized page of public history. Moderation notes, rejection events, internal user identifiers and event actors are never returned.")]
+    [ProducesResponseType<SnapshotHistoryResponse>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<SnapshotHistoryResponse>> HistoryAsync(Guid snapshotId,
+        [FromQuery] SnapshotSubmissionQuery query,
+        CancellationToken cancellationToken)
+    {
+        var history = await snapshotRepository.HistoryAsync(snapshotId, query.Page, query.PageSize, cancellationToken);
+        return history is null ? NotFound() : Ok(submissionMapper.ToResponse(history));
     }
 
     [HttpGet("{snapshotId:guid}/content/{**path}")]

@@ -2,6 +2,7 @@ using System.Reflection;
 using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Contracts.Snapshots.Creation;
+using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Core.Models.Snapshots;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -17,7 +18,7 @@ public sealed class SnapshotSchemaTransformer : IOpenApiSchemaTransformer
             schema.Properties?.TryGetValue("tags", out var tags) == true && tags.Items is OpenApiSchema item)
             item.MaxLength = SnapshotValidation.MaxTagLength;
 
-        if (context.JsonTypeInfo.Type == typeof(SnapshotHistoryContent)
+        if (context.JsonTypeInfo.Type == typeof(SnapshotHistoryContentResponse)
             && schema.Properties?.TryGetValue("data", out var data) == true && data is OpenApiSchema payload)
         {
             payload.Type = JsonSchemaType.Object;
@@ -36,5 +37,6 @@ public sealed class SnapshotSchemaTransformer : IOpenApiSchemaTransformer
 
     private static bool IsSnapshotContract(Type? type) => type == typeof(CreateSnapshotUrlRequest) ||
         type == typeof(CreateSnapshotFileRequest) || type == typeof(SnapshotResponse) ||
-        type == typeof(SnapshotSearchRequest);
+        type == typeof(SnapshotSearchRequest) || type == typeof(UpdateOwnSnapshotRequest) ||
+        type == typeof(UpdateSnapshotForAdminRequest);
 }

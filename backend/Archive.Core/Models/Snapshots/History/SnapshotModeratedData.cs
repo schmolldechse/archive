@@ -8,5 +8,5 @@ internal sealed record SnapshotModeratedData(
     SnapshotModerationStatus Status, 
     string? Reason) : SnapshotHistoryData
 {
-    internal override string Type => "snapshot.moderated";
+    internal override string Type => SnapshotHistoryTypes.Moderated;
 }

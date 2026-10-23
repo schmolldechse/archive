@@ -1,6 +1,7 @@
 using Archive.Core.Authorization;
 using Archive.Core.Entities.Authentication;
 using Archive.Core.Entities.Authentication.Permissible;
+using Archive.Core.Mapping;
 using Archive.Core.Models.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +11,8 @@ internal sealed partial class UserRepository
 {
     public async Task<UserListPage> SearchAsync(string? query, ArchiveRole? role, int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        var users = dataContext.Users.AsNoTracking().Where(user => user.RegistrationCompletedAt != null);
+        var users = dataContext.Users.AsNoTracking().Where(user => user.RegistrationCompletedAt != null &&
+            user.Handle != null && user.DisplayName != null);
         if (role.HasValue) users = users.Where(user => user.Role == role.Value);
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -20,9 +22,9 @@ internal sealed partial class UserRepository
         }
         var total = await users.CountAsync(cancellationToken);
         var items = await users.OrderBy(user => user.Handle).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(user => new UserListEntry(user.Handle!, user.DisplayName!, user.ProfileImage != null && user.ProfileImage.Length > 0, user.Role))
+            .ProjectToListEntries()
             .ToArrayAsync(cancellationToken);
-        return new(items, total, page, pageSize);
+        return UserModelMapper.ToPage(items, total, page, pageSize);
     }
 
     public Task<ArchiveUser?> GetAccessAsync(string handle, CancellationToken cancellationToken = default) => dataContext.Users

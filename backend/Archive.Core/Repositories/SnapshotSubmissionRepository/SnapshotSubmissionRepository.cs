@@ -4,7 +4,6 @@ using Archive.Core.Entities.Processing;
 using Archive.Core.Mapping;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Snapshots.History;
-using Archive.Core.Models.Users;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Serialization;
 using Archive.Core.Storage;
@@ -17,7 +16,8 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
     ISnapshotHistoryRepository history) : ISnapshotSubmissionRepository
 {
     private static readonly string[] ModerationEventTypes =
-        ["snapshot.submitted", "snapshot.moderated", "snapshot.resubmitted"];
+        [SnapshotHistoryTypes.Submitted, SnapshotHistoryTypes.Moderated, SnapshotHistoryTypes.Resubmitted,
+            SnapshotHistoryTypes.SourceUpdated];
 
     public Task<SnapshotSubmissionPage> SearchOwnAsync(Guid userId, string? text, SnapshotModerationStatus? status,
         int page, int pageSize, CancellationToken token) => SearchAsync(userId, text, status, null, page, pageSize, token);
@@ -43,32 +43,22 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 EF.Functions.ILike(snapshot.OriginUrl ?? "", pattern, "\\"));
         }
         var total = await query.CountAsync(token);
-        var projected = query.Select(snapshot => new
-        {
-            Snapshot = snapshot,
-            UpdatedAt = database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
+        var projected = query.Select(snapshot => new SnapshotSubmissionRow(
+            snapshot,
+            database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
                     && ModerationEventTypes.Contains(entry.Content.GetProperty("type").GetString()!))
                 .OrderByDescending(entry => entry.Sequence)
                 .Select(entry => (DateTimeOffset?)entry.CreatedAt)
                 .FirstOrDefault() ?? snapshot.CreatedAt,
-            ProcessingStatus = snapshot.Quality != null
+            snapshot.Quality != null
                 ? ProcessingStatus.Completed
                 : database.SnapshotProcessing.Where(processing => processing.SnapshotId == snapshot.Id)
                     .Select(processing => (ProcessingStatus?)processing.Status)
-                    .FirstOrDefault() ?? ProcessingStatus.Failed
-        });
+                    .FirstOrDefault() ?? ProcessingStatus.Failed));
         var items = await projected.OrderByDescending(row => row.Snapshot.CreatedAt)
-            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize).Select(row =>
-            new SnapshotSubmissionSummary(row.Snapshot.Id, row.Snapshot.Title, row.Snapshot.OriginUrl,
-                row.Snapshot.SourceType, row.Snapshot.CreatedAt, row.UpdatedAt, row.Snapshot.ModerationStatus,
-                row.ProcessingStatus, row.Snapshot.Quality, row.Snapshot.CaptureCompletedAt,
-                row.Snapshot.DurationMilliseconds, row.Snapshot.StorageBytes, row.Snapshot.ResourceCount,
-                row.Snapshot.CreatedBy == null || row.Snapshot.CreatedBy.Handle == null || row.Snapshot.CreatedBy.DisplayName == null
-                    ? null
-                    : new PublicUser(row.Snapshot.CreatedBy.Handle, row.Snapshot.CreatedBy.DisplayName,
-                        row.Snapshot.CreatedBy.ProfileImage != null && row.Snapshot.CreatedBy.ProfileImage.Length > 0,
-                        row.Snapshot.CreatedBy.Role))).ToArrayAsync(token);
-        return new(items, total, page, pageSize);
+            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .ProjectToSubmissionSummaries().ToArrayAsync(token);
+        return SnapshotModelMapper.ToSubmissionPage(items, total, page, pageSize);
     }
 
     public Task<SnapshotSubmissionDetail?> GetOwnAsync(Guid userId, Guid id, CancellationToken token) => GetAsync(id, userId, token);
@@ -94,14 +84,15 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 .Select(processing => (ProcessingStatus?)processing.Status).SingleOrDefaultAsync(token)
                 ?? ProcessingStatus.Failed;
         var decision = await database.SnapshotHistory.AsNoTracking().Where(entry => entry.SnapshotId == id
-                && entry.Content.GetProperty("type").GetString() == "snapshot.moderated")
+                && entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.Moderated)
             .OrderByDescending(entry => entry.Sequence).Select(entry => (JsonElement?)entry.Content).FirstOrDefaultAsync(token);
         var reason = decision is { } content
             ? SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(content).Reason
             : null;
-        return new(SnapshotModelMapper.MapDetails(snapshot),
-            new(snapshot.ModerationStatus, moderationUpdatedAt, reason), captureStatus,
-            Tag(snapshot, sequence, ownerId is null));
+        var moderation = SnapshotModelMapper.ToModerationDetails(snapshot.ModerationStatus, moderationUpdatedAt,
+            reason);
+        return SnapshotModelMapper.ToSubmissionDetail(SnapshotModelMapper.MapDetails(snapshot), moderation,
+            captureStatus, Tag(snapshot, sequence, ownerId is null));
     }
 
     private IQueryable<Snapshot> Scope(Guid? ownerId) => database.Snapshots.AsNoTracking()
@@ -133,40 +124,9 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
     }
 
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>
-        HistoryAsync(id, userId, page, pageSize, token);
+        history.ReadOwnAsync(userId, id, page, pageSize, token);
 
     public Task<SnapshotHistoryPage?> HistoryForReviewAsync(Guid id, int page, int pageSize, CancellationToken token) =>
-        HistoryAsync(id, null, page, pageSize, token);
-
-    private async Task<SnapshotHistoryPage?> HistoryAsync(Guid id, Guid? ownerId, int page, int pageSize, CancellationToken token)
-    {
-        if (!await Scope(ownerId).AnyAsync(snapshot => snapshot.Id == id, token)) return null;
-        var query = database.SnapshotHistory.AsNoTracking().Where(entry => entry.SnapshotId == id);
-        if (ownerId is not null)
-            // Future types and versions must be explicitly approved before an owner can read them.
-            query = query.Where(entry => entry.Content.GetProperty("version").GetInt32() == 1 &&
-                (entry.Content.GetProperty("type").GetString() == "snapshot.submitted" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.moderated" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.resubmitted" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.stored" ||
-                 entry.Content.GetProperty("type").GetString() == "snapshot.processing_finished"));
-        var total = await query.CountAsync(token);
-        var rows = await query.OrderByDescending(entry => entry.Sequence).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(entry => new
-            {
-                entry.Sequence,
-                entry.CreatedAt,
-                entry.Content,
-                // Both owner and moderator history show attribution for completed public profiles.
-                Actor = entry.Actor != null && entry.Actor.RegistrationCompletedAt != null &&
-                    entry.Actor.Handle != null && entry.Actor.DisplayName != null
-                    ? new PublicUser(entry.Actor.Handle, entry.Actor.DisplayName,
-                        entry.Actor.ProfileImage != null && entry.Actor.ProfileImage.Length > 0, entry.Actor.Role)
-                    : null
-            }).ToArrayAsync(token);
-        var items = rows.Select(row => new SnapshotHistoryItem(row.Sequence, row.CreatedAt,
-            row.Actor, SnapshotHistorySerializer.Deserialize(row.Content))).ToArray();
-        return new(items, total, page, pageSize);
-    }
+        history.ReadAdminAsync(id, page, pageSize, token);
 
 }

@@ -4,7 +4,6 @@
 	import Image from "@lucide/svelte/icons/image";
 	import type { SnapshotResponse } from "$api";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
-	import Badge from "$lib/components/ui/Badge.svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
 	import CopySourceButton from "./CopySourceButton.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
@@ -21,11 +20,7 @@
 	let { snapshot, selected = false, previewExpanded, onInspect }: ArchiveRecordProps = $props();
 
 	const source = $derived(snapshot.sourceUrl);
-	const qualityLabel = $derived(snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete");
 	const previewIsOpen = $derived(previewExpanded ?? selected);
-	const sourceTypeLabel = $derived(
-		{ URL: "Direct URL", HTML: "HTML", MHTML: "MHTML", WEBARCHIVE: "Web archive" }[snapshot.sourceType]
-	);
 	let failedScreenshot = $state<string | null>(null);
 	const screenshot = $derived(snapshot.screenshotUrl !== failedScreenshot ? snapshot.screenshotUrl : null);
 
@@ -48,13 +43,6 @@
 				<CopySourceButton value={source} label={`Copy source URL for ${snapshot.title}`} />
 			</div>
 		{/if}
-
-		<div class="archive-record__condition">
-			<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact">
-				{qualityLabel}
-			</Badge>
-			<span class="archive-record__source-type">{sourceTypeLabel} capture</span>
-		</div>
 
 		{#if snapshot.description}
 			<p class="archive-record__description">{snapshot.description}</p>
@@ -147,23 +135,6 @@
 		justify-content: space-between;
 		gap: 1rem;
 		margin-bottom: 1rem;
-	}
-
-	.archive-record__condition {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: flex-start;
-		gap: 0.5rem 0.75rem;
-		margin-top: 0.75rem;
-	}
-
-	.archive-record__source-type {
-		color: var(--marginal-note);
-		font-family: var(--font-record);
-		font-size: 0.75rem;
-		font-variant-numeric: tabular-nums;
-		line-height: 1.4;
 	}
 
 	.archive-record__main h3 {

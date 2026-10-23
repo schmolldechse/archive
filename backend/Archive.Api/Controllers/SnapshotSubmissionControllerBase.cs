@@ -1,6 +1,7 @@
 using Archive.Api.Authentication;
 using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Mapping;
+using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotSubmissionRepository;
 using Archive.Core.Storage;
@@ -45,6 +46,32 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         SnapshotReviewOutcome.Stale => SnapshotProblem(412, "Snapshot changed", "Reload the snapshot before saving again.", "snapshot_changed"),
         _ => SnapshotProblem(409, "Action unavailable", "This snapshot is no longer eligible for this action.", "snapshot_not_reviewable")
     };
+
+    /// <summary>Maps update failures while leaving successful outcomes to the scope-specific detail reload.</summary>
+    protected ActionResult<SnapshotSubmissionDetailResponse>? UpdateOutcome(SnapshotUpdateResult outcome)
+    {
+        switch (outcome)
+        {
+            case SnapshotUpdateResult.Updated:
+            case SnapshotUpdateResult.Unchanged:
+                return null;
+            case SnapshotUpdateResult.Invalid invalid:
+                ModelState.AddErrors(invalid.Errors);
+                return ValidationProblem(ModelState);
+            case SnapshotUpdateResult.NotFound:
+                return NotFound();
+            case SnapshotUpdateResult.Forbidden:
+                return Forbid();
+            case SnapshotUpdateResult.Stale:
+                return SnapshotProblem(412, "Snapshot changed", "Reload the snapshot before saving again.", "snapshot_changed");
+            case SnapshotUpdateResult.SourceNotEditable:
+                return SnapshotProblem(409, "Source URL cannot be changed",
+                    "Wait until this snapshot has a stored capture before changing its source URL.",
+                    "snapshot_source_not_editable");
+            default:
+                throw new InvalidOperationException("Unknown snapshot update result.");
+        }
+    }
 
     /// <summary>Serves a private screenshot only to requests from the configured frontend.</summary>
     protected IActionResult Screenshot(ArchiveObject? stored)
@@ -108,7 +135,7 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         }
     }
 
-    private ObjectResult SnapshotProblem(int status, string title, string detail, string code) =>
+    protected ObjectResult SnapshotProblem(int status, string title, string detail, string code) =>
         Problem(statusCode: status, title: title, detail: detail, extensions: new Dictionary<string, object?> { ["code"] = code });
 
     /// <summary>Recognizes browser navigations and fails closed for HTML when fetch metadata is unavailable.</summary>

@@ -45,3 +45,24 @@ public sealed class SnapshotHistoryContentResponse
     [Description("Event-specific JSON object. Clients must tolerate additional fields.")]
     public required JsonElement Data { get; init; }
 }
+
+/// <summary>API-safe attribution payload resolved from internal identifiers at read time.</summary>
+[Description("Resolved attribution change. Internal user identifiers are never returned.")]
+public sealed class SnapshotAttributionUpdatedResponseData
+{
+    [JsonPropertyName("previousUser")]
+    [Description("Previous current public profile, or null when anonymous, deleted or unavailable.")]
+    public required PublicUserResponse? PreviousUser { get; init; }
+
+    [JsonPropertyName("user")]
+    [Description("New current public profile, or null when account attribution was removed or is unavailable.")]
+    public required PublicUserResponse? User { get; init; }
+
+    [JsonPropertyName("removed")]
+    [Description("Whether this event explicitly removed account attribution.")]
+    public required bool Removed { get; init; }
+
+    [JsonPropertyName("redacted")]
+    [Description("Whether a superseded public attribution target was intentionally withheld.")]
+    public required bool Redacted { get; init; }
+}

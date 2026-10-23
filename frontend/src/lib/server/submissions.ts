@@ -98,3 +98,16 @@ export async function loadSubmission(event: SubmissionLoadEvent, admin = false) 
 	if (Number(historyPage) > lastPage) redirect(303, pageHref(event.url, "historyPage", lastPage));
 	return { detail: detail.value, etag: detail.etag, history: history.value, admin };
 }
+
+/** Loads only the private record and concurrency token needed by an edit page. */
+export async function loadSubmissionEdit(event: SubmissionLoadEvent, admin = false) {
+	requireAccess(event, admin);
+	const id = event.params.snapshotId;
+	if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) error(404, "Submission not found");
+	const result = await readPrivate<SnapshotSubmissionDetailResponse>(
+		event,
+		`/api/${admin ? "admin" : "users"}/snapshots/${id}`
+	);
+	if (!result.etag) error(503, "The submission could not be validated. Please try again.");
+	return { detail: result.value, etag: result.etag, admin };
+}

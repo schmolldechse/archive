@@ -9,5 +9,5 @@ internal sealed record SnapshotStoredData(
     long? StorageBytes, 
     int? ResourceCount) : SnapshotHistoryData
 {
-    internal override string Type => "snapshot.stored";
+    internal override string Type => SnapshotHistoryTypes.Stored;
 }

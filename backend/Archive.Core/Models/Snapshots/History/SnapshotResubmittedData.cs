@@ -7,5 +7,5 @@ internal sealed record SnapshotResubmittedData(
     SnapshotModerationStatus PreviousStatus, 
     SnapshotModerationStatus Status) : SnapshotHistoryData
 {
-    internal override string Type => "snapshot.resubmitted";
+    internal override string Type => SnapshotHistoryTypes.Resubmitted;
 }

@@ -113,7 +113,9 @@ export type HealthResponse = {
 
 export type IFormFile = Blob | File;
 
-export type JsonElement = unknown;
+export type JsonElement = {
+	[key: string]: unknown;
+};
 
 /**
  * Supported permission definitions in stable catalog order.
@@ -363,6 +365,16 @@ export enum SnapshotModerationStatus {
 }
 
 /**
+ * Registered accounts eligible for snapshot attribution. Internal user identifiers are never returned.
+ */
+export type SnapshotOwnerListResponse = {
+	items: Array<PublicUserResponse>;
+	total: number | string;
+	page: number | string;
+	pageSize: number | string;
+};
+
+/**
  * Processing status of a snapshot.
  */
 export type SnapshotProcessingResponse = {
@@ -587,6 +599,30 @@ export enum SourceType {
 }
 
 export type Stream = Blob | File;
+
+/**
+ * Complete editable snapshot fields. Changing sourceUrl requests another review for owner updates.
+ */
+export type UpdateOwnSnapshotRequest = {
+	sourceUrl: string;
+	title: string;
+	description?: null | string;
+	tags?: null | Array<string>;
+};
+
+/**
+ * Complete editable snapshot fields for administrators. A null createdByHandle removes account attribution.
+ */
+export type UpdateSnapshotForAdminRequest = {
+	sourceUrl: string;
+	title: string;
+	description?: null | string;
+	tags?: null | Array<string>;
+	/**
+	 * Current handle of the desired owner, or null to remove account attribution.
+	 */
+	createdByHandle: null | string;
+};
 
 /**
  * Atomic partial access update. Unspecified fields and unlisted overrides remain unchanged.
@@ -979,6 +1015,48 @@ export type GetSnapshotResponses = {
 
 export type GetSnapshotResponse = GetSnapshotResponses[keyof GetSnapshotResponses];
 
+export type GetSnapshotHistoryData = {
+	body?: never;
+	path: {
+		snapshotId: string;
+	};
+	query?: {
+		/**
+		 * Title or source URL substring.
+		 */
+		q?: string;
+		/**
+		 * Exact moderation status. Without it, moderation lists show pending and resubmitted captures; owner lists show all submissions.
+		 */
+		moderationStatus?: SnapshotModerationStatus;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/snapshots/{snapshotId}/history";
+};
+
+export type GetSnapshotHistoryErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotHistoryError = GetSnapshotHistoryErrors[keyof GetSnapshotHistoryErrors];
+
+export type GetSnapshotHistoryResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotHistoryResponse;
+};
+
+export type GetSnapshotHistoryResponse = GetSnapshotHistoryResponses[keyof GetSnapshotHistoryResponses];
+
 export type GetSnapshotContentData = {
 	body?: never;
 	path: {
@@ -1280,6 +1358,60 @@ export type GetOwnSnapshotResponses = {
 };
 
 export type GetOwnSnapshotResponse = GetOwnSnapshotResponses[keyof GetOwnSnapshotResponses];
+
+export type UpdateOwnSnapshotData = {
+	body: UpdateOwnSnapshotRequest;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}";
+};
+
+export type UpdateOwnSnapshotErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type UpdateOwnSnapshotError = UpdateOwnSnapshotErrors[keyof UpdateOwnSnapshotErrors];
+
+export type UpdateOwnSnapshotResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type UpdateOwnSnapshotResponse = UpdateOwnSnapshotResponses[keyof UpdateOwnSnapshotResponses];
 
 export type GetOwnSnapshotHistoryData = {
 	body?: never;
@@ -1631,6 +1763,100 @@ export type GetSnapshotForReviewResponses = {
 };
 
 export type GetSnapshotForReviewResponse = GetSnapshotForReviewResponses[keyof GetSnapshotForReviewResponses];
+
+export type UpdateSnapshotForAdminData = {
+	body: UpdateSnapshotForAdminRequest;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}";
+};
+
+export type UpdateSnapshotForAdminErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Conflict
+	 */
+	409: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type UpdateSnapshotForAdminError = UpdateSnapshotForAdminErrors[keyof UpdateSnapshotForAdminErrors];
+
+export type UpdateSnapshotForAdminResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotSubmissionDetailResponse;
+};
+
+export type UpdateSnapshotForAdminResponse = UpdateSnapshotForAdminResponses[keyof UpdateSnapshotForAdminResponses];
+
+export type ListSnapshotOwnersData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Case-insensitive handle or display-name substring.
+		 */
+		q?: string;
+		page?: number | string;
+		pageSize?: number | string;
+	};
+	url: "/api/admin/snapshots/owners";
+};
+
+export type ListSnapshotOwnersErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ValidationProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+};
+
+export type ListSnapshotOwnersError = ListSnapshotOwnersErrors[keyof ListSnapshotOwnersErrors];
+
+export type ListSnapshotOwnersResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotOwnerListResponse;
+};
+
+export type ListSnapshotOwnersResponse = ListSnapshotOwnersResponses[keyof ListSnapshotOwnersResponses];
 
 export type GetSnapshotHistoryForReviewData = {
 	body?: never;

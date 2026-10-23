@@ -27,6 +27,23 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Get(Guid id, CancellationToken token) =>
         Detail(await Submissions.GetOwnAsync(User.ReadUserId(), id, token), "api/users/snapshots");
 
+    [HttpPut("{id:guid}"), Consumes("application/json"), EndpointName("UpdateOwnSnapshot"),
+     EndpointSummary("Updates editable fields of an own snapshot.")]
+    [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET. A changed source URL moves a stored snapshot to RESUBMITTED; title, description and tag changes retain moderation status.")]
+    [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
+    [ProducesResponseType<ProblemDetails>(401), ProducesResponseType<ProblemDetails>(403),
+     ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ProblemDetails>(409),
+     ProducesResponseType<ProblemDetails>(412), ProducesResponseType<ProblemDetails>(428)]
+    public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Update(Guid id,
+        [FromBody] UpdateOwnSnapshotRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken token)
+    {
+        if (ValidateWrite(out var tag) is { } error) return error;
+        var outcome = await Submissions.UpdateOwnAsync(User.ReadUserId(), id, tag, request.ToModel(), token);
+        if (UpdateOutcome(outcome) is { } failure) return failure;
+        return Detail(await Submissions.GetOwnAsync(User.ReadUserId(), id, token), "api/users/snapshots");
+    }
+
     [HttpGet("{id:guid}/history"), EndpointName("GetOwnSnapshotHistory"), EndpointSummary("Reads permitted lifecycle events for an own snapshot.")]
     [ProducesResponseType<SnapshotHistoryResponse>(200), ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ValidationProblemDetails>(400)]
     public async Task<ActionResult<SnapshotHistoryResponse>> History(Guid id, [FromQuery] SnapshotSubmissionQuery query, CancellationToken token)
