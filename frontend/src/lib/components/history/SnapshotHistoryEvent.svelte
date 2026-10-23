@@ -3,14 +3,23 @@
 	import ArchiveAttribution from "$lib/components/archive/ArchiveAttribution.svelte";
 	import { historyEventComponent, historyPresentation } from "./history-events";
 
-	let { item }: { item: SnapshotHistoryItemResponse } = $props();
+	let {
+		item,
+		timestamp,
+		dateTimeValue
+	}: { item: SnapshotHistoryItemResponse; timestamp: string; dateTimeValue: string } = $props();
 	const presentation = $derived(historyPresentation(item));
 	const EventDetails = $derived(historyEventComponent(item));
 </script>
 
 <article class="history-event">
 	<p class="history-category">{presentation.category}</p>
-	<h3>{presentation.title}</h3>
+	<div class="history-title-row">
+		<h3>{presentation.title}</h3>
+		<div class="history-event-time">
+			<time class="history-timestamp" datetime={dateTimeValue}>{timestamp}</time>
+		</div>
+	</div>
 	{#if item.actor}
 		<div class="history-actor"><ArchiveAttribution creator={item.actor} layout="compact" label="Actor" /></div>
 	{/if}
@@ -30,6 +39,52 @@
 		font-weight: 700;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
+	}
+	.history-title-row {
+		min-width: 0;
+	}
+	.history-event-time {
+		display: none;
+	}
+	.history-timestamp {
+		color: var(--reading-ink);
+		font-size: 0.875rem;
+		font-weight: 500;
+		line-height: 1.4;
+		white-space: nowrap;
+	}
+	@container (max-width: 32rem) {
+		/* The title owns the time on phones, keeping category and date from crowding one row. */
+		.history-title-row {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 0.5rem;
+			flex-wrap: wrap;
+		}
+		h3 {
+			min-width: 0;
+			flex: 1 1 auto;
+		}
+		.history-event-time {
+			min-width: 0;
+			display: block;
+			max-width: 100%;
+			flex: 0 1 auto;
+		}
+	}
+	@container (max-width: 26rem) {
+		.history-title-row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
+			gap: 0.25rem;
+		}
+		.history-event-time {
+			justify-self: start;
+		}
+		.history-timestamp {
+			white-space: normal;
+		}
 	}
 	h3 {
 		margin: 0;

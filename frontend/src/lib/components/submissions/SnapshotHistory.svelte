@@ -1,28 +1,31 @@
 <script lang="ts">
 	import { page } from "$app/state";
 	import type { SnapshotHistoryResponse } from "$api";
+	import { onMount } from "svelte";
+	import { DateTime } from "luxon";
 	import { pageHref } from "$lib/admin/navigation";
 	import { historyPresentation } from "$lib/components/history/history-events";
 	import SnapshotHistoryEvent from "$lib/components/history/SnapshotHistoryEvent.svelte";
-	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import AdminPagination from "$lib/components/admin/AdminPagination.svelte";
 
 	let {
 		history,
 		title = "Snapshot history",
-		compact = false,
 		paginated = true
 	}: {
 		history: SnapshotHistoryResponse;
 		title?: string;
-		compact?: boolean;
 		paginated?: boolean;
 	} = $props();
 
 	const total = $derived(Number(history.total));
+	let mounted = $state(false);
+	onMount(() => {
+		mounted = true;
+	});
 </script>
 
-<section class="snapshot-history" class:compact aria-labelledby="snapshot-history-title">
+<section class="snapshot-history" aria-labelledby="snapshot-history-title" data-component="snapshot-history">
 	<header class="history-header">
 		<div>
 			<p class="history-kicker">Record log</p>
@@ -39,10 +42,14 @@
 		<ol class="history-list">
 			{#each history.items as item (item.sequence)}
 				{@const presentation = historyPresentation(item)}
+				{@const createdAt = DateTime.fromISO(item.createdAt, { setZone: true })}
+				{@const displayDate = mounted ? createdAt.toLocal() : createdAt}
+				{@const timestamp = displayDate.isValid ? displayDate.setLocale("en").toFormat("d LLLL yyyy, HH:mm") : "Invalid timestamp"}
+				{@const dateTimeValue = createdAt.toISO() ?? item.createdAt}
 				<li class="history-item" data-tone={presentation.tone}>
-					<div class="history-time"><ArchiveTimestamp value={item.createdAt} density="compact" /></div>
+					<div class="history-time"><time class="history-timestamp" datetime={dateTimeValue}>{timestamp}</time></div>
 					<div class="history-rail" aria-hidden="true"><span class="history-mark"></span></div>
-					<SnapshotHistoryEvent {item} />
+					<SnapshotHistoryEvent {item} {timestamp} {dateTimeValue} />
 				</li>
 			{/each}
 		</ol>
@@ -63,6 +70,9 @@
 </section>
 
 <style>
+	.snapshot-history {
+		container-type: inline-size;
+	}
 	.history-header {
 		display: flex;
 		align-items: end;
@@ -106,9 +116,12 @@
 	}
 	.history-item {
 		--history-tone: var(--marginal-note);
+		--history-rail-width: 2rem;
+		--history-column-gap: 1.25rem;
 		display: grid;
-		grid-template-columns: minmax(10rem, 0.8fr) 1.5rem minmax(0, 2fr);
-		gap: 0 1.25rem;
+		grid-template-columns: minmax(10rem, 0.8fr) var(--history-rail-width) minmax(0, 2fr);
+		column-gap: var(--history-column-gap);
+		align-items: baseline;
 		position: relative;
 		padding-bottom: 2rem;
 	}
@@ -129,38 +142,38 @@
 	}
 	.history-time {
 		display: flex;
-		align-items: center;
 		grid-column: 1;
-		align-self: start;
+		align-self: baseline;
 		justify-self: end;
-		padding-top: 0.25rem;
+	}
+	.history-timestamp {
+		color: var(--reading-ink);
+		font-size: 0.875rem;
+		font-weight: 500;
+		line-height: 1.4;
+		white-space: nowrap;
 	}
 	.history-rail {
 		grid-column: 2;
 		grid-row: 1;
+		align-self: stretch;
 		position: relative;
 		display: flex;
 		justify-content: center;
 	}
 	.history-item:not(:last-child) .history-rail::after {
 		position: absolute;
-		inset-block: 0.75rem -2rem;
-		border-inline-start: 1px solid var(--border-trace);
+		inset-block: 0.625rem -2rem;
+		border-inline-start: 2px solid var(--border-trace);
 		content: "";
 	}
 	.history-mark {
 		position: relative;
 		z-index: 1;
-		width: 0.75rem;
-		height: 0.75rem;
-		margin-top: 0.375rem;
-		border: 2px solid var(--history-tone);
+		width: 0.625rem;
+		height: 0.625rem;
+		margin-top: 0.4375rem;
 		border-radius: 50%;
-		background: var(--reading-room);
-	}
-	.history-item[data-tone="success"] .history-mark,
-	.history-item[data-tone="warning"] .history-mark,
-	.history-item[data-tone="critical"] .history-mark {
 		background: var(--history-tone);
 	}
 	.history-item :global(.history-event) {
@@ -187,34 +200,6 @@
 		margin-top: 1.25rem;
 		padding-top: 1.25rem;
 	}
-	.compact .history-header {
-		margin-bottom: 1.25rem;
-	}
-	.compact h2 {
-		font-size: 1.5rem;
-	}
-	.compact .history-item {
-		grid-template-columns: 1.25rem minmax(0, 1fr);
-		grid-template-rows: auto auto;
-		gap: 0.375rem 0.75rem;
-		padding-bottom: 1.25rem;
-	}
-	.compact .history-time {
-		grid-column: 2;
-		grid-row: 1;
-		justify-self: start;
-		padding-top: 0;
-	}
-	.compact .history-rail {
-		grid-column: 1;
-		grid-row: 1 / span 2;
-		justify-content: flex-start;
-		padding-inline-start: 0.25rem;
-	}
-	.compact .history-item :global(.history-event) {
-		grid-column: 2;
-		grid-row: 2;
-	}
 	@media (max-width: 48rem) {
 		.history-header {
 			align-items: start;
@@ -222,29 +207,28 @@
 			gap: 0.75rem;
 		}
 		.history-item {
-			grid-template-columns: 1.25rem minmax(0, 1fr);
-			grid-template-rows: auto auto;
-			gap: 0.5rem 0.75rem;
 			padding-bottom: 1.5rem;
 		}
+		.history-item:not(:last-child) .history-rail::after {
+			inset-block: 0.625rem -1.5rem;
+		}
+	}
+	/* Keep narrow history embeds legible by moving the date into the event heading. */
+	@container (max-width: 32rem) {
+		.history-item {
+			--history-rail-width: 1.5rem;
+			--history-column-gap: 0.625rem;
+			grid-template-columns: var(--history-rail-width) minmax(0, 1fr);
+			column-gap: var(--history-column-gap);
+		}
 		.history-time {
-			grid-column: 2;
-			grid-row: 1;
-			justify-self: start;
-			padding-top: 0;
+			display: none;
 		}
 		.history-rail {
 			grid-column: 1;
-			grid-row: 1 / span 2;
-			justify-content: flex-start;
-			padding-inline-start: 0.25rem;
-		}
-		.history-item:not(:last-child) .history-rail::after {
-			inset-block: 0.5rem -1.5rem;
 		}
 		.history-item :global(.history-event) {
 			grid-column: 2;
-			grid-row: 2;
 		}
 	}
 </style>
