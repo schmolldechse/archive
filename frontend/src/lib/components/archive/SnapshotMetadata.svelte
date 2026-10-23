@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { SnapshotResponse } from "$api";
-	import Badge from "$lib/components/ui/Badge.svelte";
 	import ArchiveAttribution from "./ArchiveAttribution.svelte";
 	import ArchiveCaptureTime from "./ArchiveCaptureTime.svelte";
 	import SnapshotTagList from "./SnapshotTagList.svelte";
@@ -24,14 +23,6 @@
 		<section class="snapshot-metadata__preservation" aria-label="Preservation">
 			<h4>Preservation</h4>
 			<dl>
-				<div>
-					<dt>Condition</dt>
-					<dd>
-						<Badge variant={snapshot.quality === "COMPLETE" ? "success" : "warning"} size="compact"
-							>{snapshot.quality === "COMPLETE" ? "Complete" : "Incomplete"}</Badge
-						>
-					</dd>
-				</div>
 				<div>
 					<dt>Resources</dt>
 					<dd>{snapshot.resourceCount}</dd>
