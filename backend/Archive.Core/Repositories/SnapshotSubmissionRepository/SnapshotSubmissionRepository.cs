@@ -4,7 +4,6 @@ using Archive.Core.Entities.Processing;
 using Archive.Core.Mapping;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Snapshots.History;
-using Archive.Core.Models.Users;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Serialization;
 using Archive.Core.Storage;
@@ -44,32 +43,22 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 EF.Functions.ILike(snapshot.OriginUrl ?? "", pattern, "\\"));
         }
         var total = await query.CountAsync(token);
-        var projected = query.Select(snapshot => new
-        {
-            Snapshot = snapshot,
-            UpdatedAt = database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
+        var projected = query.Select(snapshot => new SnapshotSubmissionRow(
+            snapshot,
+            database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
                     && ModerationEventTypes.Contains(entry.Content.GetProperty("type").GetString()!))
                 .OrderByDescending(entry => entry.Sequence)
                 .Select(entry => (DateTimeOffset?)entry.CreatedAt)
                 .FirstOrDefault() ?? snapshot.CreatedAt,
-            ProcessingStatus = snapshot.Quality != null
+            snapshot.Quality != null
                 ? ProcessingStatus.Completed
                 : database.SnapshotProcessing.Where(processing => processing.SnapshotId == snapshot.Id)
                     .Select(processing => (ProcessingStatus?)processing.Status)
-                    .FirstOrDefault() ?? ProcessingStatus.Failed
-        });
+                    .FirstOrDefault() ?? ProcessingStatus.Failed));
         var items = await projected.OrderByDescending(row => row.Snapshot.CreatedAt)
-            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize).Select(row =>
-            new SnapshotSubmissionSummary(row.Snapshot.Id, row.Snapshot.Title, row.Snapshot.OriginUrl,
-                row.Snapshot.SourceType, row.Snapshot.CreatedAt, row.UpdatedAt, row.Snapshot.ModerationStatus,
-                row.ProcessingStatus, row.Snapshot.Quality, row.Snapshot.CaptureCompletedAt,
-                row.Snapshot.DurationMilliseconds, row.Snapshot.StorageBytes, row.Snapshot.ResourceCount,
-                row.Snapshot.CreatedBy == null || row.Snapshot.CreatedBy.Handle == null || row.Snapshot.CreatedBy.DisplayName == null
-                    ? null
-                    : new PublicUser(row.Snapshot.CreatedBy.Handle, row.Snapshot.CreatedBy.DisplayName,
-                        row.Snapshot.CreatedBy.ProfileImage != null && row.Snapshot.CreatedBy.ProfileImage.Length > 0,
-                        row.Snapshot.CreatedBy.Role))).ToArrayAsync(token);
-        return new(items, total, page, pageSize);
+            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .ProjectToSubmissionSummaries().ToArrayAsync(token);
+        return SnapshotModelMapper.ToSubmissionPage(items, total, page, pageSize);
     }
 
     public Task<SnapshotSubmissionDetail?> GetOwnAsync(Guid userId, Guid id, CancellationToken token) => GetAsync(id, userId, token);
@@ -100,9 +89,10 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         var reason = decision is { } content
             ? SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(content).Reason
             : null;
-        return new(SnapshotModelMapper.MapDetails(snapshot),
-            new(snapshot.ModerationStatus, moderationUpdatedAt, reason), captureStatus,
-            Tag(snapshot, sequence, ownerId is null));
+        var moderation = SnapshotModelMapper.ToModerationDetails(snapshot.ModerationStatus, moderationUpdatedAt,
+            reason);
+        return SnapshotModelMapper.ToSubmissionDetail(SnapshotModelMapper.MapDetails(snapshot), moderation,
+            captureStatus, Tag(snapshot, sequence, ownerId is null));
     }
 
     private IQueryable<Snapshot> Scope(Guid? ownerId) => database.Snapshots.AsNoTracking()

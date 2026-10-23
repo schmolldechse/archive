@@ -101,19 +101,18 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
         }
 
         var total = await query.CountAsync(token);
-        var rows = await query.OrderByDescending(entry => entry.Sequence)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(entry => new
-            {
-                entry.Sequence,
-                entry.CreatedAt,
-                entry.Content,
-                Actor = publicOnly || entry.Actor == null || entry.Actor.RegistrationCompletedAt == null ||
-                    entry.Actor.Handle == null || entry.Actor.DisplayName == null
-                    ? null
-                    : new PublicUser(entry.Actor.Handle, entry.Actor.DisplayName,
-                        entry.Actor.ProfileImage != null && entry.Actor.ProfileImage.Length > 0, entry.Actor.Role)
-            }).ToArrayAsync(token);
+        var pageQuery = query.OrderByDescending(entry => entry.Sequence)
+            .Skip((page - 1) * pageSize).Take(pageSize);
+        SnapshotHistoryRow[] rows;
+        if (publicOnly)
+        {
+            var publicRows = await pageQuery.ProjectToPublicRows().ToArrayAsync(token);
+            rows = publicRows.Select(SnapshotHistoryMapper.ToRow).ToArray();
+        }
+        else
+        {
+            rows = await pageQuery.ProjectToRows().ToArrayAsync(token);
+        }
 
         var attributionData = rows
             .Where(row =>
@@ -130,12 +129,8 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
             : await database.Users.AsNoTracking()
                 .Where(user => userIds.Contains(user.Id) && user.RegistrationCompletedAt != null &&
                     user.Handle != null && user.DisplayName != null)
-                .Select(user => new
-                {
-                    user.Id,
-                    Profile = new PublicUser(user.Handle!, user.DisplayName!,
-                        user.ProfileImage != null && user.ProfileImage.Length > 0, user.Role)
-                }).ToDictionaryAsync(row => row.Id, row => row.Profile, token);
+                .ProjectToProfileEntries()
+                .ToDictionaryAsync(row => row.Id, row => row.Profile, token);
 
         var items = rows.Select(row =>
         {
@@ -149,20 +144,21 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
                 var redacted = publicOnly && data.UserId != snapshotState.CreatedByUserId;
                 if (redacted)
                     user = null;
-                attribution = new(publicOnly ? null : previousUser, user, data.UserId is null, redacted);
+                attribution = SnapshotHistoryMapper.ToAttribution(publicOnly ? null : previousUser, user,
+                    data.UserId is null, redacted);
             }
             else if (publicOnly && content.Type == SnapshotHistoryTypes.DetailsUpdated && content.Version == 2)
             {
                 var data = SnapshotHistorySerializer.Deserialize<SnapshotDetailsUpdatedData>(row.Content);
                 // Old metadata values remain available to the owner and administrators only.
                 content = SnapshotHistorySerializer.Deserialize(SnapshotHistorySerializer.Serialize(
-                    new PublicDetailsUpdatedData(data.Fields, data.AddedTags, data.RemovedTags)));
+                    SnapshotHistoryMapper.ToPublicDetails(data)));
             }
             else if (publicOnly && content.Type == SnapshotHistoryTypes.Moderated && content.Version == 1)
             {
                 var data = SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(row.Content);
                 content = SnapshotHistorySerializer.Deserialize(
-                    SnapshotHistorySerializer.Serialize(new PublicModeratedData(data.Status)));
+                    SnapshotHistorySerializer.Serialize(SnapshotHistoryMapper.ToPublicModerated(data.Status)));
             }
             else if (publicOnly && content.Type == SnapshotHistoryTypes.SourceUpdated && content.Version == 1)
             {
@@ -172,46 +168,18 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
                 var publishedSource = string.Equals(data.SourceUrl, snapshotState.OriginUrl,
                     StringComparison.Ordinal) ? data.SourceUrl : null;
                 content = SnapshotHistorySerializer.Deserialize(SnapshotHistorySerializer.Serialize(
-                    new PublicSourceUpdatedData(publishedSource, data.ReviewRequired)));
+                    SnapshotHistoryMapper.ToPublicSource(publishedSource, data.ReviewRequired)));
             }
             else if (publicOnly && content.Type == SnapshotHistoryTypes.Resubmitted && content.Version == 1)
             {
                 // A public record may show that another review was requested without
                 // revealing a preceding rejection state.
                 content = SnapshotHistorySerializer.Deserialize(
-                    SnapshotHistorySerializer.Serialize(new PublicResubmittedData()));
+                    SnapshotHistorySerializer.Serialize(SnapshotHistoryMapper.PublicResubmitted));
             }
 
-            return new SnapshotHistoryItem(row.Sequence, row.CreatedAt, row.Actor, content, attribution);
+            return SnapshotHistoryMapper.ToModel(row, content, attribution);
         }).ToArray();
-        return new(items, total, page, pageSize);
-    }
-
-    /// <summary>Redacted source-update payload used only for the public history projection.</summary>
-    private sealed record PublicSourceUpdatedData(string? SourceUrl, bool ReviewRequired) : SnapshotHistoryData
-    {
-        internal override string Type => SnapshotHistoryTypes.SourceUpdated;
-    }
-
-    /// <summary>Public details-update payload without complete before-and-after metadata values.</summary>
-    private sealed record PublicDetailsUpdatedData(
-        IReadOnlyList<SnapshotDetailField> Fields,
-        IReadOnlyList<string> AddedTags,
-        IReadOnlyList<string> RemovedTags) : SnapshotHistoryData
-    {
-        internal override string Type => SnapshotHistoryTypes.DetailsUpdated;
-        internal override int Version => 2;
-    }
-
-    /// <summary>Public approval payload without an earlier moderation decision or review note.</summary>
-    private sealed record PublicModeratedData(SnapshotModerationStatus Status) : SnapshotHistoryData
-    {
-        internal override string Type => SnapshotHistoryTypes.Moderated;
-    }
-
-    /// <summary>Public resubmission marker without private moderation-state transitions.</summary>
-    private sealed record PublicResubmittedData() : SnapshotHistoryData
-    {
-        internal override string Type => SnapshotHistoryTypes.Resubmitted;
+        return SnapshotHistoryMapper.ToPage(items, total, page, pageSize);
     }
 }
