@@ -247,22 +247,8 @@
 		<a href={backHref}><ArrowLeft aria-hidden="true" />{data.admin ? "All snapshots" : "My submissions"}</a>
 	</nav>
 	<header class="detail-heading">
-		<div class="detail-heading__main">
-			<div class="detail-heading__identity">
-				<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
-				<h1>{detail.snapshot.title}</h1>
-			</div>
-			<Button
-				bind:ref={editButton}
-				variant="secondary"
-				onclick={editing ? closeEditor : openEditor}
-				disabled={editingDisabled}
-				aria-expanded={editing}
-				aria-controls="snapshot-edit-region"
-			>
-				{#if editing}<X aria-hidden="true" />Close editor{:else}<Pencil aria-hidden="true" />Edit snapshot{/if}
-			</Button>
-		</div>
+		<p class="section-label">{data.admin ? "Snapshot record" : "Your submission"}</p>
+		<h1>{detail.snapshot.title}</h1>
 		<div class="detail-status">
 			<SnapshotModerationStatus status={detail.moderation.status} />
 			<Badge variant={captureVariant}>{technicalLabel}</Badge>
@@ -272,6 +258,23 @@
 					>{detail.snapshot.sourceUrl}</a
 				><CopySourceButton value={detail.snapshot.sourceUrl} label={`Copy source URL for ${detail.snapshot.title}`} />
 			</div>{/if}
+		<div class="detail-command-bar" role="group" aria-label="Snapshot actions">
+			<Button
+				bind:ref={editButton}
+				variant="primary"
+				onclick={editing ? closeEditor : openEditor}
+				disabled={editingDisabled}
+				aria-expanded={editing}
+				aria-controls="snapshot-edit-region"
+			>
+				{#if editing}<X aria-hidden="true" />Close editor{:else}<Pencil aria-hidden="true" />Edit snapshot{/if}
+			</Button>
+			{#if detail.snapshot.contentUrl}
+				<Button variant="secondary" href={`/snapshots/${detail.snapshot.id}`}>
+					<ArrowRight aria-hidden="true" />Open archived page
+				</Button>
+			{/if}
+		</div>
 	</header>
 	{#if message}<div bind:this={errorNotice} tabindex="-1" class="detail-message" role="alert">
 			<CircleAlert aria-hidden="true" />
@@ -345,9 +348,6 @@
 				<div class="record-tags">
 					<SnapshotTagList tags={detail.snapshot.tags} />
 				</div>{/if}
-			{#if detail.snapshot.contentUrl}<Button href={`/snapshots/${detail.snapshot.id}`}
-					>Open archived page<ArrowRight aria-hidden="true" /></Button
-				>{/if}
 		</section>
 		{#if detail.snapshot.screenshotUrl}<div class="detail-preview">
 				<h2>Screenshot preview</h2>
@@ -422,15 +422,6 @@
 	.detail-heading {
 		padding-block: 1.5rem;
 	}
-	.detail-heading__main {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 1.5rem;
-	}
-	.detail-heading__identity {
-		min-width: 0;
-	}
 	.section-label {
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
@@ -465,6 +456,15 @@
 		font: 400 0.8125rem/1.55 var(--font-record);
 		overflow-wrap: anywhere;
 		word-break: break-word;
+	}
+	.detail-command-bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
+		margin-top: 1.25rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--border-trace);
 	}
 	.detail-columns {
 		display: grid;
@@ -603,10 +603,8 @@
 		.detail-preview {
 			grid-row: 1;
 		}
-		.detail-heading__main {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 1rem;
+		.detail-command-bar :global(.button) {
+			flex: 1 1 12rem;
 		}
 	}
 </style>
