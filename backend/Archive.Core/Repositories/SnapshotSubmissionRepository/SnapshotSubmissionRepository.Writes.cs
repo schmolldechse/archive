@@ -121,6 +121,8 @@ internal sealed partial class SnapshotSubmissionRepository
         if (!titleChanged && !descriptionChanged && !tagsChanged && !sourceChanged && !ownerChanged)
             return new SnapshotUpdateResult.Unchanged();
 
+        var previousTitle = snapshot.Title;
+        var previousDescription = snapshot.Description;
         var previousSourceUrl = snapshot.OriginUrl;
         var previousStatus = snapshot.ModerationStatus;
         var previousUserId = snapshot.CreatedByUserId;
@@ -160,7 +162,10 @@ internal sealed partial class SnapshotSubmissionRepository
         {
             await history.AppendAsync(snapshot, new SnapshotDetailsUpdatedData(changedFields,
                     tags.Except(previousTags, StringComparer.Ordinal).ToArray(),
-                    previousTags.Except(tags, StringComparer.Ordinal).ToArray()),
+                    previousTags.Except(tags, StringComparer.Ordinal).ToArray(),
+                    titleChanged ? new SnapshotTextChange(previousTitle, update.Title) : null,
+                    descriptionChanged ? new SnapshotTextChange(previousDescription, update.Description) : null,
+                    tagsChanged ? new SnapshotTagsChange(previousTags, tags) : null),
                 actorUserId: actorId, cancellationToken: token);
         }
 

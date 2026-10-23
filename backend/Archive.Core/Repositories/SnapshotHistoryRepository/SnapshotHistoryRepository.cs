@@ -86,7 +86,8 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.Resubmitted &&
                     entry.Content.GetProperty("version").GetInt32() == 1 ||
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.DetailsUpdated &&
-                    entry.Content.GetProperty("version").GetInt32() == 1 ||
+                    (entry.Content.GetProperty("version").GetInt32() == 1 ||
+                     entry.Content.GetProperty("version").GetInt32() == 2) ||
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.SourceUpdated &&
                     entry.Content.GetProperty("version").GetInt32() == 1 ||
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.AttributionUpdated &&
@@ -150,6 +151,13 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
                     user = null;
                 attribution = new(publicOnly ? null : previousUser, user, data.UserId is null, redacted);
             }
+            else if (publicOnly && content.Type == SnapshotHistoryTypes.DetailsUpdated && content.Version == 2)
+            {
+                var data = SnapshotHistorySerializer.Deserialize<SnapshotDetailsUpdatedData>(row.Content);
+                // Old metadata values remain available to the owner and administrators only.
+                content = SnapshotHistorySerializer.Deserialize(SnapshotHistorySerializer.Serialize(
+                    new PublicDetailsUpdatedData(data.Fields, data.AddedTags, data.RemovedTags)));
+            }
             else if (publicOnly && content.Type == SnapshotHistoryTypes.Moderated && content.Version == 1)
             {
                 var data = SnapshotHistorySerializer.Deserialize<SnapshotModeratedData>(row.Content);
@@ -183,6 +191,16 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
     private sealed record PublicSourceUpdatedData(string? SourceUrl, bool ReviewRequired) : SnapshotHistoryData
     {
         internal override string Type => SnapshotHistoryTypes.SourceUpdated;
+    }
+
+    /// <summary>Public details-update payload without complete before-and-after metadata values.</summary>
+    private sealed record PublicDetailsUpdatedData(
+        IReadOnlyList<SnapshotDetailField> Fields,
+        IReadOnlyList<string> AddedTags,
+        IReadOnlyList<string> RemovedTags) : SnapshotHistoryData
+    {
+        internal override string Type => SnapshotHistoryTypes.DetailsUpdated;
+        internal override int Version => 2;
     }
 
     /// <summary>Public approval payload without an earlier moderation decision or review note.</summary>

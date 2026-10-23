@@ -28,14 +28,14 @@ Alle Änderungen werden atomar gespeichert, über den bereits vorhandenen starke
 
 ## 3. Verhaltensmatrix
 
-| Akteur | Änderung | Statuswirkung | History-Event | Öffentliche Wirkung |
-| --- | --- | --- | --- | --- |
-| Eigentümer | Titel, Beschreibung und/oder Tags | unverändert | `snapshot.details_updated` | bei `APPROVED` sofort sichtbar |
-| Eigentümer | Quell-URL | `RESUBMITTED` | `snapshot.source_updated` | Snapshot ist bis zur Freigabe nicht öffentlich |
-| Eigentümer | Details und Quell-URL in einem Save | wie oben, atomar | beide Events in definierter Reihenfolge | keine teilweise sichtbare Änderung |
-| Administrator | Titel, Beschreibung, Tags und/oder Quell-URL | unverändert | Details- und/oder Source-Event | bei `APPROVED` sofort sichtbar |
-| Administrator | Benutzerzuordnung | unverändert | `snapshot.attribution_updated` | öffentliche Attribution wird bei `APPROVED` sofort aktualisiert |
-| beliebig | nur normalisierungsäquivalente Werte | unverändert | keines | keine |
+| Akteur        | Änderung                                     | Statuswirkung    | History-Event                           | Öffentliche Wirkung                                             |
+| ------------- | -------------------------------------------- | ---------------- | --------------------------------------- | --------------------------------------------------------------- |
+| Eigentümer    | Titel, Beschreibung und/oder Tags            | unverändert      | `snapshot.details_updated`              | bei `APPROVED` sofort sichtbar                                  |
+| Eigentümer    | Quell-URL                                    | `RESUBMITTED`    | `snapshot.source_updated`               | Snapshot ist bis zur Freigabe nicht öffentlich                  |
+| Eigentümer    | Details und Quell-URL in einem Save          | wie oben, atomar | beide Events in definierter Reihenfolge | keine teilweise sichtbare Änderung                              |
+| Administrator | Titel, Beschreibung, Tags und/oder Quell-URL | unverändert      | Details- und/oder Source-Event          | bei `APPROVED` sofort sichtbar                                  |
+| Administrator | Benutzerzuordnung                            | unverändert      | `snapshot.attribution_updated`          | öffentliche Attribution wird bei `APPROVED` sofort aktualisiert |
+| beliebig      | nur normalisierungsäquivalente Werte         | unverändert      | keines                                  | keine                                                           |
 
 Die Eventreihenfolge innerhalb eines kombinierten administrativen Updates ist `snapshot.details_updated`, `snapshot.source_updated`, `snapshot.attribution_updated`. Alle Events und die Snapshot-Zeile werden in derselben Datenbanktransaktion gespeichert.
 
@@ -171,7 +171,7 @@ Alle editierbaren Spalten, die nullable Owner-FK mit `ON DELETE SET NULL`, Tag-B
 
 ### 6.1 Neue Events
 
-#### `snapshot.details_updated`, Version 1
+#### `snapshot.details_updated`, Version 1 (legacy)
 
 ```json
 {
@@ -181,7 +181,25 @@ Alle editierbaren Spalten, die nullable Owner-FK mit `ON DELETE SET NULL`, Tag-B
 }
 ```
 
-`fields` enthält nur tatsächlich geänderte Felder in stabiler Reihenfolge. Für Titel und Beschreibung werden bewusst keine alten Textinhalte dauerhaft dupliziert; die Historie dokumentiert den Änderungsakt, ohne entfernte sensible oder fehlerhafte Texte dauerhaft weiterzuveröffentlichen. Tag-Deltas sind kurz, strukturiert und für die Oberfläche unmittelbar hilfreich.
+`fields` enthält nur tatsächlich geänderte Felder in stabiler Reihenfolge. Bestehende Version-1-Events bleiben lesbar und werden nicht nachträglich verändert.
+
+#### `snapshot.details_updated`, Version 2
+
+```json
+{
+  "fields": ["TITLE", "DESCRIPTION", "TAGS"],
+  "addedTags": ["standards"],
+  "removedTags": ["draft"],
+  "title": { "previousValue": "Old title", "updatedValue": "New title" },
+  "description": {
+    "previousValue": "Old summary",
+    "updatedValue": "New summary"
+  },
+  "tags": { "previousValues": ["draft"], "updatedValues": ["standards"] }
+}
+```
+
+Die Nutzlast enthält vollständige Vorher-/Nachher-Werte nur für tatsächlich geänderte Felder. Owner- und Admin-Historien dürfen diese Werte anzeigen. Die öffentliche Projektion lässt diese vollständigen Werte aus. Die bereits bestehende öffentliche Anzeige von `fields`, `addedTags` und `removedTags` bleibt aus Kompatibilitätsgründen erhalten; insbesondere sind die Tag-Deltas keine vollständigen Vorher-/Nachher-Taglisten.
 
 #### `snapshot.source_updated`, Version 1
 
@@ -339,10 +357,10 @@ Vor dem Start werden in WSL vorhandene Container und Volumes anhand exakter Name
 
 Danach werden PostgreSQL 18 und MinIO in WSL mit expliziten lokalen Namen, eigenen Volumes und an Windows gebundenen Ports gestartet. Vorgesehene Erreichbarkeit:
 
-| Service | Windows-Endpunkt |
-| --- | --- |
-| PostgreSQL | `localhost:5432` |
-| MinIO API | `http://localhost:9000` |
+| Service       | Windows-Endpunkt        |
+| ------------- | ----------------------- |
+| PostgreSQL    | `localhost:5432`        |
+| MinIO API     | `http://localhost:9000` |
 | MinIO Console | `http://localhost:9001` |
 
 Der Bucket wird vor Start der Anwendungen erzeugt. API, Worker und Frontend laufen wie vorgegeben direkt unter Windows. Lokale Datenbank-, Storage- und OAuth-Werte werden nur in ignorierten Development-Dateien oder Prozessvariablen gesetzt und weder in Git noch in Logs oder diese Dokumentation übernommen.
@@ -355,11 +373,11 @@ Sobald die geschützten Owner-/Admin-Flows getestet werden können, ist eine Anm
 
 Nach Freigabe werden mindestens diese drei seriösen, öffentlich erreichbaren Quellen mit steigender Komplexität verwendet:
 
-| Komplexität | Quelle | Begründung |
-| --- | --- | --- |
-| einfach | [IANA Example Domains](https://www.iana.org/help/example-domains) | kleine, überwiegend statische Referenzseite einer Internet-Infrastrukturorganisation |
-| mittel | [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/) | umfangreiches Standarddokument mit Navigation, Ankern, Tabellen und zahlreichen internen Links |
-| komplex | [Python Tutorial](https://docs.python.org/3/tutorial/index.html) | umfangreiche offizielle Dokumentation mit Navigation, Querverweisen, Syntaxdarstellung und zahlreichen Ressourcen |
+| Komplexität | Quelle                                                            | Begründung                                                                                                        |
+| ----------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| einfach     | [IANA Example Domains](https://www.iana.org/help/example-domains) | kleine, überwiegend statische Referenzseite einer Internet-Infrastrukturorganisation                              |
+| mittel      | [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/)                     | umfangreiches Standarddokument mit Navigation, Ankern, Tabellen und zahlreichen internen Links                    |
+| komplex     | [Python Tutorial](https://docs.python.org/3/tutorial/index.html)  | umfangreiche offizielle Dokumentation mit Navigation, Querverweisen, Syntaxdarstellung und zahlreichen Ressourcen |
 
 Für jede Quelle wird dieselbe Seite in drei Eingangsformen archiviert, also insgesamt mindestens neun Snapshots:
 

@@ -31,6 +31,12 @@ export function historyString(data: Record<string, unknown>, key: string): strin
 	return typeof data[key] === "string" ? data[key] : null;
 }
 
+/** Narrows one nested event value to a plain object before reading field-level changes. */
+export function historyObject(data: Record<string, unknown>, key: string): Record<string, unknown> | null {
+	const value = data[key];
+	return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
 export function historyStrings(data: Record<string, unknown>, key: string): string[] {
 	const value = data[key];
 	return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
@@ -106,6 +112,10 @@ const eventDefinitions: Record<string, HistoryEventDefinition> = {
 		}
 	},
 	"snapshot.details_updated@1": {
+		component: HistoryDetailsUpdated,
+		presentation: () => ({ category: "Revision", title: "Snapshot details updated", tone: "register" })
+	},
+	"snapshot.details_updated@2": {
 		component: HistoryDetailsUpdated,
 		presentation: () => ({ category: "Revision", title: "Snapshot details updated", tone: "register" })
 	},
