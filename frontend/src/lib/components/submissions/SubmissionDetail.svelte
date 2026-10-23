@@ -49,11 +49,7 @@
 	let successNotice = $state<HTMLParagraphElement | null>(null);
 	const base = $derived(`/api/${data.admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`);
 	const backHref = $derived(data.admin ? "/admin/snapshots" : "/account/submissions");
-	const technicalLabel = $derived(
-		detail.processingStatus === "COMPLETED" && detail.snapshot.quality === null
-			? "Capture quality unavailable"
-			: processingLabel(detail.processingStatus)
-	);
+	const technicalLabel = $derived(processingLabel(detail.processingStatus));
 	/** Keeps capture quality visually independent from the snapshot's moderation decision. */
 	const captureVariant = $derived.by(() => {
 		if (detail.processingStatus === "FAILED" || detail.processingStatus === "ABORTED") return "critical" as const;
@@ -195,13 +191,17 @@
 		<h1>{detail.snapshot.title}</h1>
 		<div class="detail-status" role="group" aria-label="Snapshot status">
 			<div class="detail-status__item">
-				<span class="detail-status__label">Review</span>
+				<span class="detail-status__label">Review status</span>
 				<SnapshotModerationStatus status={detail.moderation.status} />
 			</div>
 			{#if detail.processingStatus !== "COMPLETED" || detail.snapshot.quality === null}
 				<div class="detail-status__item">
-					<span class="detail-status__label">Capture</span>
-					<Badge variant={captureVariant} size="compact">{technicalLabel}</Badge>
+					<span class="detail-status__label">
+						{detail.processingStatus === "COMPLETED" ? "Capture quality" : "Capture status"}
+					</span>
+					<Badge variant={captureVariant} size="compact">
+						{detail.processingStatus === "COMPLETED" ? "Unavailable" : technicalLabel}
+					</Badge>
 				</div>
 			{/if}
 		</div>
@@ -360,9 +360,9 @@
 	}
 	.detail-status__item {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.375rem 0.625rem;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.375rem;
 	}
 	.detail-status__label {
 		color: var(--marginal-note);
