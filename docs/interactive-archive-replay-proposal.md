@@ -140,12 +140,12 @@ These are reasons for a separate origin, strict sandboxing, a public-only first 
 
 ### Versioned replay artifact
 
-Each newly processed snapshot writes two entry documents while sharing the same resource objects:
+Each newly processed snapshot always writes the static entry document. It additionally writes a replay entry document only when executable content is present and the normalizer can produce a compatible replay. Both entry documents reference the same captured resource objects; this is not a second full copy of the archive.
 
 ```text
 snapshots/{snapshotId}/
 ├── index.html          static representation; existing behavior
-├── replay.html         normalized executable representation
+├── replay.html         optional normalized executable representation
 ├── screenshot.png
 ├── manifest.json
 ├── assets/...
@@ -157,10 +157,10 @@ The replay route maps its virtual `index.html` to stored `replay.html`; other sa
 
 Add nullable `ReplayVersion` metadata to `Snapshot`:
 
-- `null`: no compatible interactive replay; this includes every existing snapshot;
+- `null`: no compatible interactive replay or no `replay.html`; this includes every existing snapshot;
 - `1`: replay document produced by the first normalizer version.
 
-The normalizer sets a replay version only when it finds executable content: a non-empty executable `<script>`, an executable script resource, or an inline event-handler attribute. A document without executable content keeps `ReplayVersion = null`, so the frontend transparently renders the static document instead of routing it through the replay origin.
+The normalizer writes `replay.html` and sets a replay version only when it finds executable content—a non-empty executable `<script>`, an executable script resource, or an inline event-handler attribute—and successfully produces the replay document. A document without executable content keeps `ReplayVersion = null`, so the frontend transparently renders `index.html` instead of routing it through the replay origin. A replay-normalization failure must not discard an otherwise readable snapshot: storage keeps `index.html`, omits the replay entry and version, and records the diagnostic reason in the manifest.
 
 The database migration does not backfill existing rows. Existing snapshots stay static and safe. Re-capture is the explicit upgrade path. This avoids claiming compatibility without reprocessing the source.
 
