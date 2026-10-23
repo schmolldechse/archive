@@ -55,7 +55,7 @@
 							</div>
 						</div>
 					{:else}
-						<SnapshotHistory {history} title="Record history" compact paginated={false} />
+						<SnapshotHistory {history} title="Record history" paginated={false} />
 					{/if}
 				</TabsPanel>
 			</TabsRoot>
