@@ -25,7 +25,7 @@ SvelteKit reads browser-visible variables beginning with `PUBLIC_` and server-on
 | `Replay:MinimumChromiumMajorVersion` | `REPLAY_MINIMUM_CHROMIUM_MAJOR_VERSION` | `152` | Lowest tested Chromium major version admitted to executable replay. |
 | `Replay:AllowedBrands` | appsettings or indexed environment values | `Chromium` | Exact structured `Sec-CH-UA` brands that may satisfy the client gate. |
 
-`Replay:PublicOrigin` must be a separate origin from the API and frontend. Outside Development it must use HTTPS, and its host must not be included by `Authentication:SessionCookieDomain`. The same API process serves this host, but host gating exposes only `/api/snapshots/{id}/content/{path}` and accepts only `GET`, `HEAD`, and `OPTIONS`. Replay-compatible and legacy public captures share this endpoint; response policy determines whether scripts can execute. There is intentionally no replay-enabled option.
+`Replay:PublicOrigin` must be a separate origin from the API and frontend. Outside Development it must use HTTPS, and its host must not be included by `Authentication:SessionCookieDomain`. The same API process serves this host, but host gating exposes only `/api/snapshots/{id}/content/{path}` and accepts only `GET`, `HEAD`, and `OPTIONS`. Interactive and static public snapshots share this manifest-backed endpoint; response policy determines whether scripts can execute. There is intentionally no replay-enabled option.
 
 Outside Development, the public API and frontend origins must use HTTPS. Both origins must use the same scheme. If their hosts differ, `SessionCookieDomain` must be a parent domain that includes both.
 

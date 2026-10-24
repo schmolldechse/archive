@@ -67,7 +67,7 @@ public sealed class SnapshotResponse
     public required string? ScreenshotUrl { get; init; }
 
     [JsonPropertyName("contentUrl")]
-    [Description("Canonical archived start page URL. Approved public snapshots use the credential-free content origin, where compatible captures may execute isolated replay and legacy captures remain static. Private snapshots remain static. Null until capture storage has completed.")]
+    [Description("Canonical archived start page URL. Approved public snapshots use the credential-free content origin, where compatible captures may execute isolated JavaScript and other snapshots remain static. Private snapshots remain static. Null until capture storage has completed.")]
     [Url]
     public required string? ContentUrl { get; init; }
 

@@ -32,6 +32,26 @@ internal sealed class S3ArchiveObjectStore(IAmazonS3 client, ObjectStorageOption
         }
     }
 
+    public async Task<IReadOnlyList<ArchiveObjectInfo>> ListAsync(string prefix,
+        CancellationToken cancellationToken = default)
+    {
+        var objects = new List<ArchiveObjectInfo>();
+        string? continuationToken = null;
+        do
+        {
+            var response = await client.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = _bucket,
+                Prefix = prefix,
+                ContinuationToken = continuationToken
+            }, cancellationToken);
+            objects.AddRange(response.S3Objects.Select(item => new ArchiveObjectInfo(item.Key, item.Size ?? 0)));
+            continuationToken = response.NextContinuationToken;
+        } while (!string.IsNullOrEmpty(continuationToken));
+
+        return objects;
+    }
+
     public Task CopyAsync(string sourceKey, string destinationKey, CancellationToken cancellationToken = default) =>
         client.CopyObjectAsync(new CopyObjectRequest
         {

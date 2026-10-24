@@ -206,7 +206,7 @@ git status --short
 
 Verify changed Markdown links and commands manually. No Markdown-link or prose linter is configured.
 
-Replay normalization, URL selection, capability gating, and response policies have focused tests in `Archive.Tests`. Supplement them with the relevant manual path:
+Snapshot normalization, URL selection, capability gating, migration arguments, and response policies have focused tests in `Archive.Tests`. Supplement them with the relevant manual path:
 
 - submit one URL and one affected upload format;
 - observe queued, running, and terminal updates, including polling fallback if changed;
@@ -216,7 +216,7 @@ Replay normalization, URL selection, capability gating, and response policies ha
 - edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
-- confirm private and legacy HTML loads its local resources without executing scripts;
+- confirm private and static HTML loads its manifest-authorized local resources without executing scripts;
 - confirm an admitted public replay executes captured scripts while external requests, forms, workers, storage, and navigation remain blocked;
 - repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
 
@@ -234,3 +234,5 @@ Replay normalization, URL selection, capability gating, and response policies ha
 | Frontend server loads fail in containers | Set `INTERNAL_API_BASE_URL` to the API service address while keeping `PUBLIC_API_BASE_URL` browser-reachable. |
 
 See [Configuration](configuration.md) for every setting. The live OpenAPI document and Scalar reference remain the field-level HTTP contract.
+
+Use [Snapshot manifest migration](snapshot-migration.md) when local object storage contains captures created before the current manifest contract.

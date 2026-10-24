@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Archive.Api\Archive.Api.csproj" />
+    <ProjectReference Include="..\Archive.SnapshotMigrator\Archive.SnapshotMigrator.csproj" />
     <ProjectReference Include="..\Archive.Worker\Archive.Worker.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageReference Include="xunit" Version="2.9.3" />

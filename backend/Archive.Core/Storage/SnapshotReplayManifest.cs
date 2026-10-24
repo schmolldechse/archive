@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Archive.Core.Storage;
 
-/// <summary>Versioned contract used to authorize resources at the public replay boundary.</summary>
+/// <summary>Versioned snapshot contract used to authorize stored resources at the public content boundary.</summary>
 public sealed class SnapshotReplayManifest
 {
     public const int CurrentManifestVersion = 3;
@@ -102,14 +102,14 @@ public sealed class SnapshotReplayResource
     public required string Role { get; init; }
 }
 
-/// <summary>Stable resource-role names persisted in replay manifests.</summary>
+/// <summary>Stable resource-role names persisted in snapshot manifests.</summary>
 public static class SnapshotReplayResourceRoles
 {
     public const string RootDocument = "root-document";
     public const string NestedDocument = "nested-document";
     public const string Asset = "asset";
 
-    /// <summary>Infers the conservative browser role used by static legacy captures without a replay manifest.</summary>
+    /// <summary>Infers the conservative browser role used while upgrading older static snapshot generations.</summary>
     public static string Infer(string path, string contentType)
     {
         if (string.Equals(path, "index.html", StringComparison.OrdinalIgnoreCase))

@@ -110,7 +110,9 @@ docker compose --project-name archive --env-file deploy/production/.env -f deplo
 
 Complete deployment verification with one capture. Confirm that it leaves the queue, stores a screenshot and content, appears to its owner, and becomes public only under the expected moderation rule.
 
-For both a newly normalized capture and an existing approved snapshot, confirm that `contentUrl` uses `/api/snapshots/{id}/content/index.html` on the replay origin. The replay-compatible response must vary on `Sec-CH-UA`, and a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`. A request without the hint, and every legacy snapshot request, must receive the same stored bytes with `script-src 'none'`.
+Before the first deployment of manifest-only snapshot delivery, follow [Snapshot manifest migration](snapshot-migration.md): pause the worker, run `Archive.SnapshotMigrator --dry-run --all`, migrate all candidates, and require a final result containing only `Current` snapshots. Deploying the new resolver while older generations remain would intentionally make those snapshots unavailable rather than bypassing manifest authorization.
+
+For both a newly normalized capture and a migrated approved snapshot, confirm that `contentUrl` uses `/api/snapshots/{id}/content/index.html` on the credential-free origin. An interaction-compatible response must vary on `Sec-CH-UA`, and a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`. A request without the hint, and every static snapshot request, must receive the same stored bytes with `script-src 'none'`.
 
 ## Bootstrap the first administrator
 

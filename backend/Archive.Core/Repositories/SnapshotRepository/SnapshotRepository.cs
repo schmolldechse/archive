@@ -7,15 +7,17 @@ using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace Archive.Core.Repositories.SnapshotRepository;
 
 internal sealed partial class SnapshotRepository(
-    DataContext database, 
+    DataContext database,
     IArchiveObjectStore objectStore,
-    UploadFormatSelector uploadFormatSelector, 
-    ArchiveOptions options, 
-    ISnapshotHistoryRepository history) : ISnapshotRepository
+    UploadFormatSelector uploadFormatSelector,
+    ArchiveOptions options,
+    ISnapshotHistoryRepository history,
+    ILogger<SnapshotRepository> logger) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
     {
@@ -32,7 +34,7 @@ internal sealed partial class SnapshotRepository(
         CancellationToken cancellationToken = default) =>
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
 
-    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, bool replayDelivery,
+    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
         CancellationToken cancellationToken = default)
     {
         var snapshot = await database.Snapshots
@@ -42,22 +44,25 @@ internal sealed partial class SnapshotRepository(
                 && snapshot.Quality != null)
             .Select(snapshot => new { snapshot.ContentPrefix, snapshot.ReplayVersion })
             .SingleOrDefaultAsync(cancellationToken);
-        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
-
-        if (!replayDelivery || snapshot.ReplayVersion != SnapshotReplayManifest.CurrentReplayVersion)
+        if (snapshot?.ContentPrefix is null)
         {
-            var direct = await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, path, cancellationToken);
-            return direct is SnapshotContentResult.Found found
-                ? new SnapshotContentResult.Found(found.Resource with { ReplayVersion = snapshot.ReplayVersion })
-                : direct;
+            logger.LogWarning("Snapshot {SnapshotId} is not public or has no active content generation", snapshotId);
+            return new SnapshotContentResult.NotFound();
         }
 
         if (!SnapshotContentStorage.TryNormalizePath(path, out var safePath))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} received invalid content path {Path}", snapshotId, path);
             return new SnapshotContentResult.InvalidPath();
+        }
 
         var storedManifest = await objectStore.GetAsync($"{snapshot.ContentPrefix}/manifest.json", cancellationToken);
         if (storedManifest is null)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} has no manifest in active generation {ContentPrefix}",
+                snapshotId, snapshot.ContentPrefix);
             return new SnapshotContentResult.NotFound();
+        }
 
         SnapshotReplayManifest? manifest;
         try
@@ -68,20 +73,39 @@ internal sealed partial class SnapshotRepository(
         }
         catch (JsonException)
         {
+            logger.LogWarning("Snapshot {SnapshotId} has an unreadable manifest in active generation {ContentPrefix}",
+                snapshotId, snapshot.ContentPrefix);
             return new SnapshotContentResult.NotFound();
         }
 
         if (manifest is null || manifest.Version != SnapshotReplayManifest.CurrentManifestVersion ||
             manifest.Replay.Version != snapshot.ReplayVersion)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest contract does not match its active database metadata",
+                snapshotId);
             return new SnapshotContentResult.NotFound();
+        }
 
-        var resource = manifest.Resources.SingleOrDefault(item =>
-            string.Equals(item.Path, safePath, StringComparison.Ordinal));
-        if (resource is null || !resource.ObjectKey.StartsWith(snapshot.ContentPrefix + '/', StringComparison.Ordinal) ||
-            resource.ObjectKey.Contains("..", StringComparison.Ordinal))
+        var resources = manifest.Resources.Where(item =>
+            string.Equals(item.Path, safePath, StringComparison.Ordinal)).Take(2).ToArray();
+        if (resources.Length != 1)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest contains {ResourceCount} entries for path {Path}",
+                snapshotId, resources.Length, safePath);
             return new SnapshotContentResult.NotFound();
+        }
+        var resource = resources[0];
+        if (!string.Equals(resource.ObjectKey, $"{snapshot.ContentPrefix}/{safePath}", StringComparison.Ordinal))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest maps path {Path} outside its active generation",
+                snapshotId, safePath);
+            return new SnapshotContentResult.NotFound();
+        }
 
         var stored = await objectStore.GetAsync(resource.ObjectKey, cancellationToken);
+        if (stored is null)
+            logger.LogWarning("Snapshot {SnapshotId} manifest resource {Path} is missing from object storage",
+                snapshotId, safePath);
         return stored is null
             ? new SnapshotContentResult.NotFound()
             : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false,

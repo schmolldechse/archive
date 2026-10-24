@@ -104,7 +104,7 @@ public sealed partial class SnapshotsController(
     [HttpGet("{snapshotId:guid}/content/{**path}")]
     [EndpointName("GetSnapshotContent")]
     [EndpointSummary("Gets archived snapshot content.")]
-    [EndpointDescription("Returns the archived start page when path is empty, or the requested stored resource. The credential-free replay origin uses the same route for every approved snapshot, applies manifest authorization to replay-versioned captures, and keeps legacy captures static. The response Content-Type depends on the resource. Original uploaded source files are downloaded as application/octet-stream. Static API-origin responses support Byte Range requests and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
+    [EndpointDescription("Returns the archived start page when path is empty, or the requested manifest-authorized resource. The credential-free snapshot origin uses the same route for every approved snapshot. The response Content-Type depends on the resource. Static API-origin responses support Byte Range requests and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
     [ProducesResponseType<Stream>(StatusCodes.Status200OK, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<Stream>(StatusCodes.Status206PartialContent, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -113,7 +113,7 @@ public sealed partial class SnapshotsController(
     public async Task<IActionResult> ContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken)
     {
         var replayDelivery = ReplayRequestBoundary.IsReplayHost(Request, replayOptions);
-        var result = await snapshotRepository.OpenContentAsync(snapshotId, path, replayDelivery, cancellationToken);
+        var result = await snapshotRepository.OpenContentAsync(snapshotId, path, cancellationToken);
         if (result is SnapshotContentResult.NotFound)
             return NotFound();
         if (result is SnapshotContentResult.InvalidPath)
