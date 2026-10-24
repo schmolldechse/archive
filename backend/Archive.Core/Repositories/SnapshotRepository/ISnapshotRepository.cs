@@ -11,6 +11,8 @@ public interface ISnapshotRepository
     Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default);
     Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
         CancellationToken cancellationToken = default);
-    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default);
+    /// <summary>Opens public content after authorizing the requested resource through the snapshot manifest.</summary>
+    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
+        CancellationToken cancellationToken = default);
     Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default);
 }

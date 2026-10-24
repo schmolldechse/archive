@@ -117,10 +117,10 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
     private async Task<SnapshotContentResult> OpenContentAsync(Guid id, Guid? ownerId, string? path, CancellationToken token)
     {
         var snapshot = await Scope(ownerId).Where(item => item.Id == id && item.Quality != null)
-            .Select(item => new { item.ContentPrefix, item.SourceType }).SingleOrDefaultAsync(token);
-        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
+            .Select(item => item.ContentPrefix).SingleOrDefaultAsync(token);
+        if (snapshot is null) return new SnapshotContentResult.NotFound();
 
-        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, token);
+        return await objectStore.OpenSnapshotContentAsync(snapshot, path, token);
     }
 
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>

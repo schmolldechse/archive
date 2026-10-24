@@ -161,7 +161,8 @@ public sealed class OfflineImportEngine(
 
         try
         {
-            await writer.WriteAsync("index.html", Encoding.UTF8.GetBytes(normalized.Html), "text/html; charset=utf-8", cancellationToken);
+            var indexBytes = Encoding.UTF8.GetBytes(normalized.Html);
+            await writer.WriteAsync("index.html", indexBytes, "text/html; charset=utf-8", cancellationToken);
             await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
             foreach (var asset in normalized.Assets)
                 await writer.WriteAsync(asset.Path, asset.Body, asset.ContentType, cancellationToken);
@@ -172,31 +173,67 @@ public sealed class OfflineImportEngine(
                 SourceType.WebArchiveFile => ".webarchive",
                 _ => throw new InvalidOperationException("Unsupported upload type.")
             };
-            await writer.WriteAsync("source" + extension, original, "application/octet-stream", cancellationToken);
-            var manifest = new
+            var sourcePath = "source" + extension;
+            await writer.WriteAsync(sourcePath, original, "application/octet-stream", cancellationToken);
+            var resources = new List<SnapshotReplayResource>
             {
-                version = 2,
-                resourceReferenceMode = "relative-v1",
-                sourceType = job.SourceType.ToString(),
-                originalUrl = imported.BaseUrl ?? job.OriginUrl,
-                sourceSizeBytes = original.LongLength,
-                sourceSha256 = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(),
-                htmlObjectKey = writer.GetObjectKey("index.html"),
-                screenshotObjectKey = writer.GetObjectKey("screenshot.png"),
-                sourceObjectKey = writer.GetObjectKey("source" + extension),
-                resources = normalized.Assets.Select(x => new
+                new()
                 {
-                    url = x.SourceUrl,
-                    contentType = x.ContentType,
-                    objectKey = writer.GetObjectKey(x.Path)
-                }),
-                missingUrls = missingUrls.Take(100).ToArray(),
-                missingUrlCount = missingUrls.Count,
-                incomplete = missingUrls.Count != 0
+                    Path = "index.html",
+                    SourceUrl = imported.BaseUrl ?? job.OriginUrl,
+                    ContentType = "text/html; charset=utf-8",
+                    ObjectKey = writer.GetObjectKey("index.html"),
+                    Sha256 = Hash(indexBytes),
+                    Role = SnapshotReplayResourceRoles.RootDocument
+                }
+            };
+            resources.AddRange(normalized.Assets.Select(asset => new SnapshotReplayResource
+            {
+                Path = asset.Path,
+                SourceUrl = asset.SourceUrl,
+                ContentType = asset.ContentType,
+                ObjectKey = writer.GetObjectKey(asset.Path),
+                Sha256 = Hash(asset.Body),
+                Role = asset.Role
+            }));
+            var manifest = new SnapshotReplayManifest
+            {
+                Version = SnapshotReplayManifest.CurrentManifestVersion,
+                Provenance = new()
+                {
+                    DerivedDisplayDocument = true,
+                    SourceObjectKey = writer.GetObjectKey(sourcePath),
+                    SourceSha256 = Hash(original),
+                    IndexSha256 = Hash(indexBytes),
+                    SourceUrl = imported.BaseUrl ?? job.OriginUrl,
+                    SourceMimeType = job.SourceType switch
+                    {
+                        SourceType.HtmlFile => "text/html",
+                        SourceType.MhtmlFile => "multipart/related",
+                        SourceType.WebArchiveFile => "application/x-webarchive",
+                        _ => "application/octet-stream"
+                    },
+                    SourceStatusCode = null,
+                    CapturedAt = DateTimeOffset.UtcNow,
+                    DocumentState = "imported-serialized",
+                    RedirectChain = []
+                },
+                Replay = new()
+                {
+                    Version = normalized.ReplayVersion,
+                    Normalizer = "archive-replay-v1",
+                    ContainsExecutableContent = normalized.ContainsExecutableContent,
+                    Diagnostic = normalized.ReplayDiagnostic
+                },
+                Resources = resources,
+                MissingUrls = missingUrls.Take(100).ToArray(),
+                MissingUrlCount = missingUrls.Count,
+                Incomplete = missingUrls.Count != 0
             };
             await writer.WriteManifestAsync(manifest, null, cancellationToken);
             return new CaptureResult(missingUrls.Count != 0 ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
-                writer.ContentPrefix, writer.StorageBytes, normalized.Assets.Count, durationMilliseconds, writer.StoredObjectKeys);
+                writer.ContentPrefix, writer.StorageBytes, normalized.Assets.Count, durationMilliseconds,
+                normalized.ReplayVersion, writer.StoredObjectKeys);
         }
         catch
         {
@@ -204,4 +241,7 @@ public sealed class OfflineImportEngine(
             throw;
         }
     }
+
+    private static string Hash(byte[] value) =>
+        Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
 }

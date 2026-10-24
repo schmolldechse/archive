@@ -19,6 +19,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
     private long _sequence;
     private long _capturedBytes;
     private Task? _stopTask;
+    private CapturedMainDocument? _mainDocument;
 
     public CapturedResourceCollector(IPage page, CaptureLimits limits, ILogger logger, CancellationToken cancellationToken)
     {
@@ -50,6 +51,33 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             {
                 EnsureStopped();
                 return _failures.Count > 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the resource URLs whose latest observed request failed during capture.
+    /// </summary>
+    public IReadOnlyList<string> FailedUrls
+    {
+        get
+        {
+            lock (_gate)
+            {
+                EnsureStopped();
+                return _failures.Keys.Order(StringComparer.Ordinal).ToArray();
+            }
+        }
+    }
+
+    public CapturedMainDocument? MainDocument
+    {
+        get
+        {
+            lock (_gate)
+            {
+                EnsureStopped();
+                return _mainDocument;
             }
         }
     }
@@ -107,8 +135,9 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
     {
         try
         {
+            var isMainDocument = IsMainDocument(response.Request);
             if (string.IsNullOrWhiteSpace(response.Url) ||
-                CloudflareChallengeDetector.IsChallengeResource(response.Url) || IsMainDocument(response.Request))
+                CloudflareChallengeDetector.IsChallengeResource(response.Url))
                 return;
 
             if (CloudflareChallengeDetector.IsChallengeResponse(response) || response.Status >= 400)
@@ -125,6 +154,24 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             var contentType = response.Headers.TryGetValue("content-type", out var header)
                 ? header.Trim()
                 : "application/octet-stream";
+            if (isMainDocument)
+            {
+                if (!contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) &&
+                    !contentType.StartsWith("application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+                    return;
+                _cancellationToken.ThrowIfCancellationRequested();
+                var mainBody = await response.BodyAsync().WaitAsync(_cancellationToken).ConfigureAwait(false);
+                _cancellationToken.ThrowIfCancellationRequested();
+                lock (_gate)
+                {
+                    if (mainBody.LongLength > _limits.MaxStorageBytes - _capturedBytes)
+                        throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
+                    _capturedBytes += mainBody.LongLength;
+                    _mainDocument = new(response.Url, contentType, response.Status, mainBody,
+                        RedirectChain(response.Request));
+                }
+                return;
+            }
             if (!IsArchivableContentType(contentType))
                 return;
 
@@ -163,6 +210,14 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
                 RecordFailure(response.Url, sequence);
             _logger.LogDebug(exception, "Ressource {Url} konnte nicht gespeichert werden", response.Url);
         }
+    }
+
+    private static IReadOnlyList<string> RedirectChain(IRequest request)
+    {
+        var urls = new Stack<string>();
+        for (var current = request.RedirectedFrom; current is not null; current = current.RedirectedFrom)
+            urls.Push(current.Url);
+        return urls.ToArray();
     }
 
     private bool IsMainDocument(IRequest request)
@@ -210,7 +265,11 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
         contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) ||
         contentType.Contains("javascript", StringComparison.OrdinalIgnoreCase) ||
         contentType.Contains("json", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Contains("xml", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Equals("application/wasm", StringComparison.OrdinalIgnoreCase) ||
+        contentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ||
+        contentType.StartsWith("model/", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("font/", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);

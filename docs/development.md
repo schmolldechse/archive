@@ -19,6 +19,8 @@ The Google client ID and secret are required at API startup because `Authenticat
 http://localhost:5200/api/auth/callback/google
 ```
 
+Local replay uses the same API process through the distinct origin `http://127.0.0.1:5200`. Keep the API and frontend on `localhost`; the host distinction prevents application cookies from being sent to replay requests.
+
 ## Prepare configuration
 
 Create ignored development settings from the tracked examples:
@@ -109,6 +111,7 @@ Vite serves the application at `http://localhost:5173`. `PUBLIC_API_BASE_URL` in
 | --- | --- |
 | Frontend | `http://localhost:5173` |
 | API health | `http://localhost:5200/healthz` |
+| Public snapshot content | `http://127.0.0.1:5200/api/snapshots/{id}/content/index.html` |
 | OpenAPI JSON | `http://localhost:5200/openapi/v1.json` |
 | Scalar API reference | `http://localhost:5200/scalar/v1` |
 
@@ -169,7 +172,8 @@ Run checks from the directories shown below.
 ### Backend
 
 ```powershell
-dotnet build backend/Archive.slnx
+dotnet build backend/Archive.slnx -m:1
+dotnet test backend/Archive.slnx -m:1
 ```
 
 ### Frontend
@@ -202,7 +206,7 @@ git status --short
 
 Verify changed Markdown links and commands manually. No Markdown-link or prose linter is configured.
 
-The repository currently contains no automated test projects or CI workflow. For behavior changes, supplement the checks above with the relevant manual path:
+Snapshot normalization, URL selection, capability gating, migration arguments, and response policies have focused tests in `Archive.Tests`. Supplement them with the relevant manual path:
 
 - submit one URL and one affected upload format;
 - observe queued, running, and terminal updates, including polling fallback if changed;
@@ -212,7 +216,9 @@ The repository currently contains no automated test projects or CI workflow. For
 - edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
-- confirm archived HTML loads its local images, styles, fonts, and frames without executing scripts.
+- confirm private and static HTML loads its manifest-authorized local resources without executing scripts;
+- confirm an admitted public replay executes captured scripts while external requests, forms, workers, storage, and navigation remain blocked;
+- repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
 
 ## Common startup failures
 
@@ -228,3 +234,5 @@ The repository currently contains no automated test projects or CI workflow. For
 | Frontend server loads fail in containers | Set `INTERNAL_API_BASE_URL` to the API service address while keeping `PUBLIC_API_BASE_URL` browser-reachable. |
 
 See [Configuration](configuration.md) for every setting. The live OpenAPI document and Scalar reference remain the field-level HTTP contract.
+
+Use [Snapshot manifest migration](snapshot-migration.md) when local object storage contains captures created before the current manifest contract.

@@ -15,21 +15,25 @@ Together they form one Compose project on an external Docker network named `arch
 
 The host needs Docker Engine with Compose and enough storage for PostgreSQL, MinIO, build layers, and a temporary second copy during image replacement.
 
-Provide two browser-visible HTTPS origins, for example:
+Provide three browser-visible HTTPS origins, for example:
 
 ```text
 https://archive.example.com      frontend
 https://api.archive.example.com  API
+https://archive-replay.example.net credential-free replay
 ```
 
 The reverse proxy must:
 
 - route the frontend origin to container port 3000;
 - route the API origin to container port 8080;
+- route the replay origin to the same API container port without rewriting its host;
 - preserve the original host and forwarding information;
 - stream `/api/snapshots/{id}/events` without response buffering;
 - allow long-lived event responses while the capture is active;
 - avoid exposing PostgreSQL, MinIO, or its console unless the deployment explicitly needs operator access.
+
+The replay origin must be outside `AUTHENTICATION_SESSION_COOKIE_DOMAIN`; a separate registrable domain is preferred. Do not attach authentication, CDN session cookies, or generic API routes to it. The application exposes only `/api/snapshots/{id}/content/{path}` on this host; all metadata, authentication, administration, and mutation routes remain available only through the API origin.
 
 The API container sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so ASP.NET can interpret forwarded scheme and address information.
 
@@ -47,6 +51,7 @@ Fill every value required by Compose interpolation. In particular, make the thre
 ORIGIN=https://archive.example.com
 PUBLIC_API_BASE_URL=https://api.archive.example.com
 ARCHIVE_PUBLIC_BASE_URL=https://api.archive.example.com
+REPLAY_PUBLIC_ORIGIN=https://archive-replay.example.net
 AUTHENTICATION_SESSION_COOKIE_DOMAIN=archive.example.com
 ```
 
@@ -104,6 +109,10 @@ docker compose --project-name archive --env-file deploy/production/.env -f deplo
 ```
 
 Complete deployment verification with one capture. Confirm that it leaves the queue, stores a screenshot and content, appears to its owner, and becomes public only under the expected moderation rule.
+
+Before the first deployment of manifest-only snapshot delivery, follow [Snapshot manifest migration](snapshot-migration.md): pause the worker, run `Archive.SnapshotMigrator --dry-run --all`, migrate all candidates, and require a final result containing only `Current` snapshots. Deploying the new resolver while older generations remain would intentionally make those snapshots unavailable rather than bypassing manifest authorization.
+
+For both a newly normalized capture and a migrated approved snapshot, confirm that `contentUrl` uses `/api/snapshots/{id}/content/index.html` on the credential-free origin. An interaction-compatible response must vary on `Sec-CH-UA`, and a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`. A request without the hint, and every static snapshot request, must receive the same stored bytes with `script-src 'none'`.
 
 ## Bootstrap the first administrator
 
