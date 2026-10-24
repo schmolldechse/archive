@@ -2,10 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Archive.Api.Options;
 
-/// <summary>Required public origin and tested browser boundary for archived JavaScript replay.</summary>
-public sealed class ReplayOptions : IValidatableObject
+/// <summary>Public snapshot origin and tested browser boundary for archived JavaScript.</summary>
+public sealed class SnapshotContentOptions : IValidatableObject
 {
-    public const string SectionName = "Replay";
+    public const string SectionName = "SnapshotContent";
 
     [Required]
     public string PublicOrigin { get; set; } = "http://127.0.0.1:5200";
@@ -16,12 +16,15 @@ public sealed class ReplayOptions : IValidatableObject
     [MinLength(1)]
     public string[] AllowedBrands { get; init; } = [];
 
+    [Range(1, 1440)]
+    public int PrivateAccessTokenLifetimeMinutes { get; init; } = 60;
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (!TryReadOrigin(PublicOrigin, out var origin))
         {
             yield return new ValidationResult(
-                "Replay:PublicOrigin must be an absolute HTTP or HTTPS origin without credentials, path, query or fragment.",
+                "SnapshotContent:PublicOrigin must be an absolute HTTP or HTTPS origin without credentials, path, query or fragment.",
                 [nameof(PublicOrigin)]);
             yield break;
         }
@@ -29,7 +32,7 @@ public sealed class ReplayOptions : IValidatableObject
         PublicOrigin = origin!.GetLeftPart(UriPartial.Authority).TrimEnd('/');
         if (AllowedBrands.Any(string.IsNullOrWhiteSpace) ||
             AllowedBrands.Distinct(StringComparer.Ordinal).Count() != AllowedBrands.Length)
-            yield return new ValidationResult("Replay:AllowedBrands must contain unique non-empty brand names.",
+            yield return new ValidationResult("SnapshotContent:AllowedBrands must contain unique non-empty brand names.",
                 [nameof(AllowedBrands)]);
     }
 

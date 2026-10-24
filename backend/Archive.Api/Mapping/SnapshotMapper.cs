@@ -9,7 +9,7 @@ using Archive.Api.Options;
 namespace Archive.Api.Mapping;
 
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
-public partial class SnapshotMapper(PublicUserMapper publicUserMapper, ReplayOptions replayOptions)
+public partial class SnapshotMapper(PublicUserMapper publicUserMapper, SnapshotContentOptions snapshotContent)
 {
     [UseMapper]
     private PublicUserMapper PublicUserMapper { get; } = publicUserMapper;
@@ -24,14 +24,13 @@ public partial class SnapshotMapper(PublicUserMapper publicUserMapper, ReplayOpt
         var resourceUrl = $"{publicBaseUrl.TrimEnd('/')}/api/snapshots/{snapshot.Id}";
         var contentUrl = snapshot.Quality is null
             ? null
-            : $"{replayOptions.PublicOrigin}/api/snapshots/{snapshot.Id}/content/index.html";
+            : $"{snapshotContent.PublicOrigin}/api/snapshots/{snapshot.Id}/content/index.html";
         return ToResponse(snapshot,
             snapshot.Quality is null ? null : $"{resourceUrl}/screenshot",
             contentUrl);
     }
 
     /// <summary>Maps metadata using resource URLs selected by the caller's access scope.</summary>
-    [MapperIgnoreSource(nameof(SnapshotDetails.ReplayVersion))]
     public partial SnapshotResponse ToResponse(SnapshotDetails snapshot,
         string? screenshotUrl, string? contentUrl);
 

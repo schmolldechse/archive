@@ -19,7 +19,7 @@ The Google client ID and secret are required at API startup because `Authenticat
 http://localhost:5200/api/auth/callback/google
 ```
 
-Local replay uses the same API process through the distinct origin `http://127.0.0.1:5200`. Keep the API and frontend on `localhost`; the host distinction prevents application cookies from being sent to replay requests.
+Local snapshot content uses the same API process through the distinct origin `http://127.0.0.1:5200`. Keep the API and frontend on `localhost`; the host distinction prevents application cookies from being sent to archived content.
 
 ## Prepare configuration
 
@@ -216,8 +216,8 @@ Snapshot normalization, URL selection, capability gating, migration arguments, a
 - edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
-- confirm private and static HTML loads its manifest-authorized local resources without executing scripts;
-- confirm an admitted public replay executes captured scripts while external requests, forms, workers, storage, and navigation remain blocked;
+- confirm owner and administrator previews use short-lived capability URLs and execute captured scripts without exposing private snapshots anonymously;
+- confirm public and access-controlled snapshots execute captured scripts for an admitted client while external requests, forms, workers, storage, and navigation remain blocked;
 - repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
 
 ## Common startup failures

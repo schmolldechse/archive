@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace Archive.Worker.Capture.Replay;
+namespace Archive.Worker.Capture.Snapshots;
 
-/// <summary>Rewrites the bounded literal URL forms supported by replay version 1.</summary>
+/// <summary>Rewrites bounded literal URL forms to captured snapshot resources.</summary>
 internal static partial class JavaScriptReferenceRewriter
 {
     public static string Rewrite(string source, string? sourceUrl, IReadOnlyDictionary<string, string> map)

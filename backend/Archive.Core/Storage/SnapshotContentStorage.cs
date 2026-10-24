@@ -16,7 +16,7 @@ internal static class SnapshotContentStorage
             ? new SnapshotContentResult.NotFound()
             : new SnapshotContentResult.Found(new(stored.Content, stored.ContentType,
                 safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase),
-                SnapshotReplayResourceRoles.Infer(safePath, stored.ContentType), null));
+                SnapshotResourceRoles.Infer(safePath, stored.ContentType)));
     }
 
     /// <summary>Normalizes a requested object path without allowing traversal or control characters.</summary>

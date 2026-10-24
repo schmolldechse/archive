@@ -282,10 +282,6 @@ namespace Archive.Core.Migrations
                         .HasColumnType("types.snapshot_quality")
                         .HasColumnName("quality");
 
-                    b.Property<int?>("ReplayVersion")
-                        .HasColumnType("integer")
-                        .HasColumnName("replay_version");
-
                     b.Property<int?>("ResourceCount")
                         .HasColumnType("integer")
                         .HasColumnName("resource_count");

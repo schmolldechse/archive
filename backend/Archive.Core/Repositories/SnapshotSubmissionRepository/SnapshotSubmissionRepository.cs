@@ -108,21 +108,6 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", token);
     }
 
-    public Task<SnapshotContentResult> OpenContentOwnAsync(Guid userId, Guid id, string? path, CancellationToken token) =>
-        OpenContentAsync(id, userId, path, token);
-
-    public Task<SnapshotContentResult> OpenContentForReviewAsync(Guid id, string? path, CancellationToken token) =>
-        OpenContentAsync(id, null, path, token);
-
-    private async Task<SnapshotContentResult> OpenContentAsync(Guid id, Guid? ownerId, string? path, CancellationToken token)
-    {
-        var snapshot = await Scope(ownerId).Where(item => item.Id == id && item.Quality != null)
-            .Select(item => item.ContentPrefix).SingleOrDefaultAsync(token);
-        if (snapshot is null) return new SnapshotContentResult.NotFound();
-
-        return await objectStore.OpenSnapshotContentAsync(snapshot, path, token);
-    }
-
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>
         history.ReadOwnAsync(userId, id, page, pageSize, token);
 

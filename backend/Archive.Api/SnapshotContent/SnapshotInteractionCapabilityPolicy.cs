@@ -1,10 +1,10 @@
 using System.Text.RegularExpressions;
 using Archive.Api.Options;
 
-namespace Archive.Api.Replay;
+namespace Archive.Api.SnapshotContent;
 
-/// <summary>Fails closed unless a structured Chromium brand/version hint matches the tested replay matrix.</summary>
-public sealed partial class ReplayClientCapabilityPolicy(ReplayOptions options)
+/// <summary>Fails closed unless a structured Chromium brand/version hint matches the tested interaction matrix.</summary>
+public sealed partial class SnapshotInteractionCapabilityPolicy(SnapshotContentOptions options)
 {
     public bool AllowsInteraction(string? secChUa)
     {

@@ -56,15 +56,6 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [ProducesResponseType<Stream>(200, "image/png"), ProducesResponseType<ProblemDetails>(404)]
     public async Task<IActionResult> Preview(Guid id, CancellationToken token) => Screenshot(await Submissions.ScreenshotOwnAsync(User.ReadUserId(), id, token));
 
-    [HttpGet("{id:guid}/content/{**path}"), EndpointName("GetOwnSnapshotContent"), EndpointSummary("Reads own private archived content.")]
-    [ProducesResponseType<Stream>(200, "application/octet-stream"), ProducesResponseType<Stream>(206, "application/octet-stream")]
-    [ProducesResponseType<ProblemDetails>(400), ProducesResponseType<ProblemDetails>(404)]
-    public async Task<IActionResult> Content(Guid id, string? path, CancellationToken token) =>
-        base.Content(
-            id,
-            "api/users/snapshots",
-            await Submissions.OpenContentOwnAsync(User.ReadUserId(), id, path, token));
-
     [HttpPost("{id:guid}/resubmit"), EndpointName("ResubmitSnapshot"), EndpointSummary("Requests another review without changing the snapshot.")]
     [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET on the own submission resource. No body is accepted or needed.")]
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ProblemDetails>(400)]

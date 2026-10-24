@@ -34,15 +34,23 @@ internal sealed partial class SnapshotRepository(
         CancellationToken cancellationToken = default) =>
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
 
-    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
-        CancellationToken cancellationToken = default)
+    public Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
+        CancellationToken cancellationToken = default) =>
+        OpenContentAsync(snapshotId, path, requireApproved: true, cancellationToken);
+
+    public Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path,
+        CancellationToken cancellationToken = default) =>
+        OpenContentAsync(snapshotId, path, requireApproved: false, cancellationToken);
+
+    private async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, bool requireApproved,
+        CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
-                && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && (!requireApproved || snapshot.ModerationStatus == SnapshotModerationStatus.Approved)
                 && snapshot.Quality != null)
-            .Select(snapshot => new { snapshot.ContentPrefix, snapshot.ReplayVersion })
+            .Select(snapshot => new { snapshot.ContentPrefix })
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ContentPrefix is null)
         {
@@ -64,11 +72,11 @@ internal sealed partial class SnapshotRepository(
             return new SnapshotContentResult.NotFound();
         }
 
-        SnapshotReplayManifest? manifest;
+        SnapshotManifest? manifest;
         try
         {
             await using (storedManifest.Content)
-                manifest = await JsonSerializer.DeserializeAsync<SnapshotReplayManifest>(storedManifest.Content,
+                manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(storedManifest.Content,
                     cancellationToken: cancellationToken);
         }
         catch (JsonException)
@@ -78,8 +86,7 @@ internal sealed partial class SnapshotRepository(
             return new SnapshotContentResult.NotFound();
         }
 
-        if (manifest is null || manifest.Version != SnapshotReplayManifest.CurrentManifestVersion ||
-            manifest.Replay.Version != snapshot.ReplayVersion)
+        if (manifest is null || manifest.Version != SnapshotManifest.CurrentVersion)
         {
             logger.LogWarning("Snapshot {SnapshotId} manifest contract does not match its active database metadata",
                 snapshotId);
@@ -108,8 +115,7 @@ internal sealed partial class SnapshotRepository(
                 snapshotId, safePath);
         return stored is null
             ? new SnapshotContentResult.NotFound()
-            : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false,
-                resource.Role, snapshot.ReplayVersion));
+            : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
     }
 
     public async Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default)

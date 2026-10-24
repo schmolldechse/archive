@@ -1,22 +1,22 @@
 using Archive.Api.Options;
 
-namespace Archive.Api.Replay;
+namespace Archive.Api.SnapshotContent;
 
-/// <summary>Separates the credential-free replay host from authenticated API routes.</summary>
-internal static class ReplayRequestBoundary
+/// <summary>Separates the credential-free public snapshot origin from authenticated API routes.</summary>
+internal static class PublicSnapshotRequestBoundary
 {
-    public static bool IsReplayHost(HttpRequest request, ReplayOptions options)
+    public static bool IsSnapshotOrigin(HttpRequest request, SnapshotContentOptions options)
     {
-        var replay = new Uri(options.PublicOrigin, UriKind.Absolute);
-        int? expectedPort = replay.IsDefaultPort ? null : replay.Port;
-        return string.Equals(request.Host.Host, replay.Host, StringComparison.OrdinalIgnoreCase) &&
+        var snapshotOrigin = new Uri(options.PublicOrigin, UriKind.Absolute);
+        int? expectedPort = snapshotOrigin.IsDefaultPort ? null : snapshotOrigin.Port;
+        return string.Equals(request.Host.Host, snapshotOrigin.Host, StringComparison.OrdinalIgnoreCase) &&
             request.Host.Port == expectedPort;
     }
 
-    public static async Task ApplyAsync(HttpContext context, ReplayOptions options, RequestDelegate next)
+    public static async Task ApplyAsync(HttpContext context, SnapshotContentOptions options, RequestDelegate next)
     {
-        var replayHost = IsReplayHost(context.Request, options);
-        if (replayHost)
+        var snapshotOrigin = IsSnapshotOrigin(context.Request, options);
+        if (snapshotOrigin)
         {
             // A reverse proxy should already strip credentials; this keeps the application boundary fail-closed.
             context.Request.Headers.Remove("Cookie");

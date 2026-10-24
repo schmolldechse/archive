@@ -3,22 +3,21 @@ using System.Text.Json.Serialization;
 namespace Archive.Core.Storage;
 
 /// <summary>Versioned snapshot contract used to authorize stored resources at the public content boundary.</summary>
-public sealed class SnapshotReplayManifest
+public sealed class SnapshotManifest
 {
-    public const int CurrentManifestVersion = 3;
-    public const int CurrentReplayVersion = 1;
+    public const int CurrentVersion = 4;
 
     [JsonPropertyName("version")]
     public int Version { get; init; }
 
     [JsonPropertyName("provenance")]
-    public required SnapshotReplayProvenance Provenance { get; init; }
+    public required SnapshotProvenance Provenance { get; init; }
 
-    [JsonPropertyName("replay")]
-    public required SnapshotReplayMetadata Replay { get; init; }
+    [JsonPropertyName("interaction")]
+    public required SnapshotInteractionMetadata Interaction { get; init; }
 
     [JsonPropertyName("resources")]
-    public required IReadOnlyList<SnapshotReplayResource> Resources { get; init; }
+    public required IReadOnlyList<SnapshotResource> Resources { get; init; }
 
     [JsonPropertyName("missingUrls")]
     public IReadOnlyList<string> MissingUrls { get; init; } = [];
@@ -31,7 +30,7 @@ public sealed class SnapshotReplayManifest
 }
 
 /// <summary>Immutable source and derived-document provenance retained for a capture.</summary>
-public sealed class SnapshotReplayProvenance
+public sealed class SnapshotProvenance
 {
     [JsonPropertyName("derivedDisplayDocument")]
     public bool DerivedDisplayDocument { get; init; }
@@ -64,12 +63,9 @@ public sealed class SnapshotReplayProvenance
     public IReadOnlyList<string> RedirectChain { get; init; } = [];
 }
 
-/// <summary>Replay compatibility and diagnostics for the canonical entry document.</summary>
-public sealed class SnapshotReplayMetadata
+/// <summary>Interaction normalization diagnostics for the canonical entry document.</summary>
+public sealed class SnapshotInteractionMetadata
 {
-    [JsonPropertyName("version")]
-    public int? Version { get; init; }
-
     [JsonPropertyName("normalizer")]
     public required string Normalizer { get; init; }
 
@@ -81,7 +77,7 @@ public sealed class SnapshotReplayMetadata
 }
 
 /// <summary>A manifest-authorized object and the browser role it may fulfill.</summary>
-public sealed class SnapshotReplayResource
+public sealed class SnapshotResource
 {
     [JsonPropertyName("path")]
     public required string Path { get; init; }
@@ -103,7 +99,7 @@ public sealed class SnapshotReplayResource
 }
 
 /// <summary>Stable resource-role names persisted in snapshot manifests.</summary>
-public static class SnapshotReplayResourceRoles
+public static class SnapshotResourceRoles
 {
     public const string RootDocument = "root-document";
     public const string NestedDocument = "nested-document";

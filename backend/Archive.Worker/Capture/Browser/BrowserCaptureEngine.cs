@@ -12,7 +12,7 @@ using Archive.Worker.Capture.Browser.Access;
 using Archive.Worker.Capture.Crawling;
 using Archive.Worker.Capture.Network;
 using Archive.Worker.Storage;
-using Archive.Worker.Capture.Replay;
+using Archive.Worker.Capture.Snapshots;
 using Microsoft.Playwright;
 using Archive.Core.Entities.Processing;
 
@@ -158,8 +158,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 return new CaptureResult(
                     manifest.Incomplete ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
                     manifest.ContentPrefix,
-                    manifest.StorageBytes, manifest.ResourceCount, duration, manifest.ReplayVersion,
-                    manifest.StoredObjectKeys);
+                    manifest.StorageBytes, manifest.ResourceCount, duration, manifest.StoredObjectKeys);
             }
             catch (Exception exception) when (exception is CaptureChallengeEncounteredException ||
                 (exception is PlaywrightException && access.ChallengeObserved))
@@ -255,26 +254,24 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         var sourceUrl = mainDocument?.Url ?? originalUrl;
         var sourceType = mainDocument?.ContentType ?? "text/html; charset=utf-8";
         var sourceHtml = SnapshotTextEncoding.Decode(sourceBytes, sourceType, out _);
-        var replayVersion = (int?)SnapshotReplayManifest.CurrentReplayVersion;
-        string? replayDiagnostic = null;
+        string? interactionDiagnostic = null;
         bool containsExecutableContent;
         string rewrittenHtml;
         try
         {
             var rewrittenSource = RewriteReferences(sourceHtml, map, sourceUrl, contentBase, htmlDocument: true);
-            var replayDocument = ReplayDocumentNormalizer.Normalize(rewrittenSource, sourceUrl, map, "index.html");
-            rewrittenHtml = replayDocument.Html;
-            containsExecutableContent = replayDocument.ContainsExecutableContent;
+            var snapshotDocument = SnapshotDocumentNormalizer.Normalize(rewrittenSource, sourceUrl, map, "index.html");
+            rewrittenHtml = snapshotDocument.Html;
+            containsExecutableContent = snapshotDocument.ContainsExecutableContent;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // A readable capture remains valuable; only the interactive compatibility claim is withheld.
-            replayVersion = null;
-            replayDiagnostic = exception.GetType().Name;
+            // A readable capture remains valuable when optional interaction normalization cannot be completed.
+            interactionDiagnostic = exception.GetType().Name;
             containsExecutableContent = Regex.IsMatch(fallbackHtml, "<script\\b|\\son[a-z]+\\s*=",
                 RegexOptions.IgnoreCase);
             rewrittenHtml = RewriteReferences(fallbackHtml, map, originalUrl, contentBase, htmlDocument: true);
-            logger.LogWarning(exception, "Replay normalization for snapshot {SnapshotId} failed; stored static fallback",
+            logger.LogWarning(exception, "Snapshot interaction normalization for {SnapshotId} failed; stored rewritten fallback",
                 snapshotId);
         }
         var htmlKey = writer.GetObjectKey("index.html");
@@ -288,7 +285,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
             await writer.WriteAsync("source.html", sourceBytes, sourceType, cancellationToken);
 
-            var manifestResources = new List<SnapshotReplayResource>
+            var manifestResources = new List<SnapshotResource>
             {
                 new()
                 {
@@ -297,7 +294,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     ContentType = "text/html; charset=utf-8",
                     ObjectKey = htmlKey,
                     Sha256 = Hash(rewrittenHtmlBytes),
-                    Role = SnapshotReplayResourceRoles.RootDocument
+                    Role = SnapshotResourceRoles.RootDocument
                 }
             };
             foreach (var resource in captured.Values)
@@ -321,27 +318,25 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     var resourceBase = isHtml ? SnapshotResourcePath.HtmlBaseFor(assetPath) : contentBase;
                     var rewritten = RewriteReferences(text, relativeMap, resource.Url, resourceBase,
                         htmlDocument: isHtml);
-                    if (isHtml && replayVersion is not null)
+                    if (isHtml)
                     {
                         try
                         {
-                            rewritten = ReplayDocumentNormalizer.Normalize(rewritten, resource.Url, relativeMap,
+                            rewritten = SnapshotDocumentNormalizer.Normalize(rewritten, resource.Url, relativeMap,
                                 assetPath).Html;
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
                         {
-                            // Nested-document incompatibility downgrades the whole snapshot to static playback.
-                            replayVersion = null;
-                            replayDiagnostic ??= exception.GetType().Name;
+                            interactionDiagnostic ??= exception.GetType().Name;
                             logger.LogWarning(exception,
-                                "Nested replay normalization for snapshot {SnapshotId} failed; stored static fallback",
+                                "Nested snapshot normalization for {SnapshotId} failed; stored rewritten fallback",
                                 snapshotId);
                         }
                     }
                     body = Encoding.UTF8.GetBytes(rewritten);
                     contentType = isHtml ? "text/html; charset=utf-8" : "text/css; charset=utf-8";
                 }
-                else if (isJavaScript && replayVersion is not null)
+                else if (isJavaScript)
                 {
                     var relativeMap = map.ToDictionary(pair => pair.Key,
                         pair => SnapshotResourcePath.RelativeTo(assetPath, pair.Value), StringComparer.Ordinal);
@@ -358,13 +353,13 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     ContentType = contentType,
                     ObjectKey = writer.GetObjectKey(assetPath),
                     Sha256 = Hash(body),
-                    Role = isHtml ? SnapshotReplayResourceRoles.NestedDocument : SnapshotReplayResourceRoles.Asset
+                    Role = isHtml ? SnapshotResourceRoles.NestedDocument : SnapshotResourceRoles.Asset
                 });
             }
 
-            var manifest = new SnapshotReplayManifest
+            var manifest = new SnapshotManifest
             {
-                Version = SnapshotReplayManifest.CurrentManifestVersion,
+                Version = SnapshotManifest.CurrentVersion,
                 Provenance = new()
                 {
                     DerivedDisplayDocument = true,
@@ -378,12 +373,11 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     DocumentState = mainDocument is null ? "post-execution-fallback" : "original-response",
                     RedirectChain = mainDocument?.RedirectChain ?? []
                 },
-                Replay = new()
+                Interaction = new()
                 {
-                    Version = replayVersion,
-                    Normalizer = "archive-replay-v1",
+                    Normalizer = "archive-snapshot-v1",
                     ContainsExecutableContent = containsExecutableContent,
-                    Diagnostic = replayDiagnostic
+                    Diagnostic = interactionDiagnostic
                 },
                 Resources = manifestResources,
                 MissingUrls = missingUrls.Take(100).ToArray(),
@@ -393,7 +387,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             await writer.WriteManifestAsync(manifest, new JsonSerializerOptions { WriteIndented = true }, cancellationToken);
 
             return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, captured.Count, missingUrls.Count > 0,
-                replayVersion, writer.StoredObjectKeys);
+                writer.StoredObjectKeys);
         }
         catch
         {
@@ -503,6 +497,5 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         public int Mutations { get; set; }
     }
     private sealed record StoredManifest(string ContentPrefix, long StorageBytes, int ResourceCount, bool Incomplete,
-        int? ReplayVersion,
         IReadOnlyList<string> StoredObjectKeys);
 }

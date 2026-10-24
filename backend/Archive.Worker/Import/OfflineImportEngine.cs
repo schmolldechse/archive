@@ -175,7 +175,7 @@ public sealed class OfflineImportEngine(
             };
             var sourcePath = "source" + extension;
             await writer.WriteAsync(sourcePath, original, "application/octet-stream", cancellationToken);
-            var resources = new List<SnapshotReplayResource>
+            var resources = new List<SnapshotResource>
             {
                 new()
                 {
@@ -184,10 +184,10 @@ public sealed class OfflineImportEngine(
                     ContentType = "text/html; charset=utf-8",
                     ObjectKey = writer.GetObjectKey("index.html"),
                     Sha256 = Hash(indexBytes),
-                    Role = SnapshotReplayResourceRoles.RootDocument
+                    Role = SnapshotResourceRoles.RootDocument
                 }
             };
-            resources.AddRange(normalized.Assets.Select(asset => new SnapshotReplayResource
+            resources.AddRange(normalized.Assets.Select(asset => new SnapshotResource
             {
                 Path = asset.Path,
                 SourceUrl = asset.SourceUrl,
@@ -196,9 +196,9 @@ public sealed class OfflineImportEngine(
                 Sha256 = Hash(asset.Body),
                 Role = asset.Role
             }));
-            var manifest = new SnapshotReplayManifest
+            var manifest = new SnapshotManifest
             {
-                Version = SnapshotReplayManifest.CurrentManifestVersion,
+                Version = SnapshotManifest.CurrentVersion,
                 Provenance = new()
                 {
                     DerivedDisplayDocument = true,
@@ -218,12 +218,11 @@ public sealed class OfflineImportEngine(
                     DocumentState = "imported-serialized",
                     RedirectChain = []
                 },
-                Replay = new()
+                Interaction = new()
                 {
-                    Version = normalized.ReplayVersion,
-                    Normalizer = "archive-replay-v1",
+                    Normalizer = "archive-snapshot-v1",
                     ContainsExecutableContent = normalized.ContainsExecutableContent,
-                    Diagnostic = normalized.ReplayDiagnostic
+                    Diagnostic = normalized.InteractionDiagnostic
                 },
                 Resources = resources,
                 MissingUrls = missingUrls.Take(100).ToArray(),
@@ -233,7 +232,7 @@ public sealed class OfflineImportEngine(
             await writer.WriteManifestAsync(manifest, null, cancellationToken);
             return new CaptureResult(missingUrls.Count != 0 ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
                 writer.ContentPrefix, writer.StorageBytes, normalized.Assets.Count, durationMilliseconds,
-                normalized.ReplayVersion, writer.StoredObjectKeys);
+                writer.StoredObjectKeys);
         }
         catch
         {

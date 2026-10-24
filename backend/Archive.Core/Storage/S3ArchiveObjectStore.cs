@@ -45,7 +45,7 @@ internal sealed class S3ArchiveObjectStore(IAmazonS3 client, ObjectStorageOption
                 Prefix = prefix,
                 ContinuationToken = continuationToken
             }, cancellationToken);
-            objects.AddRange(response.S3Objects.Select(item => new ArchiveObjectInfo(item.Key, item.Size ?? 0)));
+            objects.AddRange((response.S3Objects ?? []).Select(item => new ArchiveObjectInfo(item.Key, item.Size ?? 0)));
             continuationToken = response.NextContinuationToken;
         } while (!string.IsNullOrEmpty(continuationToken));
 

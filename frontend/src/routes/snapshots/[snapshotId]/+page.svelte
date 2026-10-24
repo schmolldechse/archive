@@ -28,11 +28,11 @@
 		<div class="archived-page__information">
 			<SnapshotInformationDialog snapshot={data.snapshot} history={data.history} historyUnavailable={!data.historyAvailable} />
 		</div>
-		<!-- Public replay is opaque but script-capable; authenticated private content remains static. -->
+		<!-- Every snapshot runs on the opaque, credential-free snapshot origin. -->
 		<iframe
 			src={data.snapshot.contentUrl ?? undefined}
 			title={`Archived page: ${data.snapshot.title}`}
-			sandbox={data.isPrivate ? "allow-same-origin" : "allow-scripts"}
+			sandbox="allow-scripts"
 			referrerpolicy="no-referrer"
 		></iframe>
 	</main>

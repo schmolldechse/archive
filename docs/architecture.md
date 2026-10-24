@@ -151,7 +151,7 @@ snapshots/{snapshotId}/
 └── generations/manifest-v3/...   reversible generations created by the snapshot migrator
 ```
 
-The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public playback and static owner or administrator routes. `Snapshot.ReplayVersion` is nullable: static snapshots keep it unset, while version `1` identifies a canonical entry document that passed interaction normalization. No second `replay.html` representation is stored.
+The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Interaction is a delivery capability rather than snapshot metadata; the entity has no separate JavaScript version or snapshot type.
 
 Profile images are stored with the user record in PostgreSQL. Their public or owner-only visibility is decided by the profile repository and API route.
 
@@ -191,7 +191,7 @@ Private responses use `private, no-store`. Mutations for moderation, resubmissio
 
 Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 
-Every approved public snapshot uses `/api/snapshots/{id}/content/index.html` on the dedicated credential-free origin as its existing `contentUrl`. Interaction-compatible captures may receive an executable policy, while other snapshots receive the static policy at that same endpoint. Private owner and reviewer responses keep their authenticated API URLs. There is no second API field, playback toggle, or user activation step.
+Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html`; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. The browser security gate determines whether JavaScript executes, independent of moderation status.
 
 ## Archived-content isolation
 
@@ -199,11 +199,11 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 
 - approved versioned public captures load from a dedicated credential-free origin in an opaque iframe with `sandbox="allow-scripts"`;
 - archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
-- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a replay shim independently prevent live network access, forms, workers, pop-ups, storage privileges, and top navigation;
+- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a snapshot shim independently prevent live network access, forms, workers, pop-ups, storage privileges, and top navigation;
 - executable policy is sent only for structured `Sec-CH-UA` hints matching the configured tested Chromium version; all other clients receive a script-disabled policy at the same URL;
-- the replay host strips credentials and exposes only the public snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
-- private content retains `sandbox="allow-same-origin"` without script permission, while static public content stays opaque and receives the static CSP;
-- original source objects are downloads and are never manifest-authorized replay resources.
+- the isolated snapshot origin strips credentials and exposes only the snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
+- public and access-controlled content use an opaque `sandbox="allow-scripts"` iframe; clients without the required connection boundary receive a script-disabled response policy;
+- original source objects are downloads and are never manifest-authorized browser resources.
 
 The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque. Older stored generations must be upgraded with `Archive.SnapshotMigrator` before this resolver is deployed.
 

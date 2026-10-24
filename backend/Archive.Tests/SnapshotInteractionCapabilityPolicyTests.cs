@@ -1,11 +1,11 @@
 using Archive.Api.Options;
-using Archive.Api.Replay;
+using Archive.Api.SnapshotContent;
 
 namespace Archive.Tests;
 
-public sealed class ReplayClientCapabilityPolicyTests
+public sealed class SnapshotInteractionCapabilityPolicyTests
 {
-    private readonly ReplayClientCapabilityPolicy _policy = new(new ReplayOptions
+    private readonly SnapshotInteractionCapabilityPolicy _policy = new(new SnapshotContentOptions
     {
         PublicOrigin = "http://127.0.0.1:5200",
         MinimumChromiumMajorVersion = 152,

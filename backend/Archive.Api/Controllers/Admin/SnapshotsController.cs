@@ -66,15 +66,6 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [ProducesResponseType<Stream>(200, "image/png"), ProducesResponseType<ProblemDetails>(404)]
     public async Task<IActionResult> Preview(Guid id, CancellationToken token) => Screenshot(await Submissions.ScreenshotForReviewAsync(id, token));
 
-    [HttpGet("{id:guid}/content/{**path}"), EndpointName("GetSnapshotContentForReview"), EndpointSummary("Reads private archived content for review.")]
-    [ProducesResponseType<Stream>(200, "application/octet-stream"), ProducesResponseType<Stream>(206, "application/octet-stream")]
-    [ProducesResponseType<ProblemDetails>(400), ProducesResponseType<ProblemDetails>(404)]
-    public async Task<IActionResult> Content(Guid id, string? path, CancellationToken token) =>
-        base.Content(
-            id,
-            "api/admin/snapshots",
-            await Submissions.OpenContentForReviewAsync(id, path, token));
-
     [HttpPost("{id:guid}/review"), Consumes("application/json"), EndpointName("ReviewSnapshot"), EndpointSummary("Approves or rejects a captured snapshot with an optional reason.")]
     [EndpointDescription("Requires admin.access and admin.snapshots.access, the configured frontend Origin, and exactly one strong If-Match from GET on this resource.")]
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]

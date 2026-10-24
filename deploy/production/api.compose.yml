@@ -10,8 +10,9 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       PublicBaseUrl: ${ARCHIVE_PUBLIC_BASE_URL:?ARCHIVE_PUBLIC_BASE_URL is required}
-      Replay__PublicOrigin: ${REPLAY_PUBLIC_ORIGIN:?REPLAY_PUBLIC_ORIGIN is required}
-      Replay__MinimumChromiumMajorVersion: ${REPLAY_MINIMUM_CHROMIUM_MAJOR_VERSION:-152}
+      SnapshotContent__PublicOrigin: ${SNAPSHOT_PUBLIC_ORIGIN:?SNAPSHOT_PUBLIC_ORIGIN is required}
+      SnapshotContent__MinimumChromiumMajorVersion: ${SNAPSHOT_MINIMUM_CHROMIUM_MAJOR_VERSION:-152}
+      SnapshotContent__PrivateAccessTokenLifetimeMinutes: ${SNAPSHOT_PRIVATE_ACCESS_TOKEN_LIFETIME_MINUTES:-60}
       Authentication__PublicApiOrigin: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
       Authentication__FrontendOrigin: ${ORIGIN:?ORIGIN is required}
       Authentication__SessionCookieDomain: ${AUTHENTICATION_SESSION_COOKIE_DOMAIN:-}

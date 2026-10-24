@@ -14,5 +14,8 @@ public interface ISnapshotRepository
     /// <summary>Opens public content after authorizing the requested resource through the snapshot manifest.</summary>
     Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
         CancellationToken cancellationToken = default);
+    /// <summary>Opens manifest-authorized content after the API has authorized private snapshot access.</summary>
+    Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path,
+        CancellationToken cancellationToken = default);
     Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default);
 }

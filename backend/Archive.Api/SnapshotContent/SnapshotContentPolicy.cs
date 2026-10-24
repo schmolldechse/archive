@@ -2,10 +2,10 @@ using Archive.Api.Options;
 using Archive.Api.Authentication;
 using Archive.Core.Storage;
 
-namespace Archive.Api.Replay;
+namespace Archive.Api.SnapshotContent;
 
 /// <summary>Builds role-specific response controls for untrusted archived resources.</summary>
-public sealed class ReplayContentPolicy(ReplayOptions replay, ArchiveAuthenticationOptions authentication)
+public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentication)
 {
     private const string DeniedPermissions =
         "accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), clipboard-read=(), " +
@@ -16,7 +16,7 @@ public sealed class ReplayContentPolicy(ReplayOptions replay, ArchiveAuthenticat
     public bool IsAllowedDestination(string role, string contentType, string? destination)
     {
         var isDocumentDestination = destination is "document" or "iframe";
-        if (role is SnapshotReplayResourceRoles.RootDocument or SnapshotReplayResourceRoles.NestedDocument)
+        if (role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument)
             return isDocumentDestination;
 
         if (IsActiveAsset(contentType) && isDocumentDestination)
@@ -24,20 +24,19 @@ public sealed class ReplayContentPolicy(ReplayOptions replay, ArchiveAuthenticat
         return true;
     }
 
-    public void Apply(HttpResponse response, Guid snapshotId, string role, string contentType, bool interactive)
+    public void Apply(HttpResponse response, string scope, string role, string contentType, bool interactive)
     {
-        var scope = $"{replay.PublicOrigin}/api/snapshots/{snapshotId}/content/";
         response.Headers.Vary = "Sec-CH-UA";
         response.Headers.AccessControlAllowOrigin = "*";
         response.Headers.XContentTypeOptions = "nosniff";
         response.Headers["Referrer-Policy"] = "no-referrer";
         response.Headers["Permissions-Policy"] = DeniedPermissions;
 
-        if (role is SnapshotReplayResourceRoles.RootDocument or SnapshotReplayResourceRoles.NestedDocument)
+        if (role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument)
         {
             response.Headers.CacheControl = "no-store";
             response.Headers.ContentSecurityPolicy = DocumentPolicy(scope,
-                role == SnapshotReplayResourceRoles.RootDocument, interactive);
+                role == SnapshotResourceRoles.RootDocument, interactive);
             if (interactive)
             {
                 response.Headers["Connection-Allowlist"] = $"(\"{scope}*\")";

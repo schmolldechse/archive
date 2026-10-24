@@ -16,7 +16,7 @@ internal sealed class SnapshotMigrationService(
     IArchiveObjectStore objectStore,
     ArchiveOptions archiveOptions)
 {
-    private const string JournalPrefix = "snapshot-migrations/manifest-v3";
+    private const string JournalPrefix = "snapshot-migrations/manifest-v4";
     private static readonly JsonSerializerOptions ManifestJson = new() { WriteIndented = true };
     private static readonly Regex ExecutableHtml = new("<script\\b|\\son[a-z]+\\s*=",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -102,7 +102,7 @@ internal sealed class SnapshotMigrationService(
             cancellationToken);
         if (snapshot?.ContentPrefix is null || snapshot.Quality is null)
             return new(snapshotId, SnapshotMigrationState.Missing,
-                "The snapshot has no stored content generation.", snapshot?.ContentPrefix, snapshot?.ReplayVersion);
+                "The snapshot has no stored content generation.", snapshot?.ContentPrefix);
 
         var journal = await ReadJournalAsync(snapshotId, cancellationToken);
         if (journal is not null && snapshot.ContentPrefix == journal.OriginalContentPrefix)
@@ -113,21 +113,20 @@ internal sealed class SnapshotMigrationService(
                 state == SnapshotMigrationState.Restored
                     ? "The original generation is active; cleanup removes the migrated generation."
                     : "A prepared generation exists but was not activated; cleanup is required before retrying.",
-                snapshot.ContentPrefix, snapshot.ReplayVersion);
+                snapshot.ContentPrefix);
         }
         if (journal is not null && snapshot.ContentPrefix != journal.MigratedContentPrefix)
             return new(snapshotId, SnapshotMigrationState.Inconsistent,
-                "The active generation matches neither side of the migration journal.", snapshot.ContentPrefix,
-                snapshot.ReplayVersion);
+                "The active generation matches neither side of the migration journal.", snapshot.ContentPrefix);
 
         var manifestObject = await objectStore.GetAsync($"{snapshot.ContentPrefix}/manifest.json", cancellationToken);
         if (manifestObject is not null)
         {
-            SnapshotReplayManifest? manifest = null;
+            SnapshotManifest? manifest = null;
             try
             {
                 await using (manifestObject.Content)
-                    manifest = await JsonSerializer.DeserializeAsync<SnapshotReplayManifest>(manifestObject.Content,
+                    manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(manifestObject.Content,
                         cancellationToken: cancellationToken);
             }
             catch (JsonException)
@@ -135,58 +134,46 @@ internal sealed class SnapshotMigrationService(
                 // Older manifests have a different shape and are assessed from their stored objects below.
             }
 
-            if (manifest?.Version == SnapshotReplayManifest.CurrentManifestVersion)
+            if (manifest?.Version == SnapshotManifest.CurrentVersion)
             {
-                var error = await ValidateCurrentManifestAsync(snapshot.ContentPrefix, snapshot.ReplayVersion, manifest,
-                    cancellationToken);
+                var error = await ValidateCurrentManifestAsync(snapshot.ContentPrefix, manifest, cancellationToken);
                 return error is null
                     ? new(snapshotId, SnapshotMigrationState.Current,
                         journal is null ? "Current snapshot manifest is valid." : "Migrated generation is active and valid.",
-                        snapshot.ContentPrefix, snapshot.ReplayVersion)
-                    : new(snapshotId, SnapshotMigrationState.Inconsistent, error, snapshot.ContentPrefix,
-                        snapshot.ReplayVersion);
+                        snapshot.ContentPrefix)
+                    : new(snapshotId, SnapshotMigrationState.Inconsistent, error, snapshot.ContentPrefix);
             }
         }
-
-        if (snapshot.ReplayVersion is not null)
-            return new(snapshotId, SnapshotMigrationState.Inconsistent,
-                "The database marks the snapshot as interactive but no valid current manifest exists.",
-                snapshot.ContentPrefix, snapshot.ReplayVersion);
 
         var objects = await ListGenerationAsync(snapshot.ContentPrefix, cancellationToken);
         var indexKey = $"{snapshot.ContentPrefix}/index.html";
         var screenshotKey = $"{snapshot.ContentPrefix}/screenshot.png";
         if (objects.All(item => item.Key != indexKey))
-            return new(snapshotId, SnapshotMigrationState.Blocked, "index.html is missing.", snapshot.ContentPrefix,
-                snapshot.ReplayVersion);
+            return new(snapshotId, SnapshotMigrationState.Blocked, "index.html is missing.", snapshot.ContentPrefix);
         if (objects.All(item => item.Key != screenshotKey))
-            return new(snapshotId, SnapshotMigrationState.Blocked, "screenshot.png is missing.", snapshot.ContentPrefix,
-                snapshot.ReplayVersion);
+            return new(snapshotId, SnapshotMigrationState.Blocked, "screenshot.png is missing.", snapshot.ContentPrefix);
         if (objects.Any(item => !TryRelativePath(snapshot.ContentPrefix, item.Key, out _)))
             return new(snapshotId, SnapshotMigrationState.Blocked, "The generation contains an unsafe object path.",
-                snapshot.ContentPrefix, snapshot.ReplayVersion);
+                snapshot.ContentPrefix);
         if (objects.Count(item => TryRelativePath(snapshot.ContentPrefix, item.Key, out var path) &&
                 IsDisplayResource(path)) > archiveOptions.MaxResources + 1)
             return new(snapshotId, SnapshotMigrationState.Blocked, "The generation exceeds the resource limit.",
-                snapshot.ContentPrefix, snapshot.ReplayVersion);
+                snapshot.ContentPrefix);
         if (objects.Sum(item => item.Length) > archiveOptions.MaxStorageBytes)
             return new(snapshotId, SnapshotMigrationState.Blocked, "The generation exceeds the storage limit.",
-                snapshot.ContentPrefix, snapshot.ReplayVersion);
+                snapshot.ContentPrefix);
 
-        return new(snapshotId, SnapshotMigrationState.MigratableStatic,
-            "The snapshot can receive a current manifest; script execution remains disabled because its original capture contract is not verifiable.",
-            snapshot.ContentPrefix, snapshot.ReplayVersion);
+        return new(snapshotId, SnapshotMigrationState.Migratable,
+            "The snapshot can receive a current manifest-backed generation.", snapshot.ContentPrefix);
     }
 
-    private async Task<string?> ValidateCurrentManifestAsync(string contentPrefix, int? replayVersion,
-        SnapshotReplayManifest manifest, CancellationToken cancellationToken)
+    private async Task<string?> ValidateCurrentManifestAsync(string contentPrefix, SnapshotManifest manifest,
+        CancellationToken cancellationToken)
     {
-        if (manifest.Replay.Version != replayVersion)
-            return "The database replay version does not match the snapshot manifest.";
         if (manifest.Resources.Count == 0 || manifest.Resources.Count > archiveOptions.MaxResources + 1)
             return "The snapshot manifest contains an invalid resource count.";
         if (manifest.Resources.Count(resource => resource.Path == "index.html" &&
-                resource.Role == SnapshotReplayResourceRoles.RootDocument) != 1)
+                resource.Role == SnapshotResourceRoles.RootDocument) != 1)
             return "The snapshot manifest does not define exactly one root document.";
         var root = manifest.Resources.Single(resource => resource.Path == "index.html");
         if (!string.Equals(root.Sha256, manifest.Provenance.IndexSha256, StringComparison.OrdinalIgnoreCase))
@@ -199,8 +186,8 @@ internal sealed class SnapshotMigrationService(
         {
             if (!IsSafeRelativePath(resource.Path) ||
                 !string.Equals(resource.ObjectKey, $"{contentPrefix}/{resource.Path}", StringComparison.Ordinal) ||
-                resource.Role is not (SnapshotReplayResourceRoles.RootDocument or
-                    SnapshotReplayResourceRoles.NestedDocument or SnapshotReplayResourceRoles.Asset))
+                resource.Role is not (SnapshotResourceRoles.RootDocument or
+                    SnapshotResourceRoles.NestedDocument or SnapshotResourceRoles.Asset))
                 return $"The snapshot manifest contains an unsafe resource: {resource.Path}";
             var stored = await objectStore.GetAsync(resource.ObjectKey, cancellationToken);
             if (stored is null) return $"The snapshot resource is missing: {resource.Path}";
@@ -233,7 +220,7 @@ internal sealed class SnapshotMigrationService(
         var assessment = await AssessAsync(snapshotId, cancellationToken);
         if (assessment.State == SnapshotMigrationState.Current)
             return new(snapshotId, "update", true, "Already current; no changes were made.");
-        if (assessment.State != SnapshotMigrationState.MigratableStatic)
+        if (assessment.State != SnapshotMigrationState.Migratable)
             return new(snapshotId, "update", false, assessment.Message);
 
         var snapshot = await database.Snapshots.AsNoTracking().SingleAsync(item => item.Id == snapshotId,
@@ -242,7 +229,7 @@ internal sealed class SnapshotMigrationService(
         var originalObjects = await ListGenerationAsync(originalPrefix, cancellationToken);
         var legacy = await ReadLegacyMetadataAsync(originalPrefix, cancellationToken);
         var migrationId = Guid.NewGuid();
-        var migratedPrefix = $"snapshots/{snapshotId:N}/generations/manifest-v3/{migrationId:N}";
+        var migratedPrefix = $"snapshots/{snapshotId:N}/generations/manifest-v4/{migrationId:N}";
         var migratedKeys = new List<string>();
         var journalPrepared = false;
         var activated = false;
@@ -261,7 +248,7 @@ internal sealed class SnapshotMigrationService(
             var resourceCandidates = originalObjects.Where(item =>
                 TryRelativePath(originalPrefix, item.Key, out var relativePath) && IsDisplayResource(relativePath))
                 .ToArray();
-            var resources = new List<SnapshotReplayResource>(resourceCandidates.Length);
+            var resources = new List<SnapshotResource>(resourceCandidates.Length);
             string? indexHash = null;
             byte[]? indexBytes = null;
             foreach (var item in resourceCandidates)
@@ -288,7 +275,7 @@ internal sealed class SnapshotMigrationService(
                     ContentType = contentType ?? "application/octet-stream",
                     ObjectKey = $"{migratedPrefix}/{relativePath}",
                     Sha256 = hash,
-                    Role = SnapshotReplayResourceRoles.Infer(relativePath, contentType ?? stored.ContentType)
+                    Role = SnapshotResourceRoles.Infer(relativePath, contentType ?? stored.ContentType)
                 });
             }
             if (indexHash is null || indexBytes is null)
@@ -322,9 +309,9 @@ internal sealed class SnapshotMigrationService(
                 }
             }
 
-            var manifest = new SnapshotReplayManifest
+            var manifest = new SnapshotManifest
             {
-                Version = SnapshotReplayManifest.CurrentManifestVersion,
+                Version = SnapshotManifest.CurrentVersion,
                 Provenance = new()
                 {
                     DerivedDisplayDocument = true,
@@ -337,12 +324,11 @@ internal sealed class SnapshotMigrationService(
                     DocumentState = "legacy-derived",
                     RedirectChain = []
                 },
-                Replay = new()
+                Interaction = new()
                 {
-                    Version = null,
-                    Normalizer = "snapshot-migrator-v1",
+                    Normalizer = "snapshot-migrator-v2",
                     ContainsExecutableContent = ExecutableHtml.IsMatch(Encoding.UTF8.GetString(indexBytes)),
-                    Diagnostic = "Migrated from a legacy capture contract; script execution remains disabled."
+                    Diagnostic = "Prepared from an older snapshot generation."
                 },
                 Resources = resources,
                 MissingUrls = legacy.MissingUrls,
@@ -354,8 +340,7 @@ internal sealed class SnapshotMigrationService(
             await PutAsync(manifestKey, manifestBytes, "application/json", cancellationToken);
             migratedKeys.Add(manifestKey);
 
-            var validationError = await ValidateCurrentManifestAsync(migratedPrefix, null, manifest,
-                cancellationToken);
+            var validationError = await ValidateCurrentManifestAsync(migratedPrefix, manifest, cancellationToken);
             if (validationError is not null)
                 throw new InvalidDataException($"The prepared snapshot generation is invalid: {validationError}");
 
@@ -368,8 +353,6 @@ internal sealed class SnapshotMigrationService(
                 Status = SnapshotMigrationJournal.Prepared,
                 OriginalContentPrefix = originalPrefix,
                 MigratedContentPrefix = migratedPrefix,
-                OriginalReplayVersion = snapshot.ReplayVersion,
-                MigratedReplayVersion = null,
                 OriginalStorageBytes = snapshot.StorageBytes,
                 MigratedStorageBytes = migratedStorageBytes,
                 OriginalResourceCount = snapshot.ResourceCount,
@@ -382,10 +365,9 @@ internal sealed class SnapshotMigrationService(
             journalPrepared = true;
 
             var updated = await database.Snapshots.Where(item => item.Id == snapshotId &&
-                    item.ContentPrefix == originalPrefix && item.ReplayVersion == snapshot.ReplayVersion)
+                    item.ContentPrefix == originalPrefix)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.ContentPrefix, migratedPrefix)
-                    .SetProperty(item => item.ReplayVersion, (int?)null)
                     .SetProperty(item => item.StorageBytes, migratedStorageBytes)
                     .SetProperty(item => item.ResourceCount, Math.Max(0, resources.Count - 1)), cancellationToken);
             if (updated != 1)
@@ -438,7 +420,6 @@ internal sealed class SnapshotMigrationService(
                 item.ContentPrefix == journal.MigratedContentPrefix)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.ContentPrefix, journal.OriginalContentPrefix)
-                .SetProperty(item => item.ReplayVersion, journal.OriginalReplayVersion)
                 .SetProperty(item => item.StorageBytes, journal.OriginalStorageBytes)
                 .SetProperty(item => item.ResourceCount, journal.OriginalResourceCount), cancellationToken);
         if (updated != 1) return new(snapshotId, "restore", false, "The snapshot changed before restore.");

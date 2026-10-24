@@ -4,16 +4,16 @@ using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Archive.Core.Storage;
 
-namespace Archive.Worker.Capture.Replay;
+namespace Archive.Worker.Capture.Snapshots;
 
-internal sealed record ReplayDocument(string Html, bool ContainsExecutableContent);
+internal sealed record SnapshotDocument(string Html, bool ContainsExecutableContent);
 
 /// <summary>Creates the single canonical HTML document consumed by static and interactive delivery.</summary>
-internal static class ReplayDocumentNormalizer
+internal static class SnapshotDocumentNormalizer
 {
     private static readonly string[] UrlAttributes = ["src", "href", "poster", "action"];
 
-    public static ReplayDocument Normalize(string html, string? sourceUrl,
+    public static SnapshotDocument Normalize(string html, string? sourceUrl,
         IReadOnlyDictionary<string, string> map, string documentPath)
     {
         var parser = new HtmlParser();
@@ -74,7 +74,7 @@ internal static class ReplayDocumentNormalizer
             script.TextContent = JavaScriptReferenceRewriter.Rewrite(script.TextContent, baseUrl, documentMap);
 
         var shim = document.CreateElement("script");
-        shim.SetAttribute("data-archive-replay", "v1");
+        shim.SetAttribute("data-archive-snapshot", "v1");
         shim.TextContent = BuildShim(baseUrl, documentMap);
         head.InsertBefore(shim, baseElement.NextSibling);
 
@@ -82,7 +82,7 @@ internal static class ReplayDocumentNormalizer
             ?? throw new InvalidDataException("The HTML document has no document element.");
         if (document.Doctype is not null)
             serialized = "<!doctype html>" + serialized;
-        return new ReplayDocument(serialized, containsExecutableContent);
+        return new SnapshotDocument(serialized, containsExecutableContent);
     }
 
     private static IReadOnlyDictionary<string, string> BuildAbsoluteMap(string? baseUrl,
@@ -132,14 +132,14 @@ internal static class ReplayDocumentNormalizer
                 const absolute = new URL(String(input), originalBase);
                 absolute.hash = "";
                 const local = resources[absolute.href];
-                if (!local) throw new TypeError("Archive replay blocked an uncaptured resource.");
+                if (!local) throw new TypeError("The archived snapshot blocked an uncaptured resource.");
                 return new URL(local, document.baseURI).href;
               };
               window.fetch = (input, init = {}) => {
                 const request = input instanceof Request ? input : null;
                 const method = String(init.method || request?.method || "GET").toUpperCase();
                 if (method !== "GET" && method !== "HEAD")
-                  return Promise.reject(new TypeError("Archive replay permits only GET and HEAD."));
+                  return Promise.reject(new TypeError("The archived snapshot permits only GET and HEAD."));
                 const url = resolve(request?.url || input);
                 return nativeFetch(url, { ...init, method, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
               };
@@ -147,11 +147,11 @@ internal static class ReplayDocumentNormalizer
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 const normalized = String(method).toUpperCase();
                 if (normalized !== "GET" && normalized !== "HEAD")
-                  throw new TypeError("Archive replay permits only GET and HEAD.");
+                  throw new TypeError("The archived snapshot permits only GET and HEAD.");
                 return nativeOpen.call(this, normalized, resolve(url), ...rest);
               };
               for (const name of ["WebSocket", "EventSource", "WebTransport", "Worker", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
-                try { Object.defineProperty(window, name, { value: class { constructor() { throw new TypeError("Archive replay blocked this capability."); } } }); } catch {}
+                try { Object.defineProperty(window, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
               window.open = () => null;
               addEventListener("submit", event => event.preventDefault(), true);
             })();

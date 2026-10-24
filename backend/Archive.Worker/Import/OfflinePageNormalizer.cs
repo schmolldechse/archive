@@ -3,13 +3,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Archive.Core.Storage;
-using Archive.Worker.Capture.Replay;
+using Archive.Worker.Capture.Snapshots;
 
 namespace Archive.Worker.Import;
 
 internal sealed record NormalizedAsset(string Path, string SourceUrl, string ContentType, byte[] Body, string Role);
 internal sealed record NormalizedPage(string Html, IReadOnlyList<NormalizedAsset> Assets,
-    int? ReplayVersion, bool ContainsExecutableContent, string? ReplayDiagnostic);
+    bool ContainsExecutableContent, string? InteractionDiagnostic);
 
 internal static class OfflinePageNormalizer
 {
@@ -26,17 +26,15 @@ internal static class OfflinePageNormalizer
     public static NormalizedPage Normalize(ImportedPage page)
     {
         var assets = new List<NormalizedAsset>();
-        var state = new ReplayNormalizationState();
+        var state = new SnapshotNormalizationState();
         var html = NormalizeDocument(page, "root", "index.html", assets,
             new Dictionary<string, string>(StringComparer.Ordinal), state);
-        return new NormalizedPage(html, assets,
-            state.Compatible ? SnapshotReplayManifest.CurrentReplayVersion : null,
-            state.ContainsExecutableContent, state.Diagnostic);
+        return new NormalizedPage(html, assets, state.ContainsExecutableContent, state.Diagnostic);
     }
 
     private static string NormalizeDocument(ImportedPage page, string scope, string documentPath,
         List<NormalizedAsset> assets, IReadOnlyDictionary<string, string> inherited,
-        ReplayNormalizationState state)
+        SnapshotNormalizationState state)
     {
         var map = new Dictionary<string, string>(inherited, StringComparer.Ordinal);
         foreach (var resource in page.Resources)
@@ -71,7 +69,7 @@ internal static class OfflinePageNormalizer
                 state.ContainsExecutableContent = true;
             }
             assets.Add(new NormalizedAsset(path, resource.Url, contentType, body,
-                SnapshotReplayResourceRoles.Asset));
+                SnapshotResourceRoles.Asset));
         }
 
         var html = Rewrite(page.Html, page.BaseUrl, map);
@@ -87,7 +85,7 @@ internal static class OfflinePageNormalizer
             var childHtml = NormalizeDocument(child, childScope, path, assets, map, state);
             assets.Add(new NormalizedAsset(path, child.BaseUrl ?? child.FrameName ?? path,
                 "text/html; charset=utf-8", Encoding.UTF8.GetBytes(childHtml),
-                SnapshotReplayResourceRoles.NestedDocument));
+                SnapshotResourceRoles.NestedDocument));
             var replacement = path;
             return Regex.IsMatch(match.Value, "\\bsrc\\s*=", RegexOptions.IgnoreCase)
                 ? Regex.Replace(match.Value, "(?<prefix>\\bsrc\\s*=\\s*)(?<quote>[\"']).*?\\k<quote>",
@@ -107,20 +105,17 @@ internal static class OfflinePageNormalizer
         else
             html = "<head>" + baseTag + "</head>" + html;
 
-        if (!state.Compatible)
-            return html;
         try
         {
             var documentMap = map.ToDictionary(pair => pair.Key,
                 pair => SnapshotResourcePath.RelativeTo(documentPath, pair.Value), StringComparer.Ordinal);
-            var replay = ReplayDocumentNormalizer.Normalize(html, page.BaseUrl, documentMap, documentPath);
-            state.ContainsExecutableContent |= replay.ContainsExecutableContent;
-            return replay.Html;
+            var normalized = SnapshotDocumentNormalizer.Normalize(html, page.BaseUrl, documentMap, documentPath);
+            state.ContainsExecutableContent |= normalized.ContainsExecutableContent;
+            return normalized.Html;
         }
         catch (Exception exception)
         {
-            // Imported source still receives the established static normalization when replay parsing fails.
-            state.Compatible = false;
+            // Preserve the rewritten document when optional interaction normalization cannot be completed.
             state.Diagnostic ??= exception.GetType().Name;
             return html;
         }
@@ -186,9 +181,8 @@ internal static class OfflinePageNormalizer
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
-    private sealed class ReplayNormalizationState
+    private sealed class SnapshotNormalizationState
     {
-        public bool Compatible { get; set; } = true;
         public bool ContainsExecutableContent { get; set; }
         public string? Diagnostic { get; set; }
     }

@@ -1,8 +1,8 @@
-using Archive.Worker.Capture.Replay;
+using Archive.Worker.Capture.Snapshots;
 
 namespace Archive.Tests;
 
-public sealed class ReplayDocumentNormalizerTests
+public sealed class SnapshotDocumentNormalizerTests
 {
     [Fact]
     public void NormalizesOneCanonicalDocumentWithoutRemovingArchivedScripts()
@@ -14,18 +14,18 @@ public sealed class ReplayDocumentNormalizerTests
               import "https://example.test/app.js";
             </script></head><body><button onclick="run()">Run</button></body></html>
             """;
-        var normalized = ReplayDocumentNormalizer.Normalize(html, "https://example.test/",
+        var normalized = SnapshotDocumentNormalizer.Normalize(html, "https://example.test/",
             new Dictionary<string, string> { ["https://example.test/app.js"] = "assets/app.js" }, "index.html");
 
         Assert.True(normalized.ContainsExecutableContent);
-        Assert.Contains("data-archive-replay=\"v1\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("data-archive-snapshot=\"v1\"", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("import \"./assets/app.js\"", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("onclick=\"run()\"", normalized.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("Content-Security-Policy", normalized.Html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("integrity=", normalized.Html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("crossorigin=", normalized.Html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("RTCPeerConnection", normalized.Html, StringComparison.Ordinal);
-        Assert.True(normalized.Html.IndexOf("data-archive-replay", StringComparison.Ordinal) <
+        Assert.True(normalized.Html.IndexOf("data-archive-snapshot", StringComparison.Ordinal) <
             normalized.Html.IndexOf("type=\"module\"", StringComparison.Ordinal));
     }
 

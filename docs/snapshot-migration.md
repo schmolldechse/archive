@@ -9,16 +9,16 @@ The migration concerns snapshot storage, not a separate playback representation.
 The tool writes a new immutable generation below:
 
 ```text
-snapshots/{snapshotId}/generations/manifest-v3/{migrationId}/
+snapshots/{snapshotId}/generations/manifest-v4/{migrationId}/
 ```
 
 It records the original and migrated object sets in:
 
 ```text
-snapshot-migrations/manifest-v3/{snapshotId}.json
+snapshot-migrations/manifest-v4/{snapshotId}.json
 ```
 
-The original generation remains untouched until cleanup. Activation and restore use conditional database updates, so a concurrently changed snapshot is not overwritten. A migrated legacy capture receives a current resource allowlist, roles, hashes, and provenance. Its interaction version remains unset because the older capture process cannot prove that executing its document is safe. This does not create a second delivery path: static and interactive snapshots are both authorized by the same manifest contract.
+The original generation remains untouched until cleanup. Activation and restore use conditional database updates, so a concurrently changed snapshot is not overwritten. An older generation receives the current resource allowlist, roles, hashes, provenance, and interaction diagnostics. Every completed snapshot then uses the same manifest-backed content path and isolated JavaScript boundary.
 
 ## Commands
 
@@ -55,7 +55,7 @@ PostgreSQL and MinIO must already be running on the external `archive` network. 
 | State | Meaning |
 | --- | --- |
 | `Current` | The active generation has a valid current manifest. |
-| `MigratableStatic` | A current manifest can be created, but script execution must remain disabled. |
+| `Migratable` | A current manifest-backed generation can be created. |
 | `Pending` | A prepared generation was not activated; cleanup is required before retrying. |
 | `Restored` | The original generation is active and the migrated generation may be cleaned up. |
 | `Blocked` | Required objects are absent, unsafe, or outside configured limits. |

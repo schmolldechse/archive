@@ -6,7 +6,7 @@ namespace Archive.SnapshotMigrator;
 internal enum SnapshotMigrationState
 {
     Current,
-    MigratableStatic,
+    Migratable,
     Pending,
     Restored,
     Blocked,
@@ -18,8 +18,7 @@ internal sealed record SnapshotMigrationAssessment(
     Guid SnapshotId,
     SnapshotMigrationState State,
     string Message,
-    string? ContentPrefix,
-    int? ReplayVersion);
+    string? ContentPrefix);
 
 internal sealed record SnapshotMigrationResult(
     Guid SnapshotId,
@@ -38,8 +37,6 @@ internal sealed record SnapshotMigrationJournal
     public required string Status { get; init; }
     public required string OriginalContentPrefix { get; init; }
     public required string MigratedContentPrefix { get; init; }
-    public int? OriginalReplayVersion { get; init; }
-    public int? MigratedReplayVersion { get; init; }
     public long? OriginalStorageBytes { get; init; }
     public long MigratedStorageBytes { get; init; }
     public int? OriginalResourceCount { get; init; }
