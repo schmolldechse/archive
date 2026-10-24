@@ -40,13 +40,13 @@ dotnet run --project Archive.SnapshotMigrator -- --cleanup --snapshot <snapshot-
 
 Add `--json` to `--dry-run`, `--update`, `--restore`, or `--cleanup` for machine-readable output.
 
-For production, the `tools` Compose profile builds the same executable and attaches it to the existing internal database and object-storage network. Use the complete production Compose set and pass the CLI arguments after the service name:
+For production, `snapshot-migrator.compose.yml` defines the one-off tool independently from the long-running API and worker services. It builds the same executable and attaches it to the existing internal database and object-storage network. Pass the CLI arguments after the service name:
 
 ```powershell
-docker compose --project-name archive --env-file deploy/production/.env -f deploy/production/database.compose.yml -f deploy/production/minio.compose.yml -f deploy/production/api.compose.yml --profile tools run --rm snapshot-migrator --dry-run --all
+docker compose --project-name archive --env-file deploy/production/.env -f deploy/production/snapshot-migrator.compose.yml run --rm snapshot-migrator --dry-run --all
 ```
 
-Replace `--dry-run --all` with one of the other documented argument combinations when applying, restoring, or cleaning a migration. The profile does not create a long-running migrator container.
+PostgreSQL and MinIO must already be running on the external `archive` network. Replace `--dry-run --all` with one of the other documented argument combinations when applying, restoring, or cleaning a migration. The Compose file does not define or start any long-running application service.
 
 ### Dry run
 
