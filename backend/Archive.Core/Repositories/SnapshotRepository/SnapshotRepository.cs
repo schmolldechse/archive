@@ -32,42 +32,32 @@ internal sealed partial class SnapshotRepository(
         CancellationToken cancellationToken = default) =>
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
 
-    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default)
+    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, bool replayDelivery,
+        CancellationToken cancellationToken = default)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
                 && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
                 && snapshot.Quality != null)
-            .Select(snapshot => new { snapshot.ContentPrefix, snapshot.SourceType })
+            .Select(snapshot => new { snapshot.ContentPrefix, snapshot.ReplayVersion })
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
 
-        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, cancellationToken);
-    }
+        if (!replayDelivery || snapshot.ReplayVersion != SnapshotReplayManifest.CurrentReplayVersion)
+        {
+            var direct = await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, path, cancellationToken);
+            return direct is SnapshotContentResult.Found found
+                ? new SnapshotContentResult.Found(found.Resource with { ReplayVersion = snapshot.ReplayVersion })
+                : direct;
+        }
 
-    /// <summary>Returns only resources explicitly authorized by a compatible public replay manifest.</summary>
-    public async Task<SnapshotReplayContentResult> OpenReplayContentAsync(Guid snapshotId, string? path,
-        CancellationToken cancellationToken = default)
-    {
-        var snapshot = await database.Snapshots
-            .AsNoTracking()
-            .Where(item => item.Id == snapshotId
-                && item.ModerationStatus == SnapshotModerationStatus.Approved
-                && item.Quality != null
-                && item.ReplayVersion == SnapshotReplayManifest.CurrentReplayVersion)
-            .Select(item => new { item.ContentPrefix, item.ReplayVersion })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (snapshot?.ContentPrefix is null)
-            return new SnapshotReplayContentResult.NotFound();
-
-        var safePath = string.IsNullOrWhiteSpace(path) ? "index.html" : path.Replace('\\', '/').TrimStart('/');
-        if (safePath.Contains("..", StringComparison.Ordinal) || safePath.Any(char.IsControl))
-            return new SnapshotReplayContentResult.InvalidPath();
+        if (!SnapshotContentStorage.TryNormalizePath(path, out var safePath))
+            return new SnapshotContentResult.InvalidPath();
 
         var storedManifest = await objectStore.GetAsync($"{snapshot.ContentPrefix}/manifest.json", cancellationToken);
         if (storedManifest is null)
-            return new SnapshotReplayContentResult.NotFound();
+            return new SnapshotContentResult.NotFound();
 
         SnapshotReplayManifest? manifest;
         try
@@ -78,23 +68,24 @@ internal sealed partial class SnapshotRepository(
         }
         catch (JsonException)
         {
-            return new SnapshotReplayContentResult.NotFound();
+            return new SnapshotContentResult.NotFound();
         }
 
         if (manifest is null || manifest.Version != SnapshotReplayManifest.CurrentManifestVersion ||
             manifest.Replay.Version != snapshot.ReplayVersion)
-            return new SnapshotReplayContentResult.NotFound();
+            return new SnapshotContentResult.NotFound();
 
         var resource = manifest.Resources.SingleOrDefault(item =>
             string.Equals(item.Path, safePath, StringComparison.Ordinal));
         if (resource is null || !resource.ObjectKey.StartsWith(snapshot.ContentPrefix + '/', StringComparison.Ordinal) ||
             resource.ObjectKey.Contains("..", StringComparison.Ordinal))
-            return new SnapshotReplayContentResult.NotFound();
+            return new SnapshotContentResult.NotFound();
 
         var stored = await objectStore.GetAsync(resource.ObjectKey, cancellationToken);
         return stored is null
-            ? new SnapshotReplayContentResult.NotFound()
-            : new SnapshotReplayContentResult.Found(new(stored.Content, resource.ContentType, resource.Role));
+            ? new SnapshotContentResult.NotFound()
+            : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false,
+                resource.Role, snapshot.ReplayVersion));
     }
 
     public async Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default)

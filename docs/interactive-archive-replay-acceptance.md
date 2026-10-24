@@ -24,12 +24,13 @@ All captures completed at approximately 09:37 CEST. Their manifests reported no 
 
 ## Browser and security verification
 
-- The CERN document remained readable through its sole `contentUrl`.
+- All three documents remained readable through the existing `/api/snapshots/{id}/content/{path}` endpoint on the replay origin; relative assets used the same route.
 - The MHTML canvas advanced in both a 1440×1000 desktop viewport and a 390×844 mobile viewport. The canvas adapted to 1440×928 and 390×772 respectively, with no console or page errors and no external requests.
 - The URL capture loaded all four JavaScript resources with successful responses. WebGL created a live program with no GL error and rendered the rotating vertex-colored square.
 - Public frames used `sandbox="allow-scripts"` and `referrerpolicy="no-referrer"`; no `allow-same-origin` token was present.
 - A navigation attempt from the replay frame to a separate local TCP sentinel produced no connection. Chrome replaced the frame with its blocked-navigation error document, confirming enforcement before network egress.
 - Requests without an admitted `Sec-CH-UA` received the static CSP with `script-src 'none'`; admitted Chrome 156 requests received the interactive CSP and `Connection-Allowlist`. Both paths returned identical `index.html` bytes.
-- The normal API host rejected replay paths, the replay host rejected ordinary API paths, and the replay boundary rejected mutation methods.
+- The removed `/replay/snapshots/...` route returned `404`. The replay host rejected snapshot metadata and private API paths while accepting only the existing public content route and its read-only methods. The API-host form of that content route remained available as a static backward-compatible alias.
+- The intermediate snapshot was temporarily marked with `replay_version = NULL` to represent a legacy capture. Its public `contentUrl` did not change, returned HTTP 200 with `script-src 'none'`, emitted no `Connection-Allowlist`, and was restored to replay version 1 after the check.
 
 The visual review found no Archive chrome regressions at desktop or mobile sizes. The preserved pages retain their own historical styling, while the existing header, back action, and information control remain aligned with the application's editorial interface.

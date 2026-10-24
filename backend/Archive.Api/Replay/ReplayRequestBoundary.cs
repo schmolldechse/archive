@@ -16,19 +16,25 @@ internal static class ReplayRequestBoundary
     public static async Task ApplyAsync(HttpContext context, ReplayOptions options, RequestDelegate next)
     {
         var replayHost = IsReplayHost(context.Request, options);
-        var replayPath = context.Request.Path.StartsWithSegments("/replay/snapshots");
         if (replayHost)
         {
             // A reverse proxy should already strip credentials; this keeps the application boundary fail-closed.
             context.Request.Headers.Remove("Cookie");
             context.Request.Headers.Remove("Authorization");
-            if (!replayPath)
+            if (!IsPublicContentPath(context.Request.Path))
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
             }
-            if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) &&
-                !HttpMethods.IsOptions(context.Request.Method))
+            if (HttpMethods.IsOptions(context.Request.Method))
+            {
+                context.Response.Headers.AccessControlAllowOrigin = "*";
+                context.Response.Headers.AccessControlAllowMethods = "GET, HEAD, OPTIONS";
+                context.Response.Headers.AccessControlAllowHeaders = "Content-Type";
+                context.Response.StatusCode = StatusCodes.Status204NoContent;
+                return;
+            }
+            if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
             {
                 context.Response.Headers.Allow = "GET, HEAD, OPTIONS";
                 context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
@@ -39,11 +45,16 @@ internal static class ReplayRequestBoundary
             return;
         }
 
-        if (replayPath)
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
         await next(context);
+    }
+
+    private static bool IsPublicContentPath(PathString path)
+    {
+        var segments = path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        return segments.Length >= 4 &&
+            string.Equals(segments[0], "api", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(segments[1], "snapshots", StringComparison.OrdinalIgnoreCase) &&
+            Guid.TryParse(segments[2], out _) &&
+            string.Equals(segments[3], "content", StringComparison.OrdinalIgnoreCase);
     }
 }

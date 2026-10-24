@@ -5,7 +5,6 @@ using Archive.Core.Models.Processing;
 using Archive.Core.Models.Snapshots;
 using Riok.Mapperly.Abstractions;
 using Archive.Api.Options;
-using Archive.Core.Storage;
 
 namespace Archive.Api.Mapping;
 
@@ -25,9 +24,7 @@ public partial class SnapshotMapper(PublicUserMapper publicUserMapper, ReplayOpt
         var resourceUrl = $"{publicBaseUrl.TrimEnd('/')}/api/snapshots/{snapshot.Id}";
         var contentUrl = snapshot.Quality is null
             ? null
-            : snapshot.ReplayVersion == SnapshotReplayManifest.CurrentReplayVersion
-                ? $"{replayOptions.PublicOrigin}/replay/snapshots/{snapshot.Id}/index.html"
-                : $"{resourceUrl}/content/index.html";
+            : $"{replayOptions.PublicOrigin}/api/snapshots/{snapshot.Id}/content/index.html";
         return ToResponse(snapshot,
             snapshot.Quality is null ? null : $"{resourceUrl}/screenshot",
             contentUrl);

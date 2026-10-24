@@ -33,7 +33,7 @@ The reverse proxy must:
 - allow long-lived event responses while the capture is active;
 - avoid exposing PostgreSQL, MinIO, or its console unless the deployment explicitly needs operator access.
 
-The replay origin must be outside `AUTHENTICATION_SESSION_COOKIE_DOMAIN`; a separate registrable domain is preferred. Do not attach authentication, CDN session cookies, or generic API routes to it. The application rejects every non-replay path on this host and rejects replay paths on the API host.
+The replay origin must be outside `AUTHENTICATION_SESSION_COOKIE_DOMAIN`; a separate registrable domain is preferred. Do not attach authentication, CDN session cookies, or generic API routes to it. The application exposes only `/api/snapshots/{id}/content/{path}` on this host; all metadata, authentication, administration, and mutation routes remain available only through the API origin.
 
 The API container sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so ASP.NET can interpret forwarded scheme and address information.
 
@@ -110,7 +110,7 @@ docker compose --project-name archive --env-file deploy/production/.env -f deplo
 
 Complete deployment verification with one capture. Confirm that it leaves the queue, stores a screenshot and content, appears to its owner, and becomes public only under the expected moderation rule.
 
-For a newly normalized approved capture, confirm that `contentUrl` uses the replay origin, the replay response varies on `Sec-CH-UA`, and a supported Chromium receives `Connection-Allowlist` plus `sandbox allow-scripts`. A request without the hint must receive the same bytes with `script-src 'none'`. Existing snapshots must continue to use static API content URLs.
+For both a newly normalized capture and an existing approved snapshot, confirm that `contentUrl` uses `/api/snapshots/{id}/content/index.html` on the replay origin. The replay-compatible response must vary on `Sec-CH-UA`, and a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`. A request without the hint, and every legacy snapshot request, must receive the same stored bytes with `script-src 'none'`.
 
 ## Bootstrap the first administrator
 

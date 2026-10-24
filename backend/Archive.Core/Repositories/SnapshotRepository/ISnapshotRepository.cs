@@ -11,8 +11,8 @@ public interface ISnapshotRepository
     Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default);
     Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
         CancellationToken cancellationToken = default);
-    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default);
-    Task<SnapshotReplayContentResult> OpenReplayContentAsync(Guid snapshotId, string? path,
+    /// <summary>Opens public content, enforcing the replay manifest when delivery uses the credential-free origin.</summary>
+    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, bool replayDelivery,
         CancellationToken cancellationToken = default);
     Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default);
 }

@@ -4,10 +4,12 @@ using Archive.Api.Contracts.Snapshots.Search;
 using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Mapping;
 using Archive.Api.Options;
+using Archive.Api.Replay;
 using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.SnapshotProcessingRepository;
+using Archive.Core.Storage;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Archive.Api.Controllers;
@@ -21,6 +23,9 @@ public sealed partial class SnapshotsController(
     SnapshotSubmissionMapper submissionMapper,
     ArchiveApiOptions options,
     ArchiveAuthenticationOptions authenticationOptions,
+    ReplayOptions replayOptions,
+    ReplayClientCapabilityPolicy replayClients,
+    ReplayContentPolicy replayPolicies,
     ISnapshotProcessingRepository processing) : ControllerBase
 {
     // Allow the configured viewer to embed archived documents without relaxing their sandbox.
@@ -99,7 +104,7 @@ public sealed partial class SnapshotsController(
     [HttpGet("{snapshotId:guid}/content/{**path}")]
     [EndpointName("GetSnapshotContent")]
     [EndpointSummary("Gets archived snapshot content.")]
-    [EndpointDescription("Returns the archived start page when path is empty, or the requested stored resource. The response Content-Type depends on the resource. Original uploaded source files are downloaded as application/octet-stream. Byte Range requests are supported and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
+    [EndpointDescription("Returns the archived start page when path is empty, or the requested stored resource. The credential-free replay origin uses the same route for every approved snapshot, applies manifest authorization to replay-versioned captures, and keeps legacy captures static. The response Content-Type depends on the resource. Original uploaded source files are downloaded as application/octet-stream. Static API-origin responses support Byte Range requests and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
     [ProducesResponseType<Stream>(StatusCodes.Status200OK, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<Stream>(StatusCodes.Status206PartialContent, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -107,7 +112,8 @@ public sealed partial class SnapshotsController(
     [ProducesResponseType(typeof(void), StatusCodes.Status416RangeNotSatisfiable)]
     public async Task<IActionResult> ContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken)
     {
-        var result = await snapshotRepository.OpenContentAsync(snapshotId, path, cancellationToken);
+        var replayDelivery = ReplayRequestBoundary.IsReplayHost(Request, replayOptions);
+        var result = await snapshotRepository.OpenContentAsync(snapshotId, path, replayDelivery, cancellationToken);
         if (result is SnapshotContentResult.NotFound)
             return NotFound();
         if (result is SnapshotContentResult.InvalidPath)
@@ -115,6 +121,27 @@ public sealed partial class SnapshotsController(
         var stored = ((SnapshotContentResult.Found)result).Resource;
         try
         {
+            if (replayDelivery)
+            {
+                if (!replayPolicies.IsAllowedDestination(stored.ResourceRole, stored.ContentType,
+                        Request.Headers["Sec-Fetch-Dest"].ToString()))
+                {
+                    await stored.Content.DisposeAsync();
+                    return NotFound();
+                }
+
+                var interactive = stored.ReplayVersion == SnapshotReplayManifest.CurrentReplayVersion &&
+                    replayClients.AllowsInteraction(Request.Headers["Sec-CH-UA"].ToString());
+                replayPolicies.Apply(Response, snapshotId, stored.ResourceRole, stored.ContentType, interactive);
+                if (stored.IsOriginalSource)
+                {
+                    Response.Headers.ContentDisposition = "attachment";
+                    return File(stored.Content, "application/octet-stream", enableRangeProcessing: false);
+                }
+                return File(stored.Content, stored.ContentType ?? "application/octet-stream",
+                    enableRangeProcessing: false);
+            }
+
             // URL captures are untrusted too, and content paths can be opened outside the preview iframe.
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers.AccessControlAllowOrigin = "*";

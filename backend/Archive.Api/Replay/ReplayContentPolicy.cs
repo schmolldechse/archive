@@ -26,7 +26,7 @@ public sealed class ReplayContentPolicy(ReplayOptions replay, ArchiveAuthenticat
 
     public void Apply(HttpResponse response, Guid snapshotId, string role, string contentType, bool interactive)
     {
-        var scope = $"{replay.PublicOrigin}/replay/snapshots/{snapshotId}/";
+        var scope = $"{replay.PublicOrigin}/api/snapshots/{snapshotId}/content/";
         response.Headers.Vary = "Sec-CH-UA";
         response.Headers.AccessControlAllowOrigin = "*";
         response.Headers.XContentTypeOptions = "nosniff";

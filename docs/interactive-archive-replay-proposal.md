@@ -46,21 +46,21 @@ There are also compatibility gaps that become visible once execution is enabled:
 
 ### Core decision
 
-Make the single stored `index.html` replay-compatible and serve those same bytes through two separately secured delivery paths without changing the shape of `SnapshotResponse`. Its existing `contentUrl` remains the only playback URL. For an approved public snapshot with a supported `ReplayVersion`, the mapper points `contentUrl` at the dedicated replay origin. Legacy, incompatible, failed-normalization, and private snapshots keep their existing static API content URL. The replay endpoint decides from the requesting browser whether to send the interactive or script-disabled policy; the frontend does not choose between two response fields.
+Make the single stored `index.html` replay-compatible and serve every approved public snapshot through the existing `/api/snapshots/{id}/content/{path}` endpoint on the dedicated replay origin without changing the shape of `SnapshotResponse`. Its existing `contentUrl` remains the only playback URL. `ReplayVersion` and browser capability select the executable or script-disabled response policy, not a different route. Private owner and reviewer snapshots keep their authenticated scope-specific API URLs.
 
 ```mermaid
 flowchart LR
     Reader[Reader] --> Frontend[Archive frontend]
-    Frontend -->|Single contentUrl| Content{Mapped delivery URL}
-    Content -->|Compatible approved snapshot| Replay[Dedicated replay origin<br/>browser policy decides script execution]
-    Content -->|Legacy, private, or incompatible| Static[API content route<br/>same index.html; scripts disabled]
+    Frontend -->|Single public contentUrl| Replay[Dedicated replay origin<br/>shared snapshot content endpoint]
+    Replay -->|Compatible capture and admitted browser| Interactive[Executable response policy]
+    Replay -->|Legacy, incompatible, or rejected browser| Static[Same endpoint and stored bytes<br/>scripts disabled]
     Replay -->|GET/HEAD only; no credentials| APIHost[Replay host branch in Archive.Api]
     APIHost --> Database[(PostgreSQL visibility check)]
     APIHost --> Objects[(MinIO/S3 snapshot objects)]
     Replay -. no live APIs or subresources,<br/>cookies, forms, or storage .-> Blocked[Blocked capabilities]
 ```
 
-The replay origin can be served by the existing `Archive.Api` process, so this proposal does not require a new deployable. The reverse proxy exposes a second origin and the API branches requests by validated host. Both the replay route and static content route resolve the same stored object key; their host, iframe sandbox, and response policies—not a second HTML file or second response field—determine whether scripts can execute.
+The replay origin can be served by the existing `Archive.Api` process, so this proposal does not require a new deployable. The reverse proxy exposes a second origin and the API branches requests by validated host. The existing public content action serves both legacy and replay-compatible snapshots; its host, iframe sandbox, stored replay version, and response policy—not a second controller, HTML file, or response field—determine whether scripts can execute.
 
 This follows the capture/storage/replay separation documented by Internet Archive without copying its WARC-scale architecture. Archive keeps its existing object layout and performs deterministic normalization during ingestion, while replay-time routing and security headers determine execution behavior. The immutable source remains separate provenance material; `index.html` is explicitly a derived display document.
 
@@ -69,7 +69,7 @@ This follows the capture/storage/replay separation documented by Internet Archiv
 - Production API example: `https://api.archive.example.com`
 - Production replay example: `https://archive-replay.example.net`
 
-The production replay origin must not be a subdomain covered by `Authentication:SessionCookieDomain`. A separate registrable domain is preferred. The host branch rejects every path except the replay route and removes `Cookie` and `Authorization` before routing as defense in depth. The normal API origin rejects replay paths.
+The production replay origin must not be a subdomain covered by `Authentication:SessionCookieDomain`. A separate registrable domain is preferred. The host branch rejects every path except `/api/snapshots/{id}/content/{path}` and removes `Cookie` and `Authorization` before routing as defense in depth. Metadata and all other API capabilities remain available only through the normal API origin.
 
 ### Why interactive replay is public-only
 
@@ -92,24 +92,24 @@ The root interactive `index.html` should carry a server-controlled CSP similar t
 
 ```text
 default-src 'none';
-script-src https://archive-replay.example.net/replay/snapshots/{id}/ 'unsafe-inline';
-style-src https://archive-replay.example.net/replay/snapshots/{id}/ 'unsafe-inline' data:;
-img-src https://archive-replay.example.net/replay/snapshots/{id}/ data: blob:;
-font-src https://archive-replay.example.net/replay/snapshots/{id}/ data:;
-media-src https://archive-replay.example.net/replay/snapshots/{id}/ data: blob:;
-frame-src https://archive-replay.example.net/replay/snapshots/{id}/ data:;
-connect-src https://archive-replay.example.net/replay/snapshots/{id}/;
+script-src https://archive-replay.example.net/api/snapshots/{id}/content/ 'unsafe-inline';
+style-src https://archive-replay.example.net/api/snapshots/{id}/content/ 'unsafe-inline' data:;
+img-src https://archive-replay.example.net/api/snapshots/{id}/content/ data: blob:;
+font-src https://archive-replay.example.net/api/snapshots/{id}/content/ data:;
+media-src https://archive-replay.example.net/api/snapshots/{id}/content/ data: blob:;
+frame-src https://archive-replay.example.net/api/snapshots/{id}/content/ data:;
+connect-src https://archive-replay.example.net/api/snapshots/{id}/content/;
 worker-src 'none';
 object-src 'none';
 form-action 'none';
-base-uri https://archive-replay.example.net/replay/snapshots/{id}/;
+base-uri https://archive-replay.example.net/api/snapshots/{id}/content/;
 frame-ancestors https://archive.example.com;
 sandbox allow-scripts;
 ```
 
 Nested captured HTML receives the same source, sandbox, form, worker, and object restrictions but omits `frame-ancestors`. A nested document's direct parent has a sandbox-created opaque origin and therefore cannot satisfy a frontend-only `frame-ancestors` expression. Omitting that directive for nested HTML permits the captured frame to load without granting it same-origin access to its parent; the inherited iframe sandbox and its own CSP still apply.
 
-The manifest classifies every stored object as `root-document`, `nested-document`, or `asset`; request headers never choose the role. HTML, XHTML, SVG, XML with active transforms, and any other browser-active document type receive a document CSP and sandbox when their role permits document use. Version 1 supports HTML/XHTML nested documents. SVG and other active formats remain asset-only: ordinary image use remains available, but the replay endpoint rejects them as frame or navigation targets and sends an inert `default-src 'none'; script-src 'none'; connect-src 'none'; object-src 'none'; form-action 'none'; sandbox` policy as defense in depth. Inert assets receive only media-appropriate headers, CORS, and `nosniff`. The policy builder combines the manifest role, stored media type, and expected destination; unlisted or role-incompatible requests fail closed.
+The manifest classifies every versioned object as `root-document`, `nested-document`, or `asset`; request headers never choose the role. Static legacy captures receive conservative roles inferred from their safe path and stored media type. HTML, XHTML, SVG, XML with active transforms, and any other browser-active document type receive a document CSP and sandbox when their role permits document use. Version 1 supports HTML/XHTML nested documents. SVG and other active formats remain asset-only: ordinary image use remains available, but the shared endpoint rejects them as frame or navigation targets and sends an inert `default-src 'none'; script-src 'none'; connect-src 'none'; object-src 'none'; form-action 'none'; sandbox` policy as defense in depth. Inert assets receive only media-appropriate headers, CORS, and `nosniff`. The policy builder combines the stored role, media type, and expected destination; unlisted resources of a replay-versioned capture or role-incompatible requests fail closed.
 
 Additional response controls:
 
@@ -117,7 +117,7 @@ Additional response controls:
 - `X-Content-Type-Options: nosniff`
 - `Permissions-Policy` denying camera, microphone, geolocation, payment, USB, serial, Bluetooth, display capture, clipboard access, and other unrelated device capabilities
 - `Access-Control-Allow-Origin: *` for replay resources, without credentials, so JavaScript modules and archived same-snapshot reads can load from the iframe's opaque origin
-- `Connection-Allowlist: ("https://archive-replay.example.net/replay/snapshots/{id}/*")` as a mandatory Chromium 152+ replay boundary; redirects and WebRTC remain disallowed by omission
+- `Connection-Allowlist: ("https://archive-replay.example.net/api/snapshots/{id}/content/*")` as a mandatory Chromium 152+ replay boundary; redirects and WebRTC remain disallowed by omission
 - `Cache-Control: no-store` for replay HTML; immutable public caching may be considered later for versioned assets
 - only `GET`, `HEAD`, and narrowly handled `OPTIONS`; all other methods return `405`
 
@@ -172,7 +172,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive} immutable captured main response or uploaded source
 ```
 
-The public replay route and every static content route map their virtual `index.html` to this same stored object. Other safe relative paths map to the same assets and frames. The document keeps a `./` base relative to the virtual content root, and both route layouts must preserve identical relative paths.
+The shared public content route maps its virtual `index.html` to this stored object for both legacy and replay-compatible captures. Other safe relative paths map to the same assets and frames. The document keeps a `./` base relative to the virtual content root, so the replay-origin URL and the backward-compatible API-origin URL preserve identical relative paths.
 
 Add nullable `ReplayVersion` metadata to `Snapshot`:
 
@@ -287,7 +287,7 @@ Expected changes:
 - snapshot detail projections
   - include replay availability without additional per-row object-storage requests;
 - snapshot content storage
-  - reuse the existing active content prefix and safe object lookup for the replay route, so both static and interactive delivery read the same `index.html` and resources without duplicating objects.
+  - extend the existing public content lookup with manifest authorization for replay-versioned captures and conservative direct lookup for static legacy captures, so one endpoint serves the same `index.html` and resources without duplicating objects.
 
 ### Replay host boundary
 
@@ -306,11 +306,11 @@ There is deliberately no `Replay__Enabled` or equivalent interaction switch. Rep
 At the start of the HTTP pipeline:
 
 1. compare the normalized request origin/host to the configured replay origin;
-2. on the replay host, remove credential headers and route only `/replay/snapshots/{snapshotId}/{**path}`;
-3. on the API host, reject `/replay`;
+2. on the replay host, remove credential headers and route only `/api/snapshots/{snapshotId}/content/{**path}`;
+3. on the API host, retain the same content route as a static backward-compatible path;
 4. reject unexpected forwarded hosts, methods, and malformed paths before controller execution.
 
-The replay endpoint is anonymous and reads through the same public repository visibility predicate as `/api/snapshots/{id}`: `APPROVED`, stored quality, and active content prefix are mandatory. Object presence alone never authorizes replay. The endpoint serves only `index.html` plus paths and media types listed as replay resources in the current manifest; it never exposes the manifest, immutable source object, or an arbitrary object-prefix path. Replay resource requests never redirect to another path, snapshot, or origin: an absent resource returns a terminal `404`, preserving the snapshot-scoped CSP and routing boundary.
+The existing public content endpoint remains anonymous and uses the public repository visibility predicate: `APPROVED`, stored quality, and active content prefix are mandatory. Object presence alone never authorizes access. On the replay origin, a replay-versioned capture serves only `index.html` plus paths and media types listed in the current manifest; legacy captures use the existing safe object-prefix lookup under a script-disabled policy. The endpoint never exposes the manifest, and replay-versioned resource requests never redirect to another path, snapshot, or origin. An absent resource returns a terminal `404`, preserving the snapshot-scoped CSP and routing boundary.
 
 Centralize public static, private static, interactive root document, interactive nested document, active-format asset, and inert asset header construction in a documented `ArchivedContentPolicyBuilder`. This removes the current CSP duplication between `SnapshotsController` and `SnapshotSubmissionControllerBase` while making the different trust modes explicit.
 
@@ -320,11 +320,11 @@ Do not add, remove, or rename a `SnapshotResponse` field. The existing contract 
 
 ```json
 {
-  "contentUrl": "https://archive-replay.example.net/replay/snapshots/{id}/index.html"
+  "contentUrl": "https://archive-replay.example.net/api/snapshots/{id}/content/index.html"
 }
 ```
 
-Only its documented delivery semantics change. `contentUrl` remains null until stored content exists. For an approved public snapshot with a supported `ReplayVersion`, it points to the replay origin; otherwise it retains the existing scope-appropriate static API URL. Owner and moderator responses always retain their authenticated static URL. A replay URL may still return the static policy when `ReplayClientCapabilityPolicy` does not admit the browser. `SnapshotResponse` never contains both an interactive and a static playback URL.
+Only its documented delivery semantics change. `contentUrl` remains null until stored content exists. Every approved public snapshot points to the existing content route on the replay origin. `ReplayVersion` and `ReplayClientCapabilityPolicy` decide whether that response is executable; legacy, incompatible, and rejected clients receive the static policy at the same URL. Owner and moderator responses retain their authenticated scope-specific static URLs. `SnapshotResponse` never contains both an interactive and a static playback URL.
 
 Because implementation updates the OpenAPI description of the existing public contract, it must still regenerate frontend types with the exact existing workflow even though no TypeScript property is added:
 
@@ -341,7 +341,7 @@ The snapshot page should feel like entering a Wayback Machine capture: the prese
 
 The iframe always receives the existing `contentUrl`. The page does not branch between static and interactive response properties and does not render an `Enable interaction`, `Stop interaction`, or `Return to static view` control. Archive chrome remains outside the iframe and does not intercept ordinary interaction with the preserved document.
 
-For public snapshots, the iframe uses `sandbox="allow-scripts"` and an opaque origin. Whether scripts actually execute is determined solely by the response policy at `contentUrl`: compatible replay on an admitted browser permits them, while a static API response or rejected replay client sends a CSP sandbox without `allow-scripts`. Private owner and moderator views keep their existing static API URL and `sandbox="allow-same-origin"` without `allow-scripts`, preserving authenticated subresource access without executing archived code.
+For public snapshots, the iframe uses `sandbox="allow-scripts"` and an opaque origin. Whether scripts actually execute is determined solely by the response policy at `contentUrl`: compatible replay on an admitted browser permits them, while legacy content or a rejected client receives a CSP sandbox without `allow-scripts` at the same endpoint. Private owner and moderator views keep their existing static API URL and `sandbox="allow-same-origin"` without `allow-scripts`, preserving authenticated subresource access without executing archived code.
 
 No replay readiness handshake or second-URL retry is introduced. Missing scripts or assets degrade inside the preserved document in the same manner as other incomplete archives and remain visible through capture diagnostics; they are never fetched from the live web. Reloading the outer snapshot URL creates a fresh archived frame.
 
@@ -402,7 +402,7 @@ Add a deliberately hostile replay fixture whose script attempts each capability 
 | Send arbitrary replay `postMessage` payloads to the parent | ignored; the parent has no replay command or readiness protocol |
 | Request a compatible snapshot from an old Chromium build, Firefox, Safari, or without a valid low-entropy `Sec-CH-UA` brand/major-version hint | `contentUrl` remains the replay URL, but its response uses the script-disabled static policy |
 
-Tests should also assert exact security headers, host gating, approved visibility, path normalization, no credentialed CORS, MIME handling with `nosniff`, and the absence of `allow-same-origin`. A storage-level assertion verifies that static and replay routes resolve the same `index.html` object and that processing creates no `replay.html` object. Response tests verify that the bytes are identical while their security headers differ intentionally. Capability tests cover the minimum admitted Chromium version, a current admitted version, a lower version, a valid allowed Chromium/product combination that also contains a GREASE brand, missing, malformed, and conflicting structured hints, unknown-only or non-allowed product brands, cache variation, and direct replay navigation. Browser-network tests run an instrumented external DNS/HTTP/STUN target and fail if an admitted replay emits any request outside its snapshot path; the same suite confirms unsupported browsers remain static. Browser tests also verify `Origin: null` for module and same-snapshot CORS requests, correct JavaScript MIME types under `nosniff`, static and dynamic modules, fonts, Canvas/WebGL rendering, removal of credentialed CORS attributes, and separate policies for root documents, nested documents, active asset types, and inert assets. Pixel readback is required only in a fixture that explicitly sets `crossorigin="anonymous"` before assigning its image or media source; replay version 1 does not rewrite every image load into CORS mode because doing so would break credentialed private static delivery of the same canonical bytes.
+Tests should also assert exact security headers, host gating, approved visibility, path normalization, no credentialed CORS, MIME handling with `nosniff`, and the absence of `allow-same-origin`. A storage-level assertion verifies that static and interactive policies resolve the same `index.html` object through the shared public content route and that processing creates no `replay.html` object. Response tests verify that the bytes are identical while their security headers differ intentionally. Capability tests cover the minimum admitted Chromium version, a current admitted version, a lower version, a valid allowed Chromium/product combination that also contains a GREASE brand, missing, malformed, and conflicting structured hints, unknown-only or non-allowed product brands, cache variation, and direct replay navigation. Browser-network tests run an instrumented external DNS/HTTP/STUN target and fail if an admitted replay emits any request outside its snapshot path; the same suite confirms unsupported browsers and legacy captures remain static. Browser tests also verify `Origin: null` for module and same-snapshot CORS requests, correct JavaScript MIME types under `nosniff`, static and dynamic modules, fonts, Canvas/WebGL rendering, removal of credentialed CORS attributes, and separate policies for root documents, nested documents, active asset types, and inert assets. Pixel readback is required only in a fixture that explicitly sets `crossorigin="anonymous"` before assigning its image or media source; replay version 1 does not rewrite every image load into CORS mode because doing so would break credentialed private static delivery of the same canonical bytes.
 
 ### Functional probes
 
@@ -507,7 +507,7 @@ If an authenticated flow is required, pause and ask the user to sign in with the
    - add required replay-origin configuration without an enabled flag, early host/method gate, structured client-hint validation through `ReplayClientCapabilityPolicy`, manifest-allowlisted object roles, and distinct root document, nested document, active asset, inert asset, and static policies;
    - add API/security tests before shipping the feature.
 4. **Existing API contract**
-   - keep `SnapshotResponse` unchanged and update the existing `contentUrl` mapping and OpenAPI description for replay-capable approved public snapshots;
+   - keep `SnapshotResponse` unchanged and map every approved public snapshot to the shared content endpoint on the replay origin;
    - run `bun --bun run generate:api` against the running backend without changing the generator configuration.
 5. **Frontend playback sandbox**
    - keep `contentUrl` as the only iframe source, use the opaque script-capable iframe sandbox for public playback, and retain the authenticated static sandbox for private review;
@@ -534,7 +534,7 @@ The final implementation is expected to touch or add files in these areas:
 - `backend/Archive.Worker`
   - main-response capture, bounded runtime-data media types, shared HTML/resource normalizer, JavaScript reference rewriter, URL storage path, offline import path, and manifest;
 - `backend/Archive.Api`
-  - required replay-origin options/validation, host boundary, replay controller or endpoint group, content policy builder, existing `contentUrl` mapping, and OpenAPI descriptions;
+  - required replay-origin options/validation, host boundary, the existing snapshot content action, content policy builder, existing `contentUrl` mapping, and OpenAPI descriptions;
 - `frontend/src/lib/api`
   - generated API types;
 - `frontend/src/routes/snapshots/[snapshotId]/+page.svelte`
@@ -573,14 +573,14 @@ Any introduced browser test command must be documented and run against the real 
 Implementation is complete only when all of the following are true:
 
 - compatible approved public snapshots open directly in interactive replay without an activation action;
-- static playback remains automatic for existing snapshots, failed normalization, private views, and clients outside the tested connection-allowlist matrix;
+- static playback remains automatic at the shared content endpoint for existing snapshots, failed normalization, and clients outside the tested connection-allowlist matrix; private views retain their authenticated routes;
 - existing snapshots do not claim interactive support;
 - approved new URL, MHTML, and WebArchive captures can expose a versioned interactive replay from their canonical `index.html`;
-- static and interactive routes read that same stored entry document, and no `replay.html` is created;
+- static and interactive response policies read the same stored entry document through one public content route, and no `replay.html` is created;
 - `SnapshotResponse` retains only its existing `contentUrl`; no `interactiveContentUrl` or other parallel playback field exists;
 - no `Replay__Enabled` or equivalent interaction feature switch exists, and a valid dedicated replay origin is mandatory deployment configuration;
 - private snapshots never expose or execute interactive replay;
-- replay is served on a dedicated credential-free origin, and normal API routes are unavailable there;
+- replay is served on a dedicated credential-free origin, and only the existing public snapshot content route is available there;
 - admitted public replay combines an `allow-scripts` iframe with an executable response policy without granting same-origin privileges; static response policy remains non-executable at the same replay URL for rejected clients;
 - captured same-snapshot `fetch`/XHR `GET` and module requests resolve with forced credential omission, while external or uncaptured subresources, live APIs, unsupported methods, workers, forms, pop-ups, downloads, top navigation, device access, and Archive API access are blocked by independently tested controls;
 - archived scripts execute only when the replay content boundary admits a tested Chromium 152+ client and the required `Connection-Allowlist` controls pass an end-to-end conformance test, including its default redirect and WebRTC blocks; every other client receives the static policy;
@@ -599,7 +599,7 @@ Implementation is complete only when all of the following are true:
 
 ### Add `Replay__Enabled` or a second `interactiveContentUrl`
 
-Rejected. Interaction is the normal playback behavior of every compatible approved public snapshot, not an operator-selected mode or a second user-facing destination. The existing `contentUrl` maps to the correct delivery origin from snapshot metadata, while the replay endpoint fails closed to a static response policy for unsupported clients. A boolean switch and parallel URL would add divergent states without strengthening the isolation boundary.
+Rejected. Interaction is the normal playback behavior of every compatible approved public snapshot, not an operator-selected mode or a second user-facing destination. The existing `contentUrl` always maps approved public snapshots to the credential-free content endpoint, while its response policy fails closed for legacy captures and unsupported clients. A boolean switch and parallel URL would add divergent states without strengthening the isolation boundary.
 
 ### Add `allow-scripts` to the existing iframe and API CSP
 

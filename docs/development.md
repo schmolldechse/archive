@@ -111,7 +111,7 @@ Vite serves the application at `http://localhost:5173`. `PUBLIC_API_BASE_URL` in
 | --- | --- |
 | Frontend | `http://localhost:5173` |
 | API health | `http://localhost:5200/healthz` |
-| Replay origin | `http://127.0.0.1:5200/replay/snapshots/{id}/index.html` |
+| Public snapshot content | `http://127.0.0.1:5200/api/snapshots/{id}/content/index.html` |
 | OpenAPI JSON | `http://localhost:5200/openapi/v1.json` |
 | Scalar API reference | `http://localhost:5200/scalar/v1` |
 

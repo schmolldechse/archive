@@ -470,7 +470,7 @@ export type SnapshotResponse = {
 	 */
 	screenshotUrl: null | string;
 	/**
-	 * Canonical archived start page URL. Compatible approved snapshots use isolated replay; legacy and private snapshots remain static. Null until capture storage has completed.
+	 * Canonical archived start page URL. Approved public snapshots use the credential-free content origin, where compatible captures may execute isolated replay and legacy captures remain static. Private snapshots remain static. Null until capture storage has completed.
 	 */
 	contentUrl: null | string;
 	createdBy: null | PublicUserResponse;

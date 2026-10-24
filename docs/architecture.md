@@ -190,7 +190,7 @@ Private responses use `private, no-store`. Mutations for moderation, resubmissio
 
 Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 
-For a replay-compatible approved snapshot, the existing `contentUrl` points to `/replay/snapshots/{id}/index.html` on the dedicated replay origin. Legacy and private responses keep their static API URL. There is no second API field, replay toggle, or user activation step.
+Every approved public snapshot uses `/api/snapshots/{id}/content/index.html` on the dedicated replay origin as its existing `contentUrl`. Replay-compatible captures may receive an executable policy, while legacy captures receive the static policy at that same endpoint. Private owner and reviewer responses keep their authenticated API URLs. There is no second API field, replay toggle, or user activation step.
 
 ## Archived-content isolation
 
@@ -200,11 +200,11 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 - archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
 - `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a replay shim independently prevent live network access, forms, workers, pop-ups, storage privileges, and top navigation;
 - executable policy is sent only for structured `Sec-CH-UA` hints matching the configured tested Chromium version; all other clients receive a script-disabled policy at the same URL;
-- the replay host strips credentials and rejects normal API paths; the API host rejects replay paths;
-- private and legacy content retains `sandbox="allow-same-origin"` without script permission and the static CSP;
+- the replay host strips credentials and exposes only the public snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
+- private content retains `sandbox="allow-same-origin"` without script permission, while legacy public content stays opaque and receives the static CSP;
 - original source objects are downloads and are never manifest-authorized replay resources.
 
-The replay manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The endpoint rejects unlisted paths and prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
+The replay manifest assigns each versioned public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for replay-versioned captures and conservatively infers document roles for static legacy captures. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
 
 The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, crawl policy reads applicable directives, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
