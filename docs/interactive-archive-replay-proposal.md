@@ -2,10 +2,10 @@
 
 ## Status
 
-- **Document status:** implementation proposal; no product code has been changed.
+- **Document status:** accepted design record; implemented on the target branch.
 - **Target branch:** `codex/feat/interactive-archive-replay`, created from the updated local `master` at `a180ea6`.
-- **Decision requested:** approval to implement the design described below.
-- **Scope of this commit:** documentation only. The local runtime, containers, OAuth credentials, database, object storage, API contracts, generated frontend types, and UI remain unchanged.
+- **Decision:** implementation approved on 2026-10-24.
+- **Result:** the implementation retains one canonical `index.html`, one existing `contentUrl`, automatic interactive playback for compatible approved captures, and static fallback without a replay feature switch.
 
 ## Objective
 
@@ -99,7 +99,6 @@ font-src https://archive-replay.example.net/replay/snapshots/{id}/ data:;
 media-src https://archive-replay.example.net/replay/snapshots/{id}/ data: blob:;
 frame-src https://archive-replay.example.net/replay/snapshots/{id}/ data:;
 connect-src https://archive-replay.example.net/replay/snapshots/{id}/;
-webrtc 'block';
 worker-src 'none';
 object-src 'none';
 form-action 'none';
@@ -386,7 +385,7 @@ Add a deliberately hostile replay fixture whose script attempts each capability 
 | `fetch` or XHR for an uncaptured URL, external host, other snapshot, or unsupported method | rejected by the shim and independently blocked by CSP or routing |
 | Originally credentialed captured `fetch` or XHR | replayed with credentials omitted, `withCredentials` false, and authorization headers removed |
 | EventSource, WebSocket, or WebTransport | blocked or unsupported by the replay host |
-| RTCPeerConnection, ICE/STUN, or WebRTC data channel on an admitted client | blocked by the mandatory connection allowlist and CSP; the shim is defense in depth |
+| RTCPeerConnection, ICE/STUN, or WebRTC data channel on an admitted client | blocked by the mandatory connection allowlist's default WebRTC policy; the shim is defense in depth |
 | Register service worker or create worker | blocked |
 | Submit form | blocked |
 | Open pop-up or new tab | blocked |
@@ -445,15 +444,17 @@ After implementation, archive at least these three pages so the required source 
 
 | Level | Candidate | Ingestion format | Expected proof |
 | --- | --- | --- | --- |
-| Simple | `https://example.com/` | WebArchive | the canonical document opens automatically through replay delivery and remains readable despite having no executable behavior or interaction control |
-| Intermediate | `https://mdn.github.io/web-components-examples/expanding-list-web-component/` | MHTML | the captured custom element initializes and nested list branches expand and collapse without live requests |
+| Simple | `http://info.cern.ch/hypertext/WWW/TheProject.html` | WebArchive | the canonical historical document opens automatically through replay delivery and remains readable without executable behavior or an interaction control |
+| Intermediate | `https://mdn.github.io/learning-area/javascript/oojs/bouncing-balls/index-finished.html` | MHTML | the captured classic script initializes its canvas animation and advances the bouncing-ball scene without live requests |
 | Complex | `https://mdn.github.io/dom-examples/webgl-examples/tutorial/sample4/` | URL | the statically referenced local ES-module graph and captured gl-matrix dependency render the continuously rotating, vertex-colored WebGL square without contacting the original or CDN hosts |
 
 These are candidates, not immutable dependencies. Before capture, verify that each page is reachable, permits archiving under robots and `noarchive` policy, and still fits the intended score. For every scripted candidate, statically and dynamically verify that its tested path does not require workers, WebAssembly, import maps, `eval`, `document.write`, dynamic `script`/`link`/`img` URL construction, path-based script self-location, or other behavior outside the v1 rewrite matrix. If a candidate changed or violates that matrix, replace it with a stable page in the same class and document the reason instead of widening replay permissions for the test.
 
-Chromium DevTools `Page.captureSnapshot` can produce the MHTML artifact after the page settles. A WebArchive is a Safari property-list format; in the Windows/WSL environment, create the simple fixture as a binary property list containing `WebMainResource`, `WebSubresources`, and any subframes from the captured page, matching the structure consumed by `WebArchiveDecoder`. If access to Safari is available, prefer a real Safari-generated file and retain its provenance in the test notes. Test artifacts and notes must not contain account data, cookies, tokens, or unrelated browsing history.
+Chromium DevTools `Page.captureSnapshot` can produce the MHTML artifact after the page settles. A WebArchive is a Safari property-list format; in the Windows/WSL environment, create the simple fixture as an XML or binary property list containing `WebMainResource`, `WebSubresources`, and any subframes from the captured page, matching the structure consumed by `WebArchiveDecoder`. If access to Safari is available, prefer a real Safari-generated file and retain its provenance in the test notes. Test artifacts and notes must not contain account data, cookies, tokens, or unrelated browsing history.
 
-For stronger cross-format confidence, repeat the intermediate custom-element page in all three formats after the minimum matrix passes. That comparison is useful but is not required to establish the first acceptance baseline.
+For stronger cross-format confidence, repeat the intermediate page in all three formats after the minimum matrix passes. That comparison is useful but is not required to establish the first acceptance baseline.
+
+The completed local baseline is recorded in [Interactive archive replay acceptance](interactive-archive-replay-acceptance.md).
 
 ## Local implementation and test environment
 
@@ -582,7 +583,7 @@ Implementation is complete only when all of the following are true:
 - replay is served on a dedicated credential-free origin, and normal API routes are unavailable there;
 - admitted public replay combines an `allow-scripts` iframe with an executable response policy without granting same-origin privileges; static response policy remains non-executable at the same replay URL for rejected clients;
 - captured same-snapshot `fetch`/XHR `GET` and module requests resolve with forced credential omission, while external or uncaptured subresources, live APIs, unsupported methods, workers, forms, pop-ups, downloads, top navigation, device access, and Archive API access are blocked by independently tested controls;
-- archived scripts execute only when the replay content boundary admits a tested Chromium 152+ client and the required `Connection-Allowlist`/`webrtc 'block'` controls pass an end-to-end conformance test; every other client receives the static policy;
+- archived scripts execute only when the replay content boundary admits a tested Chromium 152+ client and the required `Connection-Allowlist` controls pass an end-to-end conformance test, including its default redirect and WebRTC blocks; every other client receives the static policy;
 - an admitted replay emits no DNS, HTTP(S), WebSocket, WebTransport, WebRTC/STUN, or redirect request outside the current snapshot path in hostile browser-network tests;
 - root and nested archived documents load under their distinct tested policies while remaining mutually opaque, and active-format assets cannot become unrestricted documents;
 - the frontend has no replay readiness or command protocol and ignores arbitrary replay messages;
@@ -633,6 +634,6 @@ Deferred. It could provide cross-browser interactive replay and support private 
 - [OWASP HTML5 Security Cheat Sheet: sandboxed frames](https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#sandboxed-frames)
 - [OWASP Micro Frontend Security: isolate different trust levels](https://cheatsheetseries.owasp.org/cheatsheets/Micro_Frontend_Security_Cheat_Sheet.html#isolate-features-with-different-trust-levels)
 
-## Approval gate
+## Implementation record
 
-No implementation, environment mutation, container cleanup, service startup, OAuth use, API generation, migration, or browser capture should begin until the user explicitly approves this proposal.
+Implementation began only after explicit user approval. The code, migration, generated API types, focused tests, runtime validation, and acceptance notes are committed separately from the design-history commits.
