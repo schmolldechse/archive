@@ -16,6 +16,6 @@ internal static class SnapshotContentStorage
         return stored is null
             ? new SnapshotContentResult.NotFound()
             : new SnapshotContentResult.Found(new(stored.Content, stored.ContentType,
-                sourceType != SourceType.Url && safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase)));
+                safePath.StartsWith("source.", StringComparison.OrdinalIgnoreCase)));
     }
 }

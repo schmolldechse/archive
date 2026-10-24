@@ -28,12 +28,12 @@
 		<div class="archived-page__information">
 			<SnapshotInformationDialog snapshot={data.snapshot} history={data.history} historyUnavailable={!data.historyAvailable} />
 		</div>
-		<!-- Preserve the API origin for session-authenticated resources; scripts and forms remain sandboxed. -->
+		<!-- Public replay is opaque but script-capable; authenticated private content remains static. -->
 		<iframe
 			src={data.snapshot.contentUrl ?? undefined}
 			title={`Archived page: ${data.snapshot.title}`}
-			sandbox="allow-same-origin"
-			referrerpolicy="strict-origin-when-cross-origin"
+			sandbox={data.isPrivate ? "allow-same-origin" : "allow-scripts"}
+			referrerpolicy="no-referrer"
 		></iframe>
 	</main>
 </div>

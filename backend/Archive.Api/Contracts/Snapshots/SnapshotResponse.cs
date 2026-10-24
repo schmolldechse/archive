@@ -67,7 +67,7 @@ public sealed class SnapshotResponse
     public required string? ScreenshotUrl { get; init; }
 
     [JsonPropertyName("contentUrl")]
-    [Description("Archived start page URL. Null until capture storage has completed.")]
+    [Description("Canonical archived start page URL. Compatible approved snapshots use isolated replay; legacy and private snapshots remain static. Null until capture storage has completed.")]
     [Url]
     public required string? ContentUrl { get; init; }
 

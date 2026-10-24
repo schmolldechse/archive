@@ -46,6 +46,7 @@ internal sealed partial class SnapshotProcessingRepository
         snapshot.DurationMilliseconds = result.DurationMilliseconds;
         snapshot.StorageBytes = result.StorageBytes;
         snapshot.ResourceCount = result.ResourceCount;
+        snapshot.ReplayVersion = result.ReplayVersion;
         snapshot.CaptureStartedAt = processing.StartedAt;
         snapshot.CaptureCompletedAt = now;
         await history.AppendAsync(snapshot,

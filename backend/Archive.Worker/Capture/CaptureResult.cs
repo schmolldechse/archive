@@ -8,4 +8,5 @@ public sealed record CaptureResult(
     long StorageBytes,
     int ResourceCount,
     long DurationMilliseconds,
+    int? ReplayVersion,
     IReadOnlyList<string> StoredObjectKeys);

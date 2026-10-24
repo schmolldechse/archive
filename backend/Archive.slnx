@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Archive.Api/Archive.Api.csproj" />
   <Project Path="Archive.Core/Archive.Core.csproj" />
+  <Project Path="Archive.Tests/Archive.Tests.csproj" />
   <Project Path="Archive.Worker/Archive.Worker.csproj" />
 </Solution>

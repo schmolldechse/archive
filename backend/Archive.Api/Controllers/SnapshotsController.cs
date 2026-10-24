@@ -117,6 +117,7 @@ public sealed partial class SnapshotsController(
         {
             // URL captures are untrusted too, and content paths can be opened outside the preview iframe.
             Response.Headers.XContentTypeOptions = "nosniff";
+            Response.Headers.AccessControlAllowOrigin = "*";
             Response.Headers.ContentSecurityPolicy = ArchivedContentPolicy(ArchivedContentOrigin(), IsRootHtml(path, stored.ContentType));
             Response.Headers["Referrer-Policy"] = "no-referrer";
             if (stored.IsOriginalSource)

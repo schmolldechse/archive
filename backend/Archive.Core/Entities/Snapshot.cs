@@ -60,6 +60,10 @@ public sealed class Snapshot
     [Column("resource_count")]
     public int? ResourceCount { get; set; }
 
+    /// <summary>Normalizer contract used by the canonical entry document; null denotes static-only content.</summary>
+    [Column("replay_version")]
+    public int? ReplayVersion { get; set; }
+
     [MaxLength(512)]
     [Column("content_prefix")]
     public string? ContentPrefix { get; set; }
