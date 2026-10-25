@@ -55,7 +55,7 @@ public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentic
         var policy = interactive
             ? $"default-src 'none'; script-src {scope} 'unsafe-inline'; style-src {scope} 'unsafe-inline' data:; " +
               $"img-src {scope} data: blob:; font-src {scope} data:; media-src {scope} data: blob:; " +
-              $"frame-src {scope} data:; connect-src {scope}; worker-src 'none'; object-src 'none'; " +
+              $"frame-src {scope} data:; connect-src {scope} blob: data:; worker-src 'none'; object-src 'none'; " +
               $"form-action 'none'; base-uri {scope}; sandbox allow-scripts;"
             : $"default-src 'none'; img-src {scope} data: blob:; style-src {scope} 'unsafe-inline' data:; " +
               $"font-src {scope} data:; media-src {scope} data: blob:; frame-src {scope} data:; " +

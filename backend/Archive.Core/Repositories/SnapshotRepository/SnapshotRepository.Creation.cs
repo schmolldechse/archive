@@ -82,13 +82,17 @@ internal sealed partial class SnapshotRepository
             if (request.CreatedByUserId is not null && creator is null)
                 throw new MissingCreatorException();
 
-            snapshot.CreatedByUserId = creator?.Id;
-            snapshot.ModerationStatus = PermissionEvaluator.IsAllowed(creator, ArchivePermissions.PublishSnapshotsWithoutApproval)
+            // Authentication alone does not establish snapshot ownership. Until registration is complete,
+            // submissions use the same unattributed moderation path as anonymous submissions.
+            var registeredCreator = creator is { IsRegistrationComplete: true } ? creator : null;
+            snapshot.CreatedByUserId = registeredCreator?.Id;
+            snapshot.ModerationStatus = PermissionEvaluator.IsAllowed(registeredCreator, ArchivePermissions.PublishSnapshotsWithoutApproval)
                 ? SnapshotModerationStatus.Approved
                 : SnapshotModerationStatus.Pending;
 
             database.Snapshots.Add(snapshot);
-            await history.AppendAsync(snapshot, new SnapshotSubmittedData(), actorUserId: creator?.Id, cancellationToken: cancellationToken);
+            await history.AppendAsync(snapshot, new SnapshotSubmittedData(), actorUserId: registeredCreator?.Id,
+                cancellationToken: cancellationToken);
 
             foreach (var value in tags.Distinct(StringComparer.Ordinal))
             {
@@ -114,8 +118,10 @@ internal sealed partial class SnapshotRepository
             });
 
             if (snapshot.ModerationStatus == SnapshotModerationStatus.Approved)
-                await history.AppendAsync(snapshot, new SnapshotModeratedData(null, snapshot.ModerationStatus, null), cancellationToken: cancellationToken);
-            
+                await history.AppendAsync(snapshot,
+                    new SnapshotModeratedData(null, snapshot.ModerationStatus, null),
+                    cancellationToken: cancellationToken);
+
             // Per-snapshot positions include pending entries, so both events are saved atomically.
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

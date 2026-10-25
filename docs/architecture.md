@@ -96,7 +96,7 @@ flowchart LR
     Rejected --> Review
 ```
 
-Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
+A submission records `CreatedByUserId` only for an authenticated account that has completed registration. Anonymous callers and authenticated callers with incomplete registration create unattributed snapshots and cannot use the owner routes for them. Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
 
 Owners may edit title, description, and tags without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the same fields and change or remove account attribution without changing moderation.
 
@@ -183,7 +183,8 @@ Administrative access changes cannot target the current actor and cannot leave t
 | Caller and state                                 | Metadata/content route      | Result                                                                    |
 | ------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------- |
 | Anonymous, stored and `APPROVED`                 | `/api/snapshots/{id}`       | Public metadata and resources.                                            |
-| Owner, any stored moderation state               | `/api/users/snapshots/{id}` | Private detail, history, screenshot, and content.                         |
+| Registered owner, any stored moderation state    | `/api/users/snapshots/{id}` | Private detail, history, screenshot, and content.                         |
+| Unattributed, not `APPROVED`                     | `/api/users/snapshots/{id}` | No owner access; only an authorized reviewer can open it.                 |
 | Authorized reviewer, any stored moderation state | `/api/admin/snapshots/{id}` | Private review detail, history, screenshot, and content.                  |
 | Any caller outside those rules                   | Any route                   | Not found, unauthenticated, or forbidden according to the route contract. |
 
@@ -191,7 +192,7 @@ Private responses use `private, no-store`. Mutations for moderation, resubmissio
 
 Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 
-Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html`; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. The browser security gate determines whether JavaScript executes, independent of moderation status.
+Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html`; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state. The browser security gate determines whether JavaScript executes, independent of moderation status.
 
 ## Archived-content isolation
 

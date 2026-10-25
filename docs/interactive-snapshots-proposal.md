@@ -118,7 +118,7 @@ The same controller and repository resolve public and access-controlled snapshot
 
 ## Access-controlled snapshots
 
-Owner and administrator authorization continues through the authenticated API origin. After a private detail request succeeds, the API issues a short-lived data-protected bearer capability bound to exactly one snapshot.
+Owner and administrator authorization continues through the authenticated API origin. After a private detail request succeeds, the API issues a short-lived data-protected bearer capability bound to exactly one snapshot and the authorized account.
 
 The returned `contentUrl` places the capability in the content path:
 
@@ -126,7 +126,7 @@ The returned `contentUrl` places the capability in the content path:
 https://snapshots.example.net/api/snapshots/{id}/content/~{capability}/index.html
 ```
 
-Relative document and asset URLs retain the same capability prefix. The snapshot origin validates the capability without cookies and opens the active generation only after validation. Invalid, expired, modified, or snapshot-mismatched capabilities return `404`.
+Relative document and asset URLs retain the same capability prefix. The snapshot origin validates the capability without cookies, then revalidates the bound account against the snapshot's current moderation state, owner, registration state, role, and permission overrides before every resource read. Invalid, expired, modified, snapshot-mismatched, or no-longer-authorized capabilities return `404`.
 
 The capability lifetime defaults to 60 minutes and is configurable. Metadata responses containing it remain private and non-cacheable. Reloading an authorized snapshot page obtains a new capability.
 

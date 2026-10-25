@@ -31,7 +31,8 @@ internal static partial class JavaScriptReferenceRewriter
             match.Groups["quote"].Value + match.Groups["suffix"].Value;
     }
 
-    private static string AsRelativeUrl(string value)
+    /// <summary>Keeps a captured path URL-like when it is used as a module specifier.</summary>
+    internal static string AsRelativeUrl(string value)
     {
         // Bare specifiers are package names in an import declaration. Prefixing the
         // first path segment keeps the same value valid for modules and URL APIs.

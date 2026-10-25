@@ -33,17 +33,20 @@ public sealed class SnapshotContentTests
         var tokens = new SnapshotContentAccessTokenService(new EphemeralDataProtectionProvider(), options);
         var mapper = new SnapshotSubmissionMapper(new SnapshotMapper(publicUsers, options), publicUsers, options, tokens);
         var snapshot = Snapshot();
+        var subjectId = Guid.NewGuid();
         var detail = new SnapshotSubmissionDetail(snapshot,
             new SnapshotModerationDetails(SnapshotModerationStatus.Pending, DateTimeOffset.UtcNow, null),
             ProcessingStatus.Completed, "etag");
 
-        var contentUrl = mapper.ToResponse(detail, "http://localhost:5200/api/users/snapshots/example").Snapshot.ContentUrl;
+        var contentUrl = mapper.ToResponse(detail, "http://localhost:5200/api/users/snapshots/example", subjectId)
+            .Snapshot.ContentUrl;
         var uri = new Uri(contentUrl!);
         var capability = uri.AbsolutePath.Split('/')[5].TrimStart('~');
 
         Assert.StartsWith($"{options.PublicOrigin}/api/snapshots/{snapshot.Id}/content/~", contentUrl,
             StringComparison.Ordinal);
-        Assert.True(tokens.IsValid(snapshot.Id, capability));
+        Assert.True(tokens.TryValidate(snapshot.Id, capability, out var protectedSubjectId));
+        Assert.Equal(subjectId, protectedSubjectId);
     }
 
     [Fact]
@@ -63,6 +66,8 @@ public sealed class SnapshotContentTests
         Assert.DoesNotContain("allow-same-origin", response.Headers.ContentSecurityPolicy.ToString(),
             StringComparison.Ordinal);
         Assert.DoesNotContain("webrtc", response.Headers.ContentSecurityPolicy.ToString(),
+            StringComparison.Ordinal);
+        Assert.Contains($"connect-src {scope} blob: data:", response.Headers.ContentSecurityPolicy.ToString(),
             StringComparison.Ordinal);
         Assert.Contains($"/api/snapshots/{snapshotId}/content/",
             response.Headers["Connection-Allowlist"].ToString(),

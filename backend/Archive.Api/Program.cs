@@ -62,7 +62,6 @@ builder.Services.AddSingleton<UserAccessMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddSingleton<SnapshotSubmissionMapper>();
-builder.Services.AddScoped<ExistingArchiveUserFilter>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddCors(options => options.AddPolicy("public", policy => policy

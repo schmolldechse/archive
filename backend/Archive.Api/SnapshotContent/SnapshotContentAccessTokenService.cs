@@ -10,20 +10,25 @@ public sealed class SnapshotContentAccessTokenService(
     SnapshotContentOptions options)
 {
     private readonly ITimeLimitedDataProtector _protector = dataProtection
-        .CreateProtector("Archive.Api.SnapshotContent.PrivateAccess.v1")
+        .CreateProtector("Archive.Api.SnapshotContent.PrivateAccess.v2")
         .ToTimeLimitedDataProtector();
 
-    /// <summary>Creates a URL-safe capability after the caller has authorized access to the snapshot.</summary>
-    public string Create(Guid snapshotId) => _protector.Protect(snapshotId.ToString("N"),
+    /// <summary>Creates a URL-safe capability bound to the authorized account and snapshot.</summary>
+    public string Create(Guid snapshotId, Guid subjectUserId) => _protector.Protect(
+        $"{snapshotId:N}.{subjectUserId:N}",
         TimeSpan.FromMinutes(options.PrivateAccessTokenLifetimeMinutes));
 
-    /// <summary>Validates that an unexpired capability was issued for the requested snapshot.</summary>
-    public bool IsValid(Guid snapshotId, string token)
+    /// <summary>Reads the account from an unexpired capability issued for the requested snapshot.</summary>
+    public bool TryValidate(Guid snapshotId, string token, out Guid subjectUserId)
     {
+        subjectUserId = Guid.Empty;
         try
         {
-            var protectedSnapshotId = _protector.Unprotect(token, out _);
-            return Guid.TryParseExact(protectedSnapshotId, "N", out var parsed) && parsed == snapshotId;
+            var payload = _protector.Unprotect(token, out _).Split('.', StringSplitOptions.RemoveEmptyEntries);
+            return payload.Length == 2 &&
+                Guid.TryParseExact(payload[0], "N", out var protectedSnapshotId) &&
+                Guid.TryParseExact(payload[1], "N", out subjectUserId) &&
+                protectedSnapshotId == snapshotId;
         }
         catch (CryptographicException)
         {

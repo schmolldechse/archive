@@ -14,6 +14,8 @@ function requireAccess(event: SubmissionLoadEvent, admin: boolean) {
 	if (!event.locals.session) error(503, "Your account could not be loaded. Please try again.");
 	if (!event.locals.session.isAuthenticated || !event.locals.session.user)
 		redirect(303, loginHref(event.url.pathname + event.url.search));
+	if (!event.locals.session.user.isRegistrationComplete)
+		redirect(303, `/account/complete?returnUrl=${encodeURIComponent(event.url.pathname + event.url.search)}`);
 }
 
 /** Forwards the session only to the configured backend, never to a supplied URL. */

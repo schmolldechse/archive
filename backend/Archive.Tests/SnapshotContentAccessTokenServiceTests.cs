@@ -11,11 +11,13 @@ public sealed class SnapshotContentAccessTokenServiceTests
     {
         var service = CreateService();
         var snapshotId = Guid.NewGuid();
-        var token = service.Create(snapshotId);
+        var subjectId = Guid.NewGuid();
+        var token = service.Create(snapshotId, subjectId);
 
-        Assert.True(service.IsValid(snapshotId, token));
-        Assert.False(service.IsValid(Guid.NewGuid(), token));
-        Assert.False(service.IsValid(snapshotId, token + "invalid"));
+        Assert.True(service.TryValidate(snapshotId, token, out var protectedSubjectId));
+        Assert.Equal(subjectId, protectedSubjectId);
+        Assert.False(service.TryValidate(Guid.NewGuid(), token, out _));
+        Assert.False(service.TryValidate(snapshotId, token + "invalid", out _));
     }
 
     private static SnapshotContentAccessTokenService CreateService() => new(

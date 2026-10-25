@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Archive.Core.Storage;
@@ -52,7 +51,11 @@ internal static class SnapshotDocumentNormalizer
             {
                 var value = element.GetAttribute(attribute);
                 if (value is not null && TryResolve(value, baseUrl, map, out var local))
+                {
                     element.SetAttribute(attribute, local);
+                    if (attribute == "src" && element.LocalName is "img" or "audio" or "video")
+                        element.SetAttribute("crossorigin", "anonymous");
+                }
             }
 
             var sourceSet = element.GetAttribute("srcset");
@@ -70,12 +73,19 @@ internal static class SnapshotDocumentNormalizer
             document.All.Any(element => element.Attributes.Any(attribute =>
                 attribute.Name.StartsWith("on", StringComparison.OrdinalIgnoreCase)));
         var documentMap = BuildAbsoluteMap(baseUrl, map);
-        foreach (var script in document.QuerySelectorAll("script[type='module']:not([src])"))
-            script.TextContent = JavaScriptReferenceRewriter.Rewrite(script.TextContent, baseUrl, documentMap);
+        foreach (var script in document.QuerySelectorAll("script"))
+        {
+            var type = script.GetAttribute("type");
+            if (type?.Equals("importmap", StringComparison.OrdinalIgnoreCase) == true)
+                script.TextContent = SnapshotImportMapRewriter.Rewrite(script.TextContent, baseUrl, documentMap);
+            else if (type?.Equals("module", StringComparison.OrdinalIgnoreCase) == true &&
+                script.GetAttribute("src") is null)
+                script.TextContent = JavaScriptReferenceRewriter.Rewrite(script.TextContent, baseUrl, documentMap);
+        }
 
         var shim = document.CreateElement("script");
         shim.SetAttribute("data-archive-snapshot", "v1");
-        shim.TextContent = BuildShim(baseUrl, documentMap);
+        shim.TextContent = SnapshotRuntimeShim.Build(baseUrl, documentMap);
         head.InsertBefore(shim, baseElement.NextSibling);
 
         var serialized = document.DocumentElement?.OuterHtml
@@ -118,43 +128,4 @@ internal static class SnapshotDocumentNormalizer
         ? uri
         : new UriBuilder(uri) { Fragment = string.Empty }.Uri;
 
-    private static string BuildShim(string? sourceUrl, IReadOnlyDictionary<string, string> map)
-    {
-        var serializedMap = JsonSerializer.Serialize(map);
-        var serializedBase = JsonSerializer.Serialize(sourceUrl);
-        return $$"""
-            (() => {
-              "use strict";
-              const originalBase = {{serializedBase}} || "about:blank";
-              const resources = Object.freeze({{serializedMap}});
-              const nativeFetch = window.fetch.bind(window);
-              const resolve = (input) => {
-                const absolute = new URL(String(input), originalBase);
-                absolute.hash = "";
-                const local = resources[absolute.href];
-                if (!local) throw new TypeError("The archived snapshot blocked an uncaptured resource.");
-                return new URL(local, document.baseURI).href;
-              };
-              window.fetch = (input, init = {}) => {
-                const request = input instanceof Request ? input : null;
-                const method = String(init.method || request?.method || "GET").toUpperCase();
-                if (method !== "GET" && method !== "HEAD")
-                  return Promise.reject(new TypeError("The archived snapshot permits only GET and HEAD."));
-                const url = resolve(request?.url || input);
-                return nativeFetch(url, { ...init, method, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
-              };
-              const nativeOpen = XMLHttpRequest.prototype.open;
-              XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-                const normalized = String(method).toUpperCase();
-                if (normalized !== "GET" && normalized !== "HEAD")
-                  throw new TypeError("The archived snapshot permits only GET and HEAD.");
-                return nativeOpen.call(this, normalized, resolve(url), ...rest);
-              };
-              for (const name of ["WebSocket", "EventSource", "WebTransport", "Worker", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
-                try { Object.defineProperty(window, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
-              window.open = () => null;
-              addEventListener("submit", event => event.preventDefault(), true);
-            })();
-            """;
-    }
 }

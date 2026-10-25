@@ -22,7 +22,7 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         if (detail is null) return NotFound();
         Response.Headers.ETag = detail.ETag;
         var resourceBaseUrl = $"{options.PublicApiOrigin.TrimEnd('/')}/{routeBase.Trim('/')}/{detail.Snapshot.Id}";
-        return Ok(mapper.ToResponse(detail, resourceBaseUrl));
+        return Ok(mapper.ToResponse(detail, resourceBaseUrl, User.ReadUserId()));
     }
 
     /// <summary>Checks browser origin and exactly one strong validator before a private mutation.</summary>

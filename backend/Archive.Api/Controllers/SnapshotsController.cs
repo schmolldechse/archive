@@ -117,11 +117,13 @@ public sealed partial class SnapshotsController(
         var resourcePath = path;
         string? accessToken = null;
         var hasPrivateAccess = TryReadPrivateAccessPath(path, out accessToken, out resourcePath);
-        if (hasPrivateAccess && (!snapshotOriginDelivery || !accessTokens.IsValid(snapshotId, accessToken!)))
-            return NotFound();
+        Guid accessSubjectUserId = default;
+        if (hasPrivateAccess && (!snapshotOriginDelivery ||
+                !accessTokens.TryValidate(snapshotId, accessToken!, out accessSubjectUserId))) return NotFound();
 
         var result = hasPrivateAccess
-            ? await snapshotRepository.OpenAuthorizedContentAsync(snapshotId, resourcePath, cancellationToken)
+            ? await snapshotRepository.OpenAuthorizedContentAsync(snapshotId, resourcePath, accessSubjectUserId,
+                cancellationToken)
             : await snapshotRepository.OpenContentAsync(snapshotId, resourcePath, cancellationToken);
         if (result is SnapshotContentResult.NotFound)
             return NotFound();

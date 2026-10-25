@@ -53,4 +53,78 @@ public sealed class SnapshotDocumentNormalizerTests
         foreach (var local in map.Values)
             Assert.Contains("./" + local, rewritten, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ExpandsCapturedImportMapPrefixesIntoExactSnapshotSpecifiers()
+    {
+        const string html = """
+            <!doctype html><html><head>
+            <script type="importmap">
+              { "imports": { "three": "../build/three.module.js", "three/addons/": "./jsm/" } }
+            </script>
+            <script type="module">
+              import * as THREE from "three";
+              import GUI from "three/addons/libs/lil-gui.module.min.js";
+            </script></head><body></body></html>
+            """;
+        var normalized = SnapshotDocumentNormalizer.Normalize(html,
+            "https://threejs.org/examples/webgl_animation.html",
+            new Dictionary<string, string>
+            {
+                ["https://threejs.org/build/three.module.js"] = "assets/three-hash",
+                ["https://threejs.org/examples/jsm/libs/lil-gui.module.min.js"] = "assets/gui-hash"
+            }, "index.html");
+
+        Assert.Contains("\"three\": \"./assets/three-hash\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("\"three/addons/libs/lil-gui.module.min.js\": \"./assets/gui-hash\"",
+            normalized.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapsImportMapScopesToCapturedModuleLocations()
+    {
+        const string html = """
+            <!doctype html><html><head>
+            <script type="importmap">
+              { "scopes": { "./features/": { "library": "./vendor/library.js" } } }
+            </script></head><body></body></html>
+            """;
+        var normalized = SnapshotDocumentNormalizer.Normalize(html, "https://example.test/app/index.html",
+            new Dictionary<string, string>
+            {
+                ["https://example.test/app/features/main.js"] = "assets/main-hash.js",
+                ["https://example.test/app/vendor/library.js"] = "assets/library-hash.js"
+            }, "index.html");
+
+        Assert.Contains("\"./assets/main-hash.js\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("\"library\": \"./assets/library-hash.js\"", normalized.Html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("\"./features/\"", normalized.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallsRuntimeCompatibilityForLegacyScriptLoaders()
+    {
+        const string html = """
+            <!doctype html><html><head><script src="../tdl/base.js"></script></head>
+            <body><img src="assets/fish.png"></body></html>
+            """;
+        var normalized = SnapshotDocumentNormalizer.Normalize(html,
+            "https://webglsamples.org/aquarium/aquarium.html",
+            new Dictionary<string, string>
+            {
+                ["https://webglsamples.org/tdl/base.js"] = "assets/base-hash",
+                ["https://webglsamples.org/tdl/sync.js"] = "assets/sync-hash",
+                ["https://webglsamples.org/aquarium/assets/fish.png"] = "assets/fish-hash"
+            }, "index.html");
+
+        Assert.Contains("sourceByLocal", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("localUrl.startsWith(localRoot)", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("Document.prototype.write", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("HTMLScriptElement", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("src=\"assets/base-hash\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("src=\"assets/fish-hash\" crossorigin=\"anonymous\"", normalized.Html,
+            StringComparison.Ordinal);
+        Assert.Contains("candidate.protocol === \"blob:\"", normalized.Html, StringComparison.Ordinal);
+    }
 }

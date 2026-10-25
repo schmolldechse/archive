@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Archive.Core.Authorization;
 
 namespace Archive.Core.Repositories.SnapshotRepository;
 
@@ -36,25 +37,38 @@ internal sealed partial class SnapshotRepository(
 
     public Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
         CancellationToken cancellationToken = default) =>
-        OpenContentAsync(snapshotId, path, requireApproved: true, cancellationToken);
+        OpenContentAsync(snapshotId, path, null, requireApproved: true, cancellationToken);
 
-    public Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path,
+    public Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path, Guid subjectUserId,
         CancellationToken cancellationToken = default) =>
-        OpenContentAsync(snapshotId, path, requireApproved: false, cancellationToken);
+        OpenContentAsync(snapshotId, path, subjectUserId, requireApproved: false, cancellationToken);
 
-    private async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, bool requireApproved,
-        CancellationToken cancellationToken)
+    private async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, Guid? subjectUserId,
+        bool requireApproved, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
-                && (!requireApproved || snapshot.ModerationStatus == SnapshotModerationStatus.Approved)
                 && snapshot.Quality != null)
-            .Select(snapshot => new { snapshot.ContentPrefix })
+            .Select(snapshot => new
+            {
+                snapshot.ContentPrefix,
+                snapshot.CreatedByUserId,
+                snapshot.ModerationStatus
+            })
             .SingleOrDefaultAsync(cancellationToken);
-        if (snapshot?.ContentPrefix is null)
+        if (snapshot?.ContentPrefix is null || requireApproved &&
+            snapshot.ModerationStatus != SnapshotModerationStatus.Approved)
         {
             logger.LogWarning("Snapshot {SnapshotId} is not public or has no active content generation", snapshotId);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        if (!requireApproved && snapshot.ModerationStatus != SnapshotModerationStatus.Approved &&
+            (subjectUserId is null || !await HasPrivateContentAccessAsync(
+                snapshot.CreatedByUserId, subjectUserId.Value, cancellationToken)))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} private content capability is no longer authorized", snapshotId);
             return new SnapshotContentResult.NotFound();
         }
 
@@ -116,6 +130,22 @@ internal sealed partial class SnapshotRepository(
         return stored is null
             ? new SnapshotContentResult.NotFound()
             : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
+    }
+
+    /// <summary>Revalidates owner or moderation access whenever a private content capability is used.</summary>
+    private async Task<bool> HasPrivateContentAccessAsync(Guid? ownerId, Guid subjectUserId,
+        CancellationToken cancellationToken)
+    {
+        var subject = await database.Users.AsNoTracking()
+            .Include(user => user.PermissionOverrides)
+            .SingleOrDefaultAsync(user => user.Id == subjectUserId, cancellationToken);
+        if (subject is not { IsRegistrationComplete: true } || !Enum.IsDefined(subject.Role))
+            return false;
+        if (ownerId == subjectUserId)
+            return true;
+
+        return PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminPortal) &&
+            PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminSnapshots);
     }
 
     public async Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default)

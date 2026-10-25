@@ -34,13 +34,14 @@ public partial class SnapshotSubmissionMapper(
     public partial SnapshotOwnerListResponse ToOwnerResponse(UserListPage page);
 
     /// <summary>Maps private details with resource URLs scoped to the calling controller.</summary>
-    public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl)
+    public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl,
+        Guid accessSubjectUserId)
     {
         var normalizedBaseUrl = resourceBaseUrl.TrimEnd('/');
         var contentUrl = detail.Snapshot.Quality is null
             ? null
             : $"{snapshotContent.PublicOrigin}/api/snapshots/{detail.Snapshot.Id}/content/" +
-              $"~{accessTokens.Create(detail.Snapshot.Id)}/index.html";
+              $"~{accessTokens.Create(detail.Snapshot.Id, accessSubjectUserId)}/index.html";
         var snapshot = snapshotMapper.ToResponse(detail.Snapshot,
             detail.Snapshot.Quality is null ? null : $"{normalizedBaseUrl}/screenshot",
             contentUrl);
