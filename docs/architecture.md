@@ -96,7 +96,7 @@ flowchart LR
     Rejected --> Review
 ```
 
-Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
+A submission records `CreatedByUserId` only for an authenticated account that has completed registration. Anonymous callers and authenticated callers with incomplete registration create unattributed snapshots and cannot use the owner routes for them. Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
 
 Owners may edit title, description, and tags without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the same fields and change or remove account attribution without changing moderation.
 
@@ -142,15 +142,15 @@ The configured bucket contains two main key spaces:
 ```text
 jobs/{snapshotId}/...             temporary uploaded source
 snapshots/{snapshotId}/
-├── index.html                    archived entry document
+├── index.html                    canonical normalized entry document
 ├── screenshot.png                capture preview
-├── manifest.json                 stored object inventory and capture metadata
+├── manifest.json                 snapshot allowlist, hashes, roles, provenance, and diagnostics
 ├── assets/...                    captured or imported resources
 ├── frames/...                    imported frame documents when present
-└── source.{html|mhtml|webarchive} original uploaded document when present
+└── source.{html|mhtml|webarchive} immutable main response or uploaded source
 ```
 
-The exact resource set is recorded in the manifest. `Snapshot.ContentPrefix` selects the active stored set. Archived documents use relative, route-neutral resource references so the same bytes can be served through public, owner, and administrator routes.
+The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. The manifest and browser security boundary determine interactive delivery for the canonical snapshot document.
 
 Profile images are stored with the user record in PostgreSQL. Their public or owner-only visibility is decided by the profile repository and API route.
 
@@ -182,7 +182,8 @@ Administrative access changes cannot target the current actor and cannot leave t
 | Caller and state                                 | Metadata/content route      | Result                                                                    |
 | ------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------- |
 | Anonymous, stored and `APPROVED`                 | `/api/snapshots/{id}`       | Public metadata and resources.                                            |
-| Owner, any stored moderation state               | `/api/users/snapshots/{id}` | Private detail, history, screenshot, and content.                         |
+| Registered owner, any stored moderation state    | `/api/users/snapshots/{id}` | Private detail, history, screenshot, and content.                         |
+| Unattributed, not `APPROVED`                     | `/api/users/snapshots/{id}` | No owner access; only an authorized reviewer can open it.                 |
 | Authorized reviewer, any stored moderation state | `/api/admin/snapshots/{id}` | Private review detail, history, screenshot, and content.                  |
 | Any caller outside those rules                   | Any route                   | Not found, unauthenticated, or forbidden according to the route contract. |
 
@@ -190,21 +191,27 @@ Private responses use `private, no-store`. Mutations for moderation, resubmissio
 
 Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 
+Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html`; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state. The browser security gate determines whether JavaScript executes, independent of moderation status.
+
 ## Archived-content isolation
 
-Archived pages are untrusted input. Content responses apply a restrictive content security policy:
+Archived pages are untrusted input. Static and interactive delivery read the same canonical bytes but apply different trust boundaries:
 
-- scripts, connections, objects, and form submissions are disabled;
-- images, styles, fonts, media, and frames are limited to the snapshot content scope and data URLs where supported;
-- public playback uses a sandboxed document;
-- private HTML navigation must originate from the configured frontend or the same authorized snapshot scope;
-- the frontend iframe uses `sandbox="allow-same-origin"` without script or form permissions;
-- original uploaded source files are served as downloads rather than active documents.
+- approved versioned public captures load from a dedicated credential-free origin in an opaque iframe with `sandbox="allow-scripts"`;
+- archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
+- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a snapshot shim independently prevent live network access, forms, workers, pop-ups, storage privileges, and top navigation;
+- executable policy is sent only for structured `Sec-CH-UA` hints matching the configured tested Chromium version; all other clients receive a script-disabled policy at the same URL;
+- the isolated snapshot origin strips credentials and exposes only the snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
+- public and access-controlled content use an opaque `sandbox="allow-scripts"` iframe; clients without the required connection boundary receive a script-disabled response policy;
+- original source objects are downloads and are never manifest-authorized browser resources.
 
-The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, crawl policy reads applicable directives, and resource, byte, duration, and import-depth limits bound work. See [Configuration](configuration.md) for the controls.
+The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
+
+The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, crawl policy reads applicable directives, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
 ## Related documentation
 
 - [Development](development.md)
 - [Configuration](configuration.md)
 - [Deployment](deployment.md)
+- [Interactive snapshots](interactive-snapshots.md)

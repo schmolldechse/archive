@@ -11,5 +11,7 @@
     <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
     <PackageReference Include="MimeKit" Version="4.18.1" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
+    <!-- Override MimeKit's vulnerable transitive baseline with the current serviced .NET 10 package. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 </Project>

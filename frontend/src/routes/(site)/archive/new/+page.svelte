@@ -470,7 +470,7 @@
 						{#if archive.status === ProcessingStatus.COMPLETED && !isPublished}<Button variant="text" onclick={refreshStatus}
 								>Refresh status</Button
 							>{/if}
-						{#if account.session?.user}<Button variant="text" href={`/account/submissions/${archive.id}`}
+						{#if account.session?.user?.isRegistrationComplete}<Button variant="text" href={`/account/submissions/${archive.id}`}
 								>View submission</Button
 							>{/if}
 						{#if terminal}<Button variant="secondary" onclick={restart}>Start another capture</Button>{/if}

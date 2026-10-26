@@ -2,6 +2,8 @@ using System.Text.Json;
 using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Serialization;
+using Archive.Api.Options;
+using Archive.Api.SnapshotContent;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Models.Users;
@@ -11,7 +13,11 @@ namespace Archive.Api.Mapping;
 
 /// <summary>Maps private snapshot submission projections to public API contracts.</summary>
 [Mapper(RequiredMappingStrategy = RequiredMappingStrategy.Both)]
-public partial class SnapshotSubmissionMapper(SnapshotMapper snapshotMapper, PublicUserMapper publicUserMapper)
+public partial class SnapshotSubmissionMapper(
+    SnapshotMapper snapshotMapper,
+    PublicUserMapper publicUserMapper,
+    SnapshotContentOptions snapshotContent,
+    SnapshotContentAccessTokenService accessTokens)
 {
     private static readonly JsonSerializerOptions HistoryJson = CreateHistoryJson();
 
@@ -28,12 +34,17 @@ public partial class SnapshotSubmissionMapper(SnapshotMapper snapshotMapper, Pub
     public partial SnapshotOwnerListResponse ToOwnerResponse(UserListPage page);
 
     /// <summary>Maps private details with resource URLs scoped to the calling controller.</summary>
-    public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl)
+    public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl,
+        Guid accessSubjectUserId)
     {
         var normalizedBaseUrl = resourceBaseUrl.TrimEnd('/');
+        var contentUrl = detail.Snapshot.Quality is null
+            ? null
+            : $"{snapshotContent.PublicOrigin}/api/snapshots/{detail.Snapshot.Id}/content/" +
+              $"~{accessTokens.Create(detail.Snapshot.Id, accessSubjectUserId)}/index.html";
         var snapshot = snapshotMapper.ToResponse(detail.Snapshot,
             detail.Snapshot.Quality is null ? null : $"{normalizedBaseUrl}/screenshot",
-            detail.Snapshot.Quality is null ? null : $"{normalizedBaseUrl}/content/index.html");
+            contentUrl);
         return MapDetail(detail, snapshot);
     }
 

@@ -6,15 +6,19 @@ using Archive.Core.Uploads;
 using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Archive.Core.Authorization;
 
 namespace Archive.Core.Repositories.SnapshotRepository;
 
 internal sealed partial class SnapshotRepository(
-    DataContext database, 
+    DataContext database,
     IArchiveObjectStore objectStore,
-    UploadFormatSelector uploadFormatSelector, 
-    ArchiveOptions options, 
-    ISnapshotHistoryRepository history) : ISnapshotRepository
+    UploadFormatSelector uploadFormatSelector,
+    ArchiveOptions options,
+    ISnapshotHistoryRepository history,
+    ILogger<SnapshotRepository> logger) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
     {
@@ -31,18 +35,117 @@ internal sealed partial class SnapshotRepository(
         CancellationToken cancellationToken = default) =>
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
 
-    public async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, CancellationToken cancellationToken = default)
+    public Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
+        CancellationToken cancellationToken = default) =>
+        OpenContentAsync(snapshotId, path, null, requireApproved: true, cancellationToken);
+
+    public Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path, Guid subjectUserId,
+        CancellationToken cancellationToken = default) =>
+        OpenContentAsync(snapshotId, path, subjectUserId, requireApproved: false, cancellationToken);
+
+    private async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, Guid? subjectUserId,
+        bool requireApproved, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
-                && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
                 && snapshot.Quality != null)
-            .Select(snapshot => new { snapshot.ContentPrefix, snapshot.SourceType })
+            .Select(snapshot => new
+            {
+                snapshot.ContentPrefix,
+                snapshot.CreatedByUserId,
+                snapshot.ModerationStatus
+            })
             .SingleOrDefaultAsync(cancellationToken);
-        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
+        if (snapshot?.ContentPrefix is null || requireApproved &&
+            snapshot.ModerationStatus != SnapshotModerationStatus.Approved)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} is not public or has no active content generation", snapshotId);
+            return new SnapshotContentResult.NotFound();
+        }
 
-        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, cancellationToken);
+        if (!requireApproved && snapshot.ModerationStatus != SnapshotModerationStatus.Approved &&
+            (subjectUserId is null || !await HasPrivateContentAccessAsync(
+                snapshot.CreatedByUserId, subjectUserId.Value, cancellationToken)))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} private content capability is no longer authorized", snapshotId);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        if (!SnapshotContentStorage.TryNormalizePath(path, out var safePath))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} received invalid content path {Path}", snapshotId, path);
+            return new SnapshotContentResult.InvalidPath();
+        }
+
+        var storedManifest = await objectStore.GetAsync($"{snapshot.ContentPrefix}/manifest.json", cancellationToken);
+        if (storedManifest is null)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} has no manifest in active generation {ContentPrefix}",
+                snapshotId, snapshot.ContentPrefix);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        SnapshotManifest? manifest;
+        try
+        {
+            await using (storedManifest.Content)
+                manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(storedManifest.Content,
+                    cancellationToken: cancellationToken);
+        }
+        catch (JsonException)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} has an unreadable manifest in active generation {ContentPrefix}",
+                snapshotId, snapshot.ContentPrefix);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        if (manifest is null || manifest.Version != SnapshotManifest.CurrentVersion)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest contract does not match its active database metadata",
+                snapshotId);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        var resources = manifest.Resources.Where(item =>
+            string.Equals(item.Path, safePath, StringComparison.Ordinal)).Take(2).ToArray();
+        if (resources.Length != 1)
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest contains {ResourceCount} entries for path {Path}",
+                snapshotId, resources.Length, safePath);
+            return new SnapshotContentResult.NotFound();
+        }
+        var resource = resources[0];
+        if (!string.Equals(resource.ObjectKey, $"{snapshot.ContentPrefix}/{safePath}", StringComparison.Ordinal))
+        {
+            logger.LogWarning("Snapshot {SnapshotId} manifest maps path {Path} outside its active generation",
+                snapshotId, safePath);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        var stored = await objectStore.GetAsync(resource.ObjectKey, cancellationToken);
+        if (stored is null)
+            logger.LogWarning("Snapshot {SnapshotId} manifest resource {Path} is missing from object storage",
+                snapshotId, safePath);
+        return stored is null
+            ? new SnapshotContentResult.NotFound()
+            : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
+    }
+
+    /// <summary>Revalidates owner or moderation access whenever a private content capability is used.</summary>
+    private async Task<bool> HasPrivateContentAccessAsync(Guid? ownerId, Guid subjectUserId,
+        CancellationToken cancellationToken)
+    {
+        var subject = await database.Users.AsNoTracking()
+            .Include(user => user.PermissionOverrides)
+            .SingleOrDefaultAsync(user => user.Id == subjectUserId, cancellationToken);
+        if (subject is not { IsRegistrationComplete: true } || !Enum.IsDefined(subject.Role))
+            return false;
+        if (ownerId == subjectUserId)
+            return true;
+
+        return PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminPortal) &&
+            PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminSnapshots);
     }
 
     public async Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default)

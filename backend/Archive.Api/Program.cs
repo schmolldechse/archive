@@ -5,6 +5,7 @@ using Archive.Api.ExceptionHandling;
 using Archive.Api.OpenApi;
 using Archive.Api.Options;
 using Archive.Api.Serialization;
+using Archive.Api.SnapshotContent;
 using Archive.Core;
 using Archive.Core.Options;
 using Microsoft.AspNetCore.Http.Features;
@@ -30,6 +31,13 @@ builder.Services.AddOptions<ArchiveApiOptions>().Bind(builder.Configuration)
         ? null : options.PublicBaseUrl.Trim().TrimEnd('/'))
     .ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveApiOptions>>().Value);
+builder.Services.AddOptions<SnapshotContentOptions>()
+    .Bind(builder.Configuration.GetRequiredSection(SnapshotContentOptions.SectionName))
+    .ValidateDataAnnotations().ValidateOnStart();
+builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<SnapshotContentOptions>>().Value);
+builder.Services.AddSingleton<SnapshotInteractionCapabilityPolicy>();
+builder.Services.AddSingleton<SnapshotContentPolicy>();
+builder.Services.AddSingleton<SnapshotContentAccessTokenService>();
 
 builder.Services.AddOpenApi(options =>
 {
@@ -54,7 +62,6 @@ builder.Services.AddSingleton<UserAccessMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddSingleton<SnapshotSubmissionMapper>();
-builder.Services.AddScoped<ExistingArchiveUserFilter>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
@@ -65,6 +72,11 @@ builder.Services.AddCors(options => options.AddPolicy("public", policy => policy
 var app = builder.Build();
 
 app.Services.GetRequiredService<IStartupValidator>().Validate();
+SnapshotContentConfigurationValidator.Validate(
+    app.Services.GetRequiredService<SnapshotContentOptions>(),
+    app.Services.GetRequiredService<ArchiveApiOptions>(),
+    app.Services.GetRequiredService<ArchiveAuthenticationOptions>(),
+    app.Environment);
 var uploadLimits = app.Services.GetRequiredService<SnapshotUploadLimits>();
 if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 {
@@ -74,6 +86,8 @@ if (app.Services.GetRequiredService<DatabaseOptions>().Initialize)
 }
 
 app.UseExceptionHandler();
+app.Use((context, next) => PublicSnapshotRequestBoundary.ApplyAsync(
+    context, app.Services.GetRequiredService<SnapshotContentOptions>(), next));
 app.UseCors("public");
 app.Use(async (context, next) =>
 {

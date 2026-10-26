@@ -224,11 +224,11 @@ namespace Archive.Core.Migrations
                         {
                             t.HasCheckConstraint("CK_snapshot_processing_cancel", "NOT cancel_requested OR status = 'RUNNING'");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_owner", "(status = 'RUNNING' AND owner_token IS NOT NULL AND started_at IS NOT NULL)\nOR (status <> 'RUNNING' AND owner_token IS NULL)");
+                            t.HasCheckConstraint("CK_snapshot_processing_owner", "(status = 'RUNNING' AND owner_token IS NOT NULL AND started_at IS NOT NULL)\r\nOR (status <> 'RUNNING' AND owner_token IS NULL)");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_step", "(status <> 'QUEUED' OR progress_step = 'SOURCE_CHECK')\nAND ((status = 'COMPLETED' AND progress_step = 'FINISHED')\n    OR (status <> 'COMPLETED' AND progress_step <> 'FINISHED'))");
+                            t.HasCheckConstraint("CK_snapshot_processing_step", "(status <> 'QUEUED' OR progress_step = 'SOURCE_CHECK')\r\nAND ((status = 'COMPLETED' AND progress_step = 'FINISHED')\r\n    OR (status <> 'COMPLETED' AND progress_step <> 'FINISHED'))");
 
-                            t.HasCheckConstraint("CK_snapshot_processing_terminal", "(status IN ('QUEUED', 'RUNNING') AND completed_at IS NULL AND expires_at IS NULL)\nOR (status NOT IN ('QUEUED', 'RUNNING') AND completed_at IS NOT NULL\n    AND expires_at IS NOT NULL AND expires_at >= completed_at)");
+                            t.HasCheckConstraint("CK_snapshot_processing_terminal", "(status IN ('QUEUED', 'RUNNING') AND completed_at IS NULL AND expires_at IS NULL)\r\nOR (status NOT IN ('QUEUED', 'RUNNING') AND completed_at IS NOT NULL\r\n    AND expires_at IS NOT NULL AND expires_at >= completed_at)");
                         });
                 });
 

@@ -19,6 +19,8 @@ The Google client ID and secret are required at API startup because `Authenticat
 http://localhost:5200/api/auth/callback/google
 ```
 
+Local snapshot content uses the same API process through the distinct origin `http://127.0.0.1:5200`. Keep the API and frontend on `localhost`; the host distinction prevents application cookies from being sent to archived content.
+
 ## Prepare configuration
 
 Create ignored development settings from the tracked examples:
@@ -109,6 +111,7 @@ Vite serves the application at `http://localhost:5173`. `PUBLIC_API_BASE_URL` in
 | --- | --- |
 | Frontend | `http://localhost:5173` |
 | API health | `http://localhost:5200/healthz` |
+| Public snapshot content | `http://127.0.0.1:5200/api/snapshots/{id}/content/index.html` |
 | OpenAPI JSON | `http://localhost:5200/openapi/v1.json` |
 | Scalar API reference | `http://localhost:5200/scalar/v1` |
 
@@ -169,7 +172,8 @@ Run checks from the directories shown below.
 ### Backend
 
 ```powershell
-dotnet build backend/Archive.slnx
+dotnet build backend/Archive.slnx -m:1
+dotnet test backend/Archive.slnx -m:1
 ```
 
 ### Frontend
@@ -202,7 +206,7 @@ git status --short
 
 Verify changed Markdown links and commands manually. No Markdown-link or prose linter is configured.
 
-The repository currently contains no automated test projects or CI workflow. For behavior changes, supplement the checks above with the relevant manual path:
+Use the relevant manual path when changing snapshot normalization, URL selection, capability gating, or response policies:
 
 - submit one URL and one affected upload format;
 - observe queued, running, and terminal updates, including polling fallback if changed;
@@ -212,7 +216,9 @@ The repository currently contains no automated test projects or CI workflow. For
 - edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
-- confirm archived HTML loads its local images, styles, fonts, and frames without executing scripts.
+- confirm owner and administrator previews use short-lived capability URLs and execute captured scripts without exposing private snapshots anonymously;
+- confirm public and access-controlled snapshots execute captured scripts for an admitted client while external requests, forms, workers, storage, and navigation remain blocked;
+- repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
 
 ## Common startup failures
 

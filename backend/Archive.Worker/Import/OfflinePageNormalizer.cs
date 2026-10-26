@@ -6,8 +6,9 @@ using Archive.Core.Storage;
 
 namespace Archive.Worker.Import;
 
-internal sealed record NormalizedAsset(string Path, string SourceUrl, string ContentType, byte[] Body);
-internal sealed record NormalizedPage(string Html, IReadOnlyList<NormalizedAsset> Assets);
+internal sealed record NormalizedAsset(string Path, string SourceUrl, string ContentType, byte[] Body, string Role);
+internal sealed record NormalizedPage(string Html, IReadOnlyList<NormalizedAsset> Assets,
+    bool ContainsExecutableContent, string? InteractionDiagnostic);
 
 internal static class OfflinePageNormalizer
 {
@@ -24,13 +25,15 @@ internal static class OfflinePageNormalizer
     public static NormalizedPage Normalize(ImportedPage page)
     {
         var assets = new List<NormalizedAsset>();
+        var state = new SnapshotNormalizationState();
         var html = NormalizeDocument(page, "root", "index.html", assets,
-            new Dictionary<string, string>(StringComparer.Ordinal));
-        return new NormalizedPage(html, assets);
+            new Dictionary<string, string>(StringComparer.Ordinal), state);
+        return new NormalizedPage(html, assets, state.ContainsExecutableContent, state.Diagnostic);
     }
 
     private static string NormalizeDocument(ImportedPage page, string scope, string documentPath,
-        List<NormalizedAsset> assets, IReadOnlyDictionary<string, string> inherited)
+        List<NormalizedAsset> assets, IReadOnlyDictionary<string, string> inherited,
+        SnapshotNormalizationState state)
     {
         var map = new Dictionary<string, string>(inherited, StringComparer.Ordinal);
         foreach (var resource in page.Resources)
@@ -54,7 +57,18 @@ internal static class OfflinePageNormalizer
                 body = Encoding.UTF8.GetBytes(Rewrite(css, resource.Url, cssMap));
                 contentType = "text/css; charset=utf-8";
             }
-            assets.Add(new NormalizedAsset(path, resource.Url, contentType, body));
+            else if (resource.ContentType.Contains("javascript", StringComparison.OrdinalIgnoreCase) ||
+                resource.ContentType.Contains("ecmascript", StringComparison.OrdinalIgnoreCase))
+            {
+                var script = SnapshotTextEncoding.Decode(body, resource.ContentType, out _, resource.TextEncoding);
+                var scriptMap = map.ToDictionary(pair => pair.Key,
+                    pair => SnapshotResourcePath.RelativeTo(path, pair.Value), StringComparer.Ordinal);
+                body = Encoding.UTF8.GetBytes(JavaScriptReferenceRewriter.Rewrite(script, resource.Url, scriptMap));
+                contentType = "text/javascript; charset=utf-8";
+                state.ContainsExecutableContent = true;
+            }
+            assets.Add(new NormalizedAsset(path, resource.Url, contentType, body,
+                SnapshotResourceRoles.Asset));
         }
 
         var html = Rewrite(page.Html, page.BaseUrl, map);
@@ -67,9 +81,10 @@ internal static class OfflinePageNormalizer
             var path = $"frames/{scope}-{frameIndex}.html";
             var childScope = $"{scope}-{frameIndex}";
             frameIndex++;
-            var childHtml = NormalizeDocument(child, childScope, path, assets, map);
+            var childHtml = NormalizeDocument(child, childScope, path, assets, map, state);
             assets.Add(new NormalizedAsset(path, child.BaseUrl ?? child.FrameName ?? path,
-                "text/html; charset=utf-8", Encoding.UTF8.GetBytes(childHtml)));
+                "text/html; charset=utf-8", Encoding.UTF8.GetBytes(childHtml),
+                SnapshotResourceRoles.NestedDocument));
             var replacement = path;
             return Regex.IsMatch(match.Value, "\\bsrc\\s*=", RegexOptions.IgnoreCase)
                 ? Regex.Replace(match.Value, "(?<prefix>\\bsrc\\s*=\\s*)(?<quote>[\"']).*?\\k<quote>",
@@ -81,12 +96,28 @@ internal static class OfflinePageNormalizer
         html = Regex.Replace(html, "<base\\b[^>]*>", string.Empty, RegexOptions.IgnoreCase);
         var baseTag = $"<base href=\"{SnapshotResourcePath.HtmlBaseFor(documentPath)}\">";
         if (Regex.IsMatch(html, "<head\\b", RegexOptions.IgnoreCase))
-            return Regex.Replace(html, "<head\\b[^>]*>", m => m.Value + baseTag,
+            html = Regex.Replace(html, "<head\\b[^>]*>", m => m.Value + baseTag,
                 RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        if (Regex.IsMatch(html, "<html\\b", RegexOptions.IgnoreCase))
-            return Regex.Replace(html, "<html\\b[^>]*>", m => m.Value + "<head>" + baseTag + "</head>",
+        else if (Regex.IsMatch(html, "<html\\b", RegexOptions.IgnoreCase))
+            html = Regex.Replace(html, "<html\\b[^>]*>", m => m.Value + "<head>" + baseTag + "</head>",
                 RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
-        return "<head>" + baseTag + "</head>" + html;
+        else
+            html = "<head>" + baseTag + "</head>" + html;
+
+        try
+        {
+            var documentMap = map.ToDictionary(pair => pair.Key,
+                pair => SnapshotResourcePath.RelativeTo(documentPath, pair.Value), StringComparer.Ordinal);
+            var normalized = SnapshotDocumentNormalizer.Normalize(html, page.BaseUrl, documentMap, documentPath);
+            state.ContainsExecutableContent |= normalized.ContainsExecutableContent;
+            return normalized.Html;
+        }
+        catch (Exception exception)
+        {
+            // Preserve the rewritten document when optional interaction normalization cannot be completed.
+            state.Diagnostic ??= exception.GetType().Name;
+            return html;
+        }
     }
 
     private static string Rewrite(string text, string? baseUrl, IReadOnlyDictionary<string, string> map)
@@ -148,4 +179,10 @@ internal static class OfflinePageNormalizer
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private sealed class SnapshotNormalizationState
+    {
+        public bool ContainsExecutableContent { get; set; }
+        public string? Diagnostic { get; set; }
+    }
 }

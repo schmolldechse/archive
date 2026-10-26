@@ -43,21 +43,26 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
                 EF.Functions.ILike(snapshot.OriginUrl ?? "", pattern, "\\"));
         }
         var total = await query.CountAsync(token);
-        var projected = query.Select(snapshot => new SnapshotSubmissionRow(
-            snapshot,
-            database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
+        var projected = query
+            // Page on entity columns before constructing the correlated projection. EF cannot translate ordering
+            // through the nested SnapshotSubmissionRow record, even though the requested key is still CreatedAt.
+            .OrderByDescending(snapshot => snapshot.CreatedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(snapshot => new SnapshotSubmissionRow(
+                snapshot,
+                database.SnapshotHistory.Where(entry => entry.SnapshotId == snapshot.Id
                     && ModerationEventTypes.Contains(entry.Content.GetProperty("type").GetString()!))
-                .OrderByDescending(entry => entry.Sequence)
-                .Select(entry => (DateTimeOffset?)entry.CreatedAt)
-                .FirstOrDefault() ?? snapshot.CreatedAt,
-            snapshot.Quality != null
-                ? ProcessingStatus.Completed
-                : database.SnapshotProcessing.Where(processing => processing.SnapshotId == snapshot.Id)
-                    .Select(processing => (ProcessingStatus?)processing.Status)
-                    .FirstOrDefault() ?? ProcessingStatus.Failed));
-        var items = await projected.OrderByDescending(row => row.Snapshot.CreatedAt)
-            .ThenByDescending(row => row.Snapshot.Id).Skip((page - 1) * pageSize).Take(pageSize)
-            .ProjectToSubmissionSummaries().ToArrayAsync(token);
+                    .OrderByDescending(entry => entry.Sequence)
+                    .Select(entry => (DateTimeOffset?)entry.CreatedAt)
+                    .FirstOrDefault() ?? snapshot.CreatedAt,
+                snapshot.Quality != null
+                    ? ProcessingStatus.Completed
+                    : database.SnapshotProcessing.Where(processing => processing.SnapshotId == snapshot.Id)
+                        .Select(processing => (ProcessingStatus?)processing.Status)
+                        .FirstOrDefault() ?? ProcessingStatus.Failed));
+        var items = await projected.ProjectToSubmissionSummaries().ToArrayAsync(token);
         return SnapshotModelMapper.ToSubmissionPage(items, total, page, pageSize);
     }
 
@@ -106,21 +111,6 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
         var prefix = await Scope(ownerId).Where(snapshot => snapshot.Id == id && snapshot.Quality != null)
             .Select(snapshot => snapshot.ContentPrefix).SingleOrDefaultAsync(token);
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", token);
-    }
-
-    public Task<SnapshotContentResult> OpenContentOwnAsync(Guid userId, Guid id, string? path, CancellationToken token) =>
-        OpenContentAsync(id, userId, path, token);
-
-    public Task<SnapshotContentResult> OpenContentForReviewAsync(Guid id, string? path, CancellationToken token) =>
-        OpenContentAsync(id, null, path, token);
-
-    private async Task<SnapshotContentResult> OpenContentAsync(Guid id, Guid? ownerId, string? path, CancellationToken token)
-    {
-        var snapshot = await Scope(ownerId).Where(item => item.Id == id && item.Quality != null)
-            .Select(item => new { item.ContentPrefix, item.SourceType }).SingleOrDefaultAsync(token);
-        if (snapshot?.ContentPrefix is null) return new SnapshotContentResult.NotFound();
-
-        return await objectStore.OpenSnapshotContentAsync(snapshot.ContentPrefix, snapshot.SourceType, path, token);
     }
 
     public Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token) =>

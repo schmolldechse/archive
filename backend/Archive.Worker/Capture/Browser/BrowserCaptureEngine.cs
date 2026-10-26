@@ -151,7 +151,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 await ClosePageAsync(page);
                 progress?.Report(ProgressStep.SavingSnapshot);
                 var manifest = await StoreResourcesAsync(job.Id, normalizedUrl, html, screenshot, collector.Resources,
-                    cancellationToken, collector.Incomplete);
+                    collector.MainDocument, cancellationToken, collector.FailedUrls);
                 var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
 
                 return new CaptureResult(
@@ -242,28 +242,69 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         await Task.Delay(_limits.QuietPeriod, cancellationToken);
     }
 
-    private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId, string? originalUrl, string html, byte[] screenshot,
-        IReadOnlyDictionary<string, CapturedResource> captured, CancellationToken cancellationToken, bool incomplete = false)
+    private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId, string? originalUrl, string fallbackHtml,
+        byte[] screenshot, IReadOnlyDictionary<string, CapturedResource> captured, CapturedMainDocument? mainDocument,
+        CancellationToken cancellationToken, IReadOnlyList<string> missingUrls)
     {
         var writer = new SnapshotObjectWriter(objectStore, snapshotId, _limits.MaxStorageBytes, logger);
         const string contentBase = "./";
         var map = captured.Values.ToDictionary(x => x.Url, x => $"assets/{Hash(x.Url)}", StringComparer.Ordinal);
-        var rewrittenHtml = RewriteReferences(html, map, originalUrl, contentBase, htmlDocument: true);
+        var sourceBytes = mainDocument?.Body ?? Encoding.UTF8.GetBytes(fallbackHtml);
+        var sourceUrl = mainDocument?.Url ?? originalUrl;
+        var sourceType = mainDocument?.ContentType ?? "text/html; charset=utf-8";
+        var sourceHtml = SnapshotTextEncoding.Decode(sourceBytes, sourceType, out _);
+        string? interactionDiagnostic = null;
+        bool containsExecutableContent;
+        string rewrittenHtml;
+        try
+        {
+            var rewrittenSource = RewriteReferences(sourceHtml, map, sourceUrl, contentBase, htmlDocument: true);
+            var snapshotDocument = SnapshotDocumentNormalizer.Normalize(rewrittenSource, sourceUrl, map, "index.html");
+            rewrittenHtml = snapshotDocument.Html;
+            containsExecutableContent = snapshotDocument.ContainsExecutableContent;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A readable capture remains valuable when optional interaction normalization cannot be completed.
+            interactionDiagnostic = exception.GetType().Name;
+            containsExecutableContent = Regex.IsMatch(fallbackHtml, "<script\\b|\\son[a-z]+\\s*=",
+                RegexOptions.IgnoreCase);
+            rewrittenHtml = RewriteReferences(fallbackHtml, map, originalUrl, contentBase, htmlDocument: true);
+            logger.LogWarning(exception, "Snapshot interaction normalization for {SnapshotId} failed; stored rewritten fallback",
+                snapshotId);
+        }
         var htmlKey = writer.GetObjectKey("index.html");
         var screenshotKey = writer.GetObjectKey("screenshot.png");
+        var sourceKey = writer.GetObjectKey("source.html");
 
         try
         {
             var rewrittenHtmlBytes = Encoding.UTF8.GetBytes(rewrittenHtml);
             await writer.WriteAsync("index.html", rewrittenHtmlBytes, "text/html; charset=utf-8", cancellationToken);
             await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
+            await writer.WriteAsync("source.html", sourceBytes, sourceType, cancellationToken);
 
+            var manifestResources = new List<SnapshotResource>
+            {
+                new()
+                {
+                    Path = "index.html",
+                    SourceUrl = sourceUrl,
+                    ContentType = "text/html; charset=utf-8",
+                    ObjectKey = htmlKey,
+                    Sha256 = Hash(rewrittenHtmlBytes),
+                    Role = SnapshotResourceRoles.RootDocument
+                }
+            };
             foreach (var resource in captured.Values)
             {
                 writer.EnsureCapacity(resource.Body.LongLength);
                 var assetPath = $"assets/{Hash(resource.Url)}";
                 var isCss = resource.ContentType.StartsWith("text/css", StringComparison.OrdinalIgnoreCase);
-                var isHtml = resource.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+                var isHtml = resource.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) ||
+                    resource.ContentType.StartsWith("application/xhtml+xml", StringComparison.OrdinalIgnoreCase);
+                var isJavaScript = resource.ContentType.Contains("javascript", StringComparison.OrdinalIgnoreCase) ||
+                    resource.ContentType.Contains("ecmascript", StringComparison.OrdinalIgnoreCase);
                 var body = resource.Body;
                 var contentType = resource.ContentType;
                 if (isCss || isHtml)
@@ -274,34 +315,78 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                             pair => SnapshotResourcePath.RelativeTo(assetPath, pair.Value), StringComparer.Ordinal);
                     var text = SnapshotTextEncoding.Decode(resource.Body, resource.ContentType, out _);
                     var resourceBase = isHtml ? SnapshotResourcePath.HtmlBaseFor(assetPath) : contentBase;
-                    body = Encoding.UTF8.GetBytes(RewriteReferences(text, relativeMap, resource.Url, resourceBase,
-                        htmlDocument: isHtml));
+                    var rewritten = RewriteReferences(text, relativeMap, resource.Url, resourceBase,
+                        htmlDocument: isHtml);
+                    if (isHtml)
+                    {
+                        try
+                        {
+                            rewritten = SnapshotDocumentNormalizer.Normalize(rewritten, resource.Url, relativeMap,
+                                assetPath).Html;
+                        }
+                        catch (Exception exception) when (exception is not OperationCanceledException)
+                        {
+                            interactionDiagnostic ??= exception.GetType().Name;
+                            logger.LogWarning(exception,
+                                "Nested snapshot normalization for {SnapshotId} failed; stored rewritten fallback",
+                                snapshotId);
+                        }
+                    }
+                    body = Encoding.UTF8.GetBytes(rewritten);
                     contentType = isHtml ? "text/html; charset=utf-8" : "text/css; charset=utf-8";
                 }
+                else if (isJavaScript)
+                {
+                    var relativeMap = map.ToDictionary(pair => pair.Key,
+                        pair => SnapshotResourcePath.RelativeTo(assetPath, pair.Value), StringComparer.Ordinal);
+                    var text = SnapshotTextEncoding.Decode(resource.Body, resource.ContentType, out _);
+                    body = Encoding.UTF8.GetBytes(JavaScriptReferenceRewriter.Rewrite(text, resource.Url, relativeMap));
+                    contentType = "text/javascript; charset=utf-8";
+                    containsExecutableContent = true;
+                }
                 await writer.WriteAsync(assetPath, body, contentType, cancellationToken);
+                manifestResources.Add(new()
+                {
+                    Path = assetPath,
+                    SourceUrl = resource.Url,
+                    ContentType = contentType,
+                    ObjectKey = writer.GetObjectKey(assetPath),
+                    Sha256 = Hash(body),
+                    Role = isHtml ? SnapshotResourceRoles.NestedDocument : SnapshotResourceRoles.Asset
+                });
             }
 
-            var manifest = new
+            var manifest = new SnapshotManifest
             {
-                version = 1,
-                resourceReferenceMode = "relative-v1",
-                htmlObjectKey = htmlKey,
-                screenshotObjectKey = screenshotKey,
-                resources = captured.Values.Select(x => new
+                Version = SnapshotManifest.CurrentVersion,
+                Provenance = new()
                 {
-                    url = x.Url,
-                    contentType = x.ContentType.StartsWith("text/css", StringComparison.OrdinalIgnoreCase)
-                        ? "text/css; charset=utf-8"
-                        : x.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase)
-                            ? "text/html; charset=utf-8" : x.ContentType,
-                    objectKey = writer.GetObjectKey($"assets/{Hash(x.Url)}")
-                }),
-                storageBytes = writer.StorageBytes,
-                incomplete
+                    DerivedDisplayDocument = true,
+                    SourceObjectKey = sourceKey,
+                    SourceSha256 = Hash(sourceBytes),
+                    IndexSha256 = Hash(rewrittenHtmlBytes),
+                    SourceUrl = sourceUrl,
+                    SourceMimeType = sourceType,
+                    SourceStatusCode = mainDocument?.StatusCode,
+                    CapturedAt = DateTimeOffset.UtcNow,
+                    DocumentState = mainDocument is null ? "post-execution-fallback" : "original-response",
+                    RedirectChain = mainDocument?.RedirectChain ?? []
+                },
+                Interaction = new()
+                {
+                    Normalizer = SnapshotDocumentNormalizer.Version,
+                    ContainsExecutableContent = containsExecutableContent,
+                    Diagnostic = interactionDiagnostic
+                },
+                Resources = manifestResources,
+                MissingUrls = missingUrls.Take(100).ToArray(),
+                MissingUrlCount = missingUrls.Count,
+                Incomplete = missingUrls.Count > 0
             };
             await writer.WriteManifestAsync(manifest, new JsonSerializerOptions { WriteIndented = true }, cancellationToken);
 
-            return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, captured.Count, incomplete, writer.StoredObjectKeys);
+            return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, captured.Count, missingUrls.Count > 0,
+                writer.StoredObjectKeys);
         }
         catch
         {
@@ -401,6 +486,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    private static string Hash(byte[] value) => Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
 
     private sealed class ScrollDimensions
     {

@@ -470,7 +470,7 @@ export type SnapshotResponse = {
 	 */
 	screenshotUrl: null | string;
 	/**
-	 * Archived start page URL. Null until capture storage has completed.
+	 * Canonical archived start page URL on the credential-free snapshot origin. Public responses use the ordinary content path; authorized private responses use a short-lived capability path. Archived JavaScript executes when the client satisfies the required isolation policy. Null until capture storage has completed.
 	 */
 	contentUrl: null | string;
 	createdBy: null | PublicUserResponse;
@@ -1490,46 +1490,6 @@ export type GetOwnSnapshotScreenshotResponses = {
 
 export type GetOwnSnapshotScreenshotResponse = GetOwnSnapshotScreenshotResponses[keyof GetOwnSnapshotScreenshotResponses];
 
-export type GetOwnSnapshotContentData = {
-	body?: never;
-	path: {
-		id: string;
-		path: string;
-	};
-	query?: never;
-	url: "/api/users/snapshots/{id}/content/{path}";
-};
-
-export type GetOwnSnapshotContentErrors = {
-	/**
-	 * Bad Request
-	 */
-	400: ProblemDetails;
-	/**
-	 * Unauthorized
-	 */
-	401: ProblemDetails;
-	/**
-	 * Not Found
-	 */
-	404: ProblemDetails;
-};
-
-export type GetOwnSnapshotContentError = GetOwnSnapshotContentErrors[keyof GetOwnSnapshotContentErrors];
-
-export type GetOwnSnapshotContentResponses = {
-	/**
-	 * OK
-	 */
-	200: Stream;
-	/**
-	 * Partial Content
-	 */
-	206: Stream;
-};
-
-export type GetOwnSnapshotContentResponse = GetOwnSnapshotContentResponses[keyof GetOwnSnapshotContentResponses];
-
 export type ResubmitSnapshotData = {
 	body?: never;
 	headers: {
@@ -1945,51 +1905,6 @@ export type GetSnapshotScreenshotForReviewResponses = {
 
 export type GetSnapshotScreenshotForReviewResponse =
 	GetSnapshotScreenshotForReviewResponses[keyof GetSnapshotScreenshotForReviewResponses];
-
-export type GetSnapshotContentForReviewData = {
-	body?: never;
-	path: {
-		id: string;
-		path: string;
-	};
-	query?: never;
-	url: "/api/admin/snapshots/{id}/content/{path}";
-};
-
-export type GetSnapshotContentForReviewErrors = {
-	/**
-	 * Bad Request
-	 */
-	400: ProblemDetails;
-	/**
-	 * Unauthorized
-	 */
-	401: ProblemDetails;
-	/**
-	 * Forbidden
-	 */
-	403: ProblemDetails;
-	/**
-	 * Not Found
-	 */
-	404: ProblemDetails;
-};
-
-export type GetSnapshotContentForReviewError = GetSnapshotContentForReviewErrors[keyof GetSnapshotContentForReviewErrors];
-
-export type GetSnapshotContentForReviewResponses = {
-	/**
-	 * OK
-	 */
-	200: Stream;
-	/**
-	 * Partial Content
-	 */
-	206: Stream;
-};
-
-export type GetSnapshotContentForReviewResponse =
-	GetSnapshotContentForReviewResponses[keyof GetSnapshotContentForReviewResponses];
 
 export type ReviewSnapshotData = {
 	body: ReviewSnapshotRequest;

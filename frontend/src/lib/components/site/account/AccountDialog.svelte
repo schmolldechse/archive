@@ -86,12 +86,14 @@
 				</div>
 			{/if}
 
-			<section class="account-submissions" aria-labelledby="account-submissions-title">
-				<h3 id="account-submissions-title">My submissions</h3>
-				<Button href="/account/submissions" variant="text" onclick={() => (open = false)}
-					>View all submissions<ArrowRight aria-hidden="true" /></Button
-				>
-			</section>
+			{#if user.isRegistrationComplete}
+				<section class="account-submissions" aria-labelledby="account-submissions-title">
+					<h3 id="account-submissions-title">My submissions</h3>
+					<Button href="/account/submissions" variant="text" onclick={() => (open = false)}
+						>View all submissions<ArrowRight aria-hidden="true" /></Button
+					>
+				</section>
+			{/if}
 
 			{#if canOpenAdminPortal}
 				<div class="account-admin">

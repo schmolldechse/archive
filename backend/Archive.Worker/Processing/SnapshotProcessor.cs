@@ -25,7 +25,8 @@ internal sealed class SnapshotProcessor(IServiceScopeFactory scopeFactory,
             try { capture = await CaptureAsync(claim, progress, token); }
             finally { await progress.FlushAsync(); }
             var published = await WithRepositoryAsync(processing => processing.CompleteCaptureAsync(input.Id, claim.OwnerToken,
-                new(capture.Quality, capture.ContentPrefix, capture.DurationMilliseconds, capture.StorageBytes, capture.ResourceCount), token));
+                new(capture.Quality, capture.ContentPrefix, capture.DurationMilliseconds, capture.StorageBytes,
+                    capture.ResourceCount), token));
             if (!published) throw new CaptureCancelledException();
             completion = ProcessingCompletion.Stored;
         }

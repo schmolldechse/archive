@@ -1,4 +1,5 @@
 using Archive.Api.Authentication;
+using Archive.Api.Authorization;
 using Archive.Api.Contracts.Snapshots.Submission;
 using Archive.Api.Mapping;
 using Archive.Core.Models.Snapshots;
@@ -10,9 +11,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Archive.Api.Controllers.User;
 
 /// <summary>Current-account submissions; IDs belonging to another account are always missing.</summary>
-[ApiController, Route("api/users/snapshots"), Tags("My Submissions"), Authorize]
+[ApiController, Route("api/users/snapshots"), Tags("My Submissions"),
+ Authorize(Policy = ArchiveAuthorizationPolicies.RegisteredUser)]
 [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
-[ServiceFilter(typeof(ExistingArchiveUserFilter))]
 [ProducesResponseType<ProblemDetails>(401)]
 public sealed class SnapshotsController(ISnapshotSubmissionRepository submissions, SnapshotSubmissionMapper mapper,
     ArchiveAuthenticationOptions options) : SnapshotSubmissionControllerBase(submissions, mapper, options)
@@ -55,15 +56,6 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [HttpGet("{id:guid}/screenshot"), EndpointName("GetOwnSnapshotScreenshot"), EndpointSummary("Reads an own private capture preview.")]
     [ProducesResponseType<Stream>(200, "image/png"), ProducesResponseType<ProblemDetails>(404)]
     public async Task<IActionResult> Preview(Guid id, CancellationToken token) => Screenshot(await Submissions.ScreenshotOwnAsync(User.ReadUserId(), id, token));
-
-    [HttpGet("{id:guid}/content/{**path}"), EndpointName("GetOwnSnapshotContent"), EndpointSummary("Reads own private archived content.")]
-    [ProducesResponseType<Stream>(200, "application/octet-stream"), ProducesResponseType<Stream>(206, "application/octet-stream")]
-    [ProducesResponseType<ProblemDetails>(400), ProducesResponseType<ProblemDetails>(404)]
-    public async Task<IActionResult> Content(Guid id, string? path, CancellationToken token) =>
-        base.Content(
-            id,
-            "api/users/snapshots",
-            await Submissions.OpenContentOwnAsync(User.ReadUserId(), id, path, token));
 
     [HttpPost("{id:guid}/resubmit"), EndpointName("ResubmitSnapshot"), EndpointSummary("Requests another review without changing the snapshot.")]
     [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET on the own submission resource. No body is accepted or needed.")]
