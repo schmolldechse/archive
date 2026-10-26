@@ -56,15 +56,7 @@ services:
       ObjectStorage__Bucket: ${OBJECT_STORAGE_BUCKET:?OBJECT_STORAGE_BUCKET is required}
       Processing__TerminalRetentionSeconds: ${PROCESSING_TERMINAL_RETENTION_SECONDS:-60}
       Archive__Browser__Headless: ${ARCHIVE_BROWSER_HEADLESS:-true}
-      Archive__Browser__UserAgent: ${ARCHIVE_BROWSER_USER_AGENT:-VoldechseArchiveBot/1.0 (+https://bot.archive.voldechse.wtf/)}
-      Archive__CrawlPolicy__Enabled: ${ARCHIVE_CRAWL_POLICY_ENABLED:-true}
-      Archive__CrawlPolicy__UserAgentToken: ${ARCHIVE_CRAWL_USER_AGENT_TOKEN:-VoldechseArchiveBot}
-      Archive__CrawlPolicy__MinimumHostDelaySeconds: ${ARCHIVE_MINIMUM_HOST_DELAY_SECONDS:-2}
-      Archive__WebBotAuth__Enabled: ${ARCHIVE_WEB_BOT_AUTH_ENABLED:-false}
-      Archive__WebBotAuth__SignatureAgent: ${ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT:-https://bot.archive.voldechse.wtf}
-      Archive__WebBotAuth__PrivateKeyPath: /run/secrets/web-bot-auth-private-key.pem
-    volumes:
-      - ${ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY:-../../.secrets}:/run/secrets:ro
+      Archive__Browser__UserAgent: ${ARCHIVE_BROWSER_USER_AGENT:-ArchiveBot/1.0}
     depends_on:
       api:
         condition: service_healthy

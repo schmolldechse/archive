@@ -78,34 +78,9 @@ The checked-in appsettings files explicitly list the first six values. The impor
 | .NET key | Production Compose input | Default | Effect |
 | --- | --- | --- | --- |
 | `Archive:Browser:Headless` | `ARCHIVE_BROWSER_HEADLESS` | `true` | Runs Chromium without a visible window. The production container still provides a virtual display. |
-| `Archive:Browser:UserAgent` | `ARCHIVE_BROWSER_USER_AGENT` | `ArchiveBot/1.0` | ASCII user agent sent by the browser and crawl-policy client. |
+| `Archive:Browser:UserAgent` | `ARCHIVE_BROWSER_USER_AGENT` | `ArchiveBot/1.0` | ASCII user agent sent by the browser. |
 | `Archive:Browser:ChallengeTimeoutSeconds` | not mapped by Compose | `45` | Maximum challenge wait; 1–300 seconds. |
 | `Archive:Browser:ChallengeReloadAttempts` | not mapped by Compose | `1` | Reload attempts for a detected challenge; 1–3. |
-
-### Crawl policy
-
-| .NET key | Production Compose input | Default | Effect |
-| --- | --- | --- | --- |
-| `Archive:CrawlPolicy:Enabled` | `ARCHIVE_CRAWL_POLICY_ENABLED` | `true` | Enables robots policy checks and host pacing. |
-| `Archive:CrawlPolicy:UserAgentToken` | `ARCHIVE_CRAWL_USER_AGENT_TOKEN` | `VoldechseArchiveBot` | Token used to select the applicable robots group. |
-| `Archive:CrawlPolicy:MinimumHostDelaySeconds` | `ARCHIVE_MINIMUM_HOST_DELAY_SECONDS` | `2` | Minimum delay per origin; an applicable longer `crawl-delay` wins. |
-| `Archive:CrawlPolicy:RequestTimeoutSeconds` | not mapped by Compose | `10` | Timeout for policy retrieval; 1–60 seconds. |
-| `Archive:CrawlPolicy:MaxRobotsBytes` | not mapped by Compose | `1000000` | Maximum accepted `robots.txt` size; 1,024–5,000,000 bytes. |
-
-When policy checking is enabled, a missing `robots.txt` allows capture, an HTTP 401 or 403 denies it, and other unsuccessful responses fail the capture rather than assuming permission.
-
-### Web Bot Auth
-
-| .NET key | Production Compose input | Default | Effect |
-| --- | --- | --- | --- |
-| `Archive:WebBotAuth:Enabled` | `ARCHIVE_WEB_BOT_AUTH_ENABLED` | `false` | Enables Ed25519 HTTP Message Signatures on eligible bot requests. |
-| `Archive:WebBotAuth:SignatureAgent` | `ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT` | production example `https://archive.voldechse.wtf` | HTTPS origin that identifies the signer and serves the key directory. |
-| `Archive:WebBotAuth:PrivateKeyPath` | fixed to `/run/secrets/web-bot-auth-private-key.pem` | empty | PKCS#8 private key file read by the worker. |
-| `Archive:WebBotAuth:SignatureLifetimeSeconds` | not mapped by Compose | `60` | Signature validity; 10–300 seconds. |
-
-`ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` is a Compose-only host path. The directory is mounted read-only at `/run/secrets`; it is not read by .NET configuration.
-
-When Web Bot Auth is enabled, `SignatureAgent` and `PrivateKeyPath` are required. `SignatureAgent` must be an HTTPS origin with no credentials, path, query, or fragment. Its origin must match the bot identity deployment described in [Bot identity worker](../cloudflare/archive-bot-identity/README.md).
 
 ## Frontend
 
@@ -136,8 +111,6 @@ Never set `INTERNAL_API_BASE_URL` to an address the browser must use. It is inte
 | `PROCESSING_TERMINAL_RETENTION_SECONDS` | API and worker |
 | `PROCESSING_CLEANUP_INTERVAL_SECONDS`, `PROCESSING_CLEANUP_BATCH_SIZE` | API cleanup loop |
 | `ARCHIVE_BROWSER_HEADLESS`, `ARCHIVE_BROWSER_USER_AGENT` | Worker browser |
-| `ARCHIVE_CRAWL_POLICY_ENABLED`, `ARCHIVE_CRAWL_USER_AGENT_TOKEN`, `ARCHIVE_MINIMUM_HOST_DELAY_SECONDS` | Worker crawl policy |
-| `ARCHIVE_WEB_BOT_AUTH_ENABLED`, `ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT`, `ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY` | Worker signing and key mount |
 
 ## Values that must agree
 
@@ -147,6 +120,5 @@ Never set `INTERNAL_API_BASE_URL` to an address the browser must use. It is inte
 - When the two origins use sibling hosts, `Authentication:SessionCookieDomain` must include both.
 - API and worker must use the same PostgreSQL database, object-storage endpoint, credentials, bucket, and terminal retention.
 - The MinIO initializer must create the same bucket named by API and worker configuration.
-- The Web Bot Auth signature agent must be the HTTPS origin serving the matching public key directory.
 
 See [Development](development.md) for local files and [Deployment](deployment.md) for the Compose mapping.

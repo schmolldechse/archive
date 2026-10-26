@@ -1,12 +1,11 @@
 using System.Collections.Concurrent;
-using Archive.Worker.Capture.Network;
 using Microsoft.Playwright;
 
 namespace Archive.Worker.Capture.Browser.Access;
 
 // Context-level routing sees the first request of popups as well. Only pages
 // explicitly registered by the capture engine are allowed to reach the network.
-internal sealed class BrowserRequestRouter(IBrowserContext context, WebBotAuthSigner signer) : IAsyncDisposable
+internal sealed class BrowserRequestRouter(IBrowserContext context) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<IPage, Func<IRoute, Task>> _handlers =
         new(ReferenceEqualityComparer.Instance);
@@ -38,13 +37,7 @@ internal sealed class BrowserRequestRouter(IBrowserContext context, WebBotAuthSi
     }
 
     public Task<IAPIResponse> FetchAsync(IRoute route)
-    {
-        var headers = new Dictionary<string, string>(route.Request.Headers, StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, value) in signer.CreateHeaders(new Uri(route.Request.Url)))
-            headers[name] = value;
-
-        return route.FetchAsync(new RouteFetchOptions { Headers = headers, MaxRedirects = 0 });
-    }
+        => route.FetchAsync(new RouteFetchOptions { MaxRedirects = 0 });
 
     public ValueTask DisposeAsync()
     {

@@ -187,16 +187,6 @@ bun run build
 
 Run `bun run build:storybook` when reusable components or their stories change.
 
-### Bot identity worker
-
-```powershell
-Set-Location cloudflare/archive-bot-identity
-bun install --frozen-lockfile
-bun run check
-```
-
-`bun run check` performs a Wrangler dry run; it does not deploy.
-
 ### Documentation and repository state
 
 ```powershell
@@ -225,10 +215,10 @@ Use the relevant manual path when changing snapshot normalization, URL selection
 | Symptom | Check |
 | --- | --- |
 | API exits during option validation | Fill Google credentials, origins, connection string, and object-storage settings in the API development file. |
-| Worker exits during option validation | Match its connection, storage, browser, crawl, and optional Web Bot Auth settings to the running services. |
+| Worker exits during option validation | Match its connection, storage, and browser settings to the running services. |
 | API cannot migrate | Confirm the database exists and the configured PostgreSQL account may create schemas, tables, and enum types. |
 | Submissions remain queued | Confirm the worker is running and can acquire the PostgreSQL advisory lease. |
-| File/URL capture fails immediately | Confirm Chromium is installed for the worker and the source passes the public-network and crawl-policy checks. |
+| File/URL capture fails immediately | Confirm Chromium is installed for the worker and the source passes the public-network checks. |
 | Stored content is missing | Confirm the bucket exists and API and worker use the same endpoint, bucket, and credentials. |
 | Login redirects fail | Match the registered callback URI, `Authentication:PublicApiOrigin`, `Authentication:FrontendOrigin`, and frontend URL. |
 | Frontend server loads fail in containers | Set `INTERNAL_API_BASE_URL` to the API service address while keeping `PUBLIC_API_BASE_URL` browser-reachable. |

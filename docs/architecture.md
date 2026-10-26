@@ -14,7 +14,6 @@ flowchart LR
     Worker[Capture worker] --> Database
     Worker --> Objects
     Worker --> Web[Public web]
-    Worker -. Web Bot Auth .-> Identity[Bot identity worker]
 ```
 
 The frontend and API normally use different browser-visible origins. Server-side frontend requests may use an internal API address, but the browser uses `PUBLIC_API_BASE_URL`. Archived content is delivered by the API and rendered in a sandboxed iframe; the frontend does not proxy snapshot resources.
@@ -55,7 +54,7 @@ The API applies EF Core migrations when `Database:Initialize` is enabled. In the
 
 `backend/Archive.Worker` is a background service with no HTTP endpoint. It acquires the processing lease, recovers interrupted work, and claims queued snapshots in queue order.
 
-URL submissions use Playwright Chromium. The browser path checks crawl policy and target-network eligibility, rate-limits by origin, optionally signs requests with Web Bot Auth, collects eligible resources, rewrites stored references to route-neutral paths, and captures a screenshot.
+URL submissions use Playwright Chromium. The browser path checks target-network eligibility, collects eligible resources, rewrites stored references to route-neutral paths, and captures a screenshot.
 
 File submissions select a decoder by validated content and extension:
 
@@ -72,10 +71,6 @@ Imported documents are normalized to the same stored-content model as browser ca
 `backend/Archive.Core` is referenced by both executables. It contains the EF Core model and migrations, repository contracts and implementations, option validation, authorization definitions, processing lease, upload-format selection, and object-storage access.
 
 The dependency direction is deliberate: API and worker depend on Core; Core does not depend on either host.
-
-### Bot identity worker
-
-`cloudflare/archive-bot-identity` serves the bot description, `robots.txt`, and a signed HTTP Message Signatures key directory. The capture worker's signature agent must identify the same HTTPS origin. See [Bot identity worker](../cloudflare/archive-bot-identity/README.md).
 
 ## Snapshot lifecycle
 
@@ -208,7 +203,7 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 
 The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
 
-The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, crawl policy reads applicable directives, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
+The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
 ## Related documentation
 

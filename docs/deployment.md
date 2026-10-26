@@ -196,9 +196,3 @@ docker compose --project-name archive --env-file deploy/production/.env -f deplo
 ```
 
 The external `archive` network remains after `down`. Named volumes remain unless explicitly removed.
-
-## Web Bot Auth
-
-When enabled, the worker reads `/run/secrets/web-bot-auth-private-key.pem` from the host directory selected by `ARCHIVE_WEB_BOT_AUTH_KEY_DIRECTORY`. `ARCHIVE_WEB_BOT_AUTH_SIGNATURE_AGENT` must identify the HTTPS origin deployed by the Cloudflare package, and its public key must match the mounted private key.
-
-See [Bot identity worker](../cloudflare/archive-bot-identity/README.md) for key configuration and deployment verification.
