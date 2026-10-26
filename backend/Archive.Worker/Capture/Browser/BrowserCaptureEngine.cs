@@ -12,7 +12,6 @@ using Archive.Worker.Capture.Browser.Access;
 using Archive.Worker.Capture.Crawling;
 using Archive.Worker.Capture.Network;
 using Archive.Worker.Storage;
-using Archive.Worker.Capture.Snapshots;
 using Microsoft.Playwright;
 using Archive.Core.Entities.Processing;
 
@@ -375,7 +374,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 },
                 Interaction = new()
                 {
-                    Normalizer = "archive-snapshot-v1",
+                    Normalizer = SnapshotDocumentNormalizer.Version,
                     ContainsExecutableContent = containsExecutableContent,
                     Diagnostic = interactionDiagnostic
                 },

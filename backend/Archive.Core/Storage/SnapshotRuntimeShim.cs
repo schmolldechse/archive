@@ -1,10 +1,11 @@
 using System.Text.Json;
 
-namespace Archive.Worker.Capture.Snapshots;
+namespace Archive.Core.Storage;
 
 /// <summary>Builds the browser-side compatibility and network-containment layer for archived documents.</summary>
-internal static class SnapshotRuntimeShim
+public static class SnapshotRuntimeShim
 {
+    /// <summary>Builds the deterministic runtime shim for one archived document and its captured resources.</summary>
     public static string Build(string? sourceUrl, IReadOnlyDictionary<string, string> resources)
     {
         var serializedMap = JsonSerializer.Serialize(resources);

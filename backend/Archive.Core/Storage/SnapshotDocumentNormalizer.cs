@@ -1,23 +1,29 @@
 using System.Net;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
-using Archive.Core.Storage;
+namespace Archive.Core.Storage;
 
-namespace Archive.Worker.Capture.Snapshots;
-
-internal sealed record SnapshotDocument(string Html, bool ContainsExecutableContent);
+/// <summary>A normalized canonical document and its executable-content diagnostic.</summary>
+public sealed record SnapshotDocument(string Html, bool ContainsExecutableContent);
 
 /// <summary>Creates the single canonical HTML document consumed by static and interactive delivery.</summary>
-internal static class SnapshotDocumentNormalizer
+public static class SnapshotDocumentNormalizer
 {
+    /// <summary>Identifier persisted when this canonical normalization contract is applied.</summary>
+    public const string Version = "archive-snapshot-v1";
+
     private static readonly string[] UrlAttributes = ["src", "href", "poster", "action"];
 
+    /// <summary>Normalizes an archived HTML document for isolated snapshot delivery.</summary>
     public static SnapshotDocument Normalize(string html, string? sourceUrl,
         IReadOnlyDictionary<string, string> map, string documentPath)
     {
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
         var baseUrl = SnapshotResourcePath.ResolveDocumentBase(html, sourceUrl);
+
+        foreach (var existingShim in document.QuerySelectorAll("script[data-archive-snapshot]"))
+            existingShim.Remove();
 
         foreach (var meta in document.QuerySelectorAll("meta[http-equiv], meta[name]"))
         {

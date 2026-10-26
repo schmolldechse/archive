@@ -183,8 +183,8 @@ Existing object generations without a current manifest must be prepared before m
 
 It supports:
 
-- `--dry-run` to classify and hash stored generations without writes;
-- `--update` to create, validate, journal, and activate an immutable manifest-backed generation;
+- `--dry-run` to classify stored generations without writes and validate current resource hashes;
+- `--update` to normalize legacy HTML and JavaScript with the current worker rules, then create, validate, journal, and activate an immutable manifest-backed generation;
 - `--restore` to reactivate the verified original generation;
 - `--cleanup --confirm` to remove the inactive generation and migration journal.
 

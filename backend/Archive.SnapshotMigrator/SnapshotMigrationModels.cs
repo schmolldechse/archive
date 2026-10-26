@@ -52,7 +52,8 @@ internal sealed record LegacySnapshotMetadata(
     IReadOnlyDictionary<string, LegacySnapshotResource> Resources,
     IReadOnlyList<string> MissingUrls,
     int MissingUrlCount,
-    bool Incomplete);
+    bool Incomplete,
+    string? OriginalUrl);
 
 internal sealed record LegacySnapshotResource(string? SourceUrl, string? ContentType);
 

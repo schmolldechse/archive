@@ -1,4 +1,4 @@
-using Archive.Worker.Capture.Snapshots;
+using Archive.Core.Storage;
 
 namespace Archive.Tests;
 
@@ -126,5 +126,23 @@ public sealed class SnapshotDocumentNormalizerTests
         Assert.Contains("src=\"assets/fish-hash\" crossorigin=\"anonymous\"", normalized.Html,
             StringComparison.Ordinal);
         Assert.Contains("candidate.protocol === \"blob:\"", normalized.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplacesAnExistingSnapshotShimInsteadOfDuplicatingIt()
+    {
+        const string html = """
+            <!doctype html><html><head>
+            <script data-archive-snapshot="old">window.oldShim = true;</script>
+            <script>window.application = true;</script>
+            </head><body></body></html>
+            """;
+
+        var normalized = SnapshotDocumentNormalizer.Normalize(
+            html, "https://example.test/", new Dictionary<string, string>(), "index.html");
+
+        Assert.Equal(1, normalized.Html.Split("data-archive-snapshot", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("window.oldShim", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("window.application", normalized.Html, StringComparison.Ordinal);
     }
 }

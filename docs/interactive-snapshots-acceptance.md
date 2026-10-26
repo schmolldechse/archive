@@ -48,6 +48,8 @@ The selection uses the documented five-dimension complexity score.
 
 The original generations and journals remain intentionally available until production observation and cleanup are complete.
 
+On 25 October 2026, the intermediate MHTML fixture was restored to its original legacy generation, its prior test migration was cleaned up, and it was migrated again through the shared worker normalization. The final audit reported `Current`. Chrome 156 then advanced the canvas animation on desktop and mobile, loaded every requested snapshot resource with HTTP 200, and reported no external requests, console errors, or page errors.
+
 ## Authorization and complex JavaScript regression
 
 The final regression pass on 25 October 2026 created fresh anonymous, incomplete-account, registered-owner, and Three.js URL snapshots. PostgreSQL stored no owner for anonymous or incomplete-account submissions and stored the registered account only for registered submissions. The private user route returned `401` anonymously, `403` for the incomplete account, and `200` for the registered account.

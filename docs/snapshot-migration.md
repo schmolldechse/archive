@@ -18,7 +18,7 @@ It records the original and migrated object sets in:
 snapshot-migrations/manifest-v4/{snapshotId}.json
 ```
 
-The original generation remains untouched until cleanup. Activation and restore use conditional database updates, so a concurrently changed snapshot is not overwritten. An older generation receives the current resource allowlist, roles, hashes, provenance, and interaction diagnostics. Every completed snapshot then uses the same manifest-backed content path and isolated JavaScript boundary.
+The original generation remains untouched until cleanup. Activation and restore use conditional database updates, so a concurrently changed snapshot is not overwritten. An older generation receives the current resource allowlist, roles, hashes, provenance, and interaction diagnostics. Its HTML documents and JavaScript resources pass through the same canonical normalization used by the worker, including snapshot-local runtime mapping and the defensive runtime shim. Every completed snapshot then uses the same manifest-backed content path and isolated JavaScript boundary.
 
 ## Commands
 
@@ -50,7 +50,7 @@ PostgreSQL and MinIO must already be running on the external `archive` network. 
 
 ### Dry run
 
-`--dry-run` reads and hashes stored objects without writing. It reports:
+`--dry-run` lists and validates older stored generations without writing. Current manifests and their authorized resources are additionally verified against their stored hashes. It reports:
 
 | State | Meaning |
 | --- | --- |
@@ -66,7 +66,7 @@ The command exits nonzero for blocked, inconsistent, missing, or pending snapsho
 
 ### Update
 
-`--update` copies the complete stored generation, replaces its old manifest with a current manifest, validates every served resource, writes a prepared migration journal, and conditionally activates the new `ContentPrefix`. Already-current snapshots are skipped successfully, so the command is idempotent.
+`--update` creates a complete immutable generation, normalizes legacy HTML and JavaScript with the worker's current snapshot rules, replaces the old manifest with a current manifest, validates every served resource, writes a prepared migration journal, and conditionally activates the new `ContentPrefix`. The immutable legacy `index.html` is retained as `source.legacy.html` when no separate source object exists. Already-current snapshots are skipped successfully, so the command is idempotent.
 
 ### Restore
 

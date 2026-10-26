@@ -1,11 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Archive.Worker.Capture.Snapshots;
+namespace Archive.Core.Storage;
 
 /// <summary>Maps captured import-map targets, including prefix mappings, to immutable snapshot resources.</summary>
-internal static class SnapshotImportMapRewriter
+public static class SnapshotImportMapRewriter
 {
+    /// <summary>Rewrites captured import-map targets and scopes to their snapshot-local paths.</summary>
     public static string Rewrite(string source, string? sourceUrl, IReadOnlyDictionary<string, string> resources)
     {
         if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var baseUri))

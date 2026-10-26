@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Archive.Core;
 using Archive.Core.Entities;
 using Archive.Core.Options;
@@ -18,8 +16,6 @@ internal sealed class SnapshotMigrationService(
 {
     private const string JournalPrefix = "snapshot-migrations/manifest-v4";
     private static readonly JsonSerializerOptions ManifestJson = new() { WriteIndented = true };
-    private static readonly Regex ExecutableHtml = new("<script\\b|\\son[a-z]+\\s*=",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public async Task<int> ExecuteAsync(SnapshotMigratorOptions options, CancellationToken cancellationToken)
     {
@@ -228,9 +224,24 @@ internal sealed class SnapshotMigrationService(
         var originalPrefix = snapshot.ContentPrefix!;
         var originalObjects = await ListGenerationAsync(originalPrefix, cancellationToken);
         var legacy = await ReadLegacyMetadataAsync(originalPrefix, cancellationToken);
+        var resourceCandidates = originalObjects.Where(item =>
+            TryRelativePath(originalPrefix, item.Key, out var relativePath) && IsDisplayResource(relativePath))
+            .ToArray();
+        var resourceDescriptors = new Dictionary<string, SnapshotMigrationResourceDescriptor>(StringComparer.Ordinal);
+        foreach (var item in resourceCandidates)
+        {
+            TryRelativePath(originalPrefix, item.Key, out var relativePath);
+            legacy.Resources.TryGetValue(item.Key, out var previous);
+            resourceDescriptors[item.Key] = new(
+                relativePath,
+                relativePath == "index.html" ? legacy.OriginalUrl ?? snapshot.OriginUrl : previous?.SourceUrl,
+                previous?.ContentType ?? string.Empty);
+        }
+        var sourceMap = SnapshotMigrationNormalizer.BuildSourceMap(resourceDescriptors.Values);
         var migrationId = Guid.NewGuid();
         var migratedPrefix = $"snapshots/{snapshotId:N}/generations/manifest-v4/{migrationId:N}";
         var migratedKeys = new List<string>();
+        long migratedStorageBytes = 0;
         var journalPrepared = false;
         var activated = false;
 
@@ -238,47 +249,61 @@ internal sealed class SnapshotMigrationService(
         {
             foreach (var item in originalObjects)
             {
-                if (!TryRelativePath(originalPrefix, item.Key, out var relativePath) || relativePath == "manifest.json")
+                if (!TryRelativePath(originalPrefix, item.Key, out var relativePath) ||
+                    relativePath == "manifest.json" || IsDisplayResource(relativePath))
                     continue;
                 var destination = $"{migratedPrefix}/{relativePath}";
+                migratedStorageBytes = AddStorageBytes(migratedStorageBytes, item.Length);
                 await objectStore.CopyAsync(item.Key, destination, cancellationToken);
                 migratedKeys.Add(destination);
             }
 
-            var resourceCandidates = originalObjects.Where(item =>
-                TryRelativePath(originalPrefix, item.Key, out var relativePath) && IsDisplayResource(relativePath))
-                .ToArray();
             var resources = new List<SnapshotResource>(resourceCandidates.Length);
             string? indexHash = null;
-            byte[]? indexBytes = null;
+            byte[]? originalIndexBytes = null;
+            string? originalIndexContentType = null;
+            var containsExecutableContent = false;
             foreach (var item in resourceCandidates)
             {
-                TryRelativePath(originalPrefix, item.Key, out var relativePath);
                 var stored = await objectStore.GetAsync(item.Key, cancellationToken)
                     ?? throw new InvalidDataException($"Snapshot object disappeared during migration: {item.Key}");
                 byte[] bytes;
                 await using (stored.Content)
                     bytes = await ReadBytesAsync(stored.Content, archiveOptions.MaxStorageBytes, cancellationToken);
-                var hash = Hash(bytes);
-                if (relativePath == "index.html")
+
+                var descriptor = resourceDescriptors[item.Key];
+                var sourceContentType = string.IsNullOrWhiteSpace(descriptor.ContentType)
+                    ? stored.ContentType : descriptor.ContentType;
+                if (string.IsNullOrWhiteSpace(sourceContentType))
+                    sourceContentType = "application/octet-stream";
+                descriptor = descriptor with { ContentType = sourceContentType };
+                if (descriptor.Path == "index.html")
                 {
-                    indexHash = hash;
-                    indexBytes = bytes;
+                    originalIndexBytes = bytes;
+                    originalIndexContentType = sourceContentType;
                 }
-                legacy.Resources.TryGetValue(item.Key, out var previous);
-                var contentType = string.IsNullOrWhiteSpace(previous?.ContentType)
-                    ? stored.ContentType : previous.ContentType;
+
+                var normalized = SnapshotMigrationNormalizer.Normalize(descriptor, bytes, sourceMap);
+                var hash = Hash(normalized.Body);
+                if (descriptor.Path == "index.html")
+                    indexHash = hash;
+                containsExecutableContent |= normalized.ContainsExecutableContent;
+
+                var destination = $"{migratedPrefix}/{descriptor.Path}";
+                migratedStorageBytes = AddStorageBytes(migratedStorageBytes, normalized.Body.LongLength);
+                await PutAsync(destination, normalized.Body, normalized.ContentType, cancellationToken);
+                migratedKeys.Add(destination);
                 resources.Add(new()
                 {
-                    Path = relativePath,
-                    SourceUrl = relativePath == "index.html" ? snapshot.OriginUrl : previous?.SourceUrl,
-                    ContentType = contentType ?? "application/octet-stream",
-                    ObjectKey = $"{migratedPrefix}/{relativePath}",
+                    Path = descriptor.Path,
+                    SourceUrl = descriptor.SourceUrl,
+                    ContentType = normalized.ContentType,
+                    ObjectKey = destination,
                     Sha256 = hash,
-                    Role = SnapshotResourceRoles.Infer(relativePath, contentType ?? stored.ContentType)
+                    Role = normalized.Role
                 });
             }
-            if (indexHash is null || indexBytes is null)
+            if (indexHash is null || originalIndexBytes is null || originalIndexContentType is null)
                 throw new InvalidDataException("index.html could not be read.");
 
             var sourceItem = originalObjects.FirstOrDefault(item =>
@@ -286,15 +311,14 @@ internal sealed class SnapshotMigrationService(
             string sourceKey;
             string sourceHash;
             string sourceType;
-            long additionalSourceBytes = 0;
             if (sourceItem is null)
             {
                 sourceKey = $"{migratedPrefix}/source.legacy.html";
-                await objectStore.CopyAsync($"{originalPrefix}/index.html", sourceKey, cancellationToken);
+                migratedStorageBytes = AddStorageBytes(migratedStorageBytes, originalIndexBytes.LongLength);
+                await PutAsync(sourceKey, originalIndexBytes, originalIndexContentType, cancellationToken);
                 migratedKeys.Add(sourceKey);
-                sourceHash = indexHash;
-                sourceType = "text/html; charset=utf-8";
-                additionalSourceBytes = indexBytes.LongLength;
+                sourceHash = Hash(originalIndexBytes);
+                sourceType = originalIndexContentType;
             }
             else
             {
@@ -318,7 +342,7 @@ internal sealed class SnapshotMigrationService(
                     SourceObjectKey = sourceKey,
                     SourceSha256 = sourceHash,
                     IndexSha256 = indexHash,
-                    SourceUrl = snapshot.OriginUrl,
+                    SourceUrl = legacy.OriginalUrl ?? snapshot.OriginUrl,
                     SourceMimeType = sourceType,
                     CapturedAt = snapshot.CaptureCompletedAt ?? snapshot.CreatedAt,
                     DocumentState = "legacy-derived",
@@ -326,9 +350,9 @@ internal sealed class SnapshotMigrationService(
                 },
                 Interaction = new()
                 {
-                    Normalizer = "snapshot-migrator-v2",
-                    ContainsExecutableContent = ExecutableHtml.IsMatch(Encoding.UTF8.GetString(indexBytes)),
-                    Diagnostic = "Prepared from an older snapshot generation."
+                    Normalizer = SnapshotDocumentNormalizer.Version,
+                    ContainsExecutableContent = containsExecutableContent,
+                    Diagnostic = "Normalized from an older snapshot generation."
                 },
                 Resources = resources,
                 MissingUrls = legacy.MissingUrls,
@@ -337,6 +361,7 @@ internal sealed class SnapshotMigrationService(
             };
             var manifestBytes = JsonSerializer.SerializeToUtf8Bytes(manifest, ManifestJson);
             var manifestKey = $"{migratedPrefix}/manifest.json";
+            migratedStorageBytes = AddStorageBytes(migratedStorageBytes, manifestBytes.LongLength);
             await PutAsync(manifestKey, manifestBytes, "application/json", cancellationToken);
             migratedKeys.Add(manifestKey);
 
@@ -344,8 +369,6 @@ internal sealed class SnapshotMigrationService(
             if (validationError is not null)
                 throw new InvalidDataException($"The prepared snapshot generation is invalid: {validationError}");
 
-            var migratedStorageBytes = originalObjects.Where(item => !item.Key.EndsWith("/manifest.json", StringComparison.Ordinal))
-                .Sum(item => item.Length) + additionalSourceBytes + manifestBytes.LongLength;
             var journal = new SnapshotMigrationJournal
             {
                 SnapshotId = snapshotId,
@@ -479,7 +502,8 @@ internal sealed class SnapshotMigrationService(
         CancellationToken cancellationToken)
     {
         var stored = await objectStore.GetAsync($"{prefix}/manifest.json", cancellationToken);
-        if (stored is null) return new(new Dictionary<string, LegacySnapshotResource>(), [], 0, false);
+        if (stored is null)
+            return new(new Dictionary<string, LegacySnapshotResource>(), [], 0, false, null);
         try
         {
             await using (stored.Content)
@@ -495,7 +519,9 @@ internal sealed class SnapshotMigrationService(
                             objectKeyElement.GetString() is not { } objectKey)
                             continue;
                         resources[objectKey] = new(
-                            resource.TryGetProperty("url", out var url) ? url.GetString() : null,
+                            resource.TryGetProperty("sourceUrl", out var sourceUrl)
+                                ? sourceUrl.GetString()
+                                : resource.TryGetProperty("url", out var url) ? url.GetString() : null,
                             resource.TryGetProperty("contentType", out var type) ? type.GetString() : null);
                     }
                 }
@@ -507,12 +533,19 @@ internal sealed class SnapshotMigrationService(
                     ? value : missingUrls.Length;
                 var incomplete = root.TryGetProperty("incomplete", out var incompleteElement) &&
                     incompleteElement.ValueKind == JsonValueKind.True;
-                return new(resources, missingUrls, missingCount, incomplete);
+                var originalUrl = root.TryGetProperty("originalUrl", out var originalUrlElement)
+                    ? originalUrlElement.GetString()
+                    : root.TryGetProperty("provenance", out var provenance) &&
+                      provenance.ValueKind == JsonValueKind.Object &&
+                      provenance.TryGetProperty("sourceUrl", out var provenanceUrl)
+                        ? provenanceUrl.GetString()
+                        : null;
+                return new(resources, missingUrls, missingCount, incomplete, originalUrl);
             }
         }
         catch (JsonException)
         {
-            return new(new Dictionary<string, LegacySnapshotResource>(), [], 0, true);
+            return new(new Dictionary<string, LegacySnapshotResource>(), [], 0, true, null);
         }
     }
 
@@ -548,6 +581,14 @@ internal sealed class SnapshotMigrationService(
     {
         await using var stream = new MemoryStream(bytes, writable: false);
         await objectStore.PutAsync(key, stream, contentType, cancellationToken);
+    }
+
+    private long AddStorageBytes(long currentBytes, long additionalBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(additionalBytes);
+        if (additionalBytes > archiveOptions.MaxStorageBytes - currentBytes)
+            throw new InvalidDataException("The normalized snapshot generation exceeds the storage limit.");
+        return currentBytes + additionalBytes;
     }
 
     private static async Task<byte[]> ReadBytesAsync(Stream stream, long maximumBytes,

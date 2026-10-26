@@ -1,11 +1,12 @@
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace Archive.Worker.Capture.Snapshots;
+namespace Archive.Core.Storage;
 
 /// <summary>Rewrites bounded literal URL forms to captured snapshot resources.</summary>
-internal static partial class JavaScriptReferenceRewriter
+public static partial class JavaScriptReferenceRewriter
 {
+    /// <summary>Rewrites captured literal URL forms relative to the stored JavaScript object.</summary>
     public static string Rewrite(string source, string? sourceUrl, IReadOnlyDictionary<string, string> map)
     {
         if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var baseUri))

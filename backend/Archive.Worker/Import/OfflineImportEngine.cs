@@ -220,7 +220,7 @@ public sealed class OfflineImportEngine(
                 },
                 Interaction = new()
                 {
-                    Normalizer = "archive-snapshot-v1",
+                    Normalizer = SnapshotDocumentNormalizer.Version,
                     ContainsExecutableContent = normalized.ContainsExecutableContent,
                     Diagnostic = normalized.InteractionDiagnostic
                 },
