@@ -180,33 +180,6 @@ internal sealed class CapturePageAccess : IDisposable
             throw new CaptureChallengeEncounteredException();
     }
 
-    public async Task EnsureArchivingAllowedAsync(CancellationToken cancellationToken)
-    {
-        IResponse? response;
-        lock (_sync)
-            response = _response;
-        if (response is null)
-            throw new CaptureFailedException("Die Crawl-Direktiven der Seite konnten nicht geprüft werden.");
-
-        if (response.Headers.Any(header =>
-                header.Key.Equals("x-robots-tag", StringComparison.OrdinalIgnoreCase) &&
-                ContainsArchiveBlock(header.Value)))
-            throw new CaptureFailedException("X-Robots-Tag untersagt die Archivierung dieser Seite.");
-
-        var directives = await _page.EvaluateAsync<string[]>(@"() => Array.from(
-            document.querySelectorAll('meta[name]'))
-            .filter(element => ['robots', 'voldechsearchivebot'].includes(
-                (element.getAttribute('name') || '').toLowerCase()))
-            .map(element => element.getAttribute('content') || '')").WaitAsync(cancellationToken);
-        if (directives.Any(ContainsArchiveBlock))
-            throw new CaptureFailedException("Eine Robots-Metadirektive untersagt die Archivierung dieser Seite.");
-    }
-
-    private static bool ContainsArchiveBlock(string value) => value.Split([',', ';', ' ', '\t'],
-        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(token =>
-        token.Equals("noarchive", StringComparison.OrdinalIgnoreCase) ||
-        token.Equals("none", StringComparison.OrdinalIgnoreCase));
-
     private async Task<(IResponse Response, CloudflareChallengeDetector.DocumentState Document)?> InspectStableDocumentAsync(
         CancellationToken cancellationToken)
     {

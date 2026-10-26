@@ -9,7 +9,6 @@ using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture.Browser.Access;
-using Archive.Worker.Capture.Crawling;
 using Archive.Worker.Capture.Network;
 using Archive.Worker.Storage;
 using Microsoft.Playwright;
@@ -18,8 +17,7 @@ using Archive.Core.Entities.Processing;
 namespace Archive.Worker.Capture.Browser;
 
 public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, ArchiveOptions options,
-    ArchiveBrowserOptions browserOptions, WebBotAuthSigner webBotAuthSigner, CrawlPolicyService crawlPolicy,
-    ILogger<BrowserCaptureEngine> logger)
+    ArchiveBrowserOptions browserOptions, ILogger<BrowserCaptureEngine> logger)
 {
     private readonly CaptureLimits _limits = options.ToCaptureLimits();
 
@@ -51,7 +49,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             });
             context.SetDefaultTimeout((float)_limits.MaxDuration.TotalMilliseconds);
             context.SetDefaultNavigationTimeout((float)_limits.MaxDuration.TotalMilliseconds);
-            await using var requestRouter = new BrowserRequestRouter(context, webBotAuthSigner);
+            await using var requestRouter = new BrowserRequestRouter(context);
             await requestRouter.InitializeAsync();
 
             return await CaptureUrlAsync(job, context, requestRouter, started, progress, timeout.Token);
@@ -88,7 +86,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             throw new CaptureFailedException(urlError);
 
         progress?.Report(ProgressStep.SourceCheck);
-        await crawlPolicy.EnsureAllowedAsync(new Uri(normalizedUrl), cancellationToken);
         var networkGuard = new PublicNetworkGuard();
         var accessPage = await context.NewPageAsync();
         using (var access = new CapturePageAccess(accessPage, normalizedUrl, browserOptions, networkGuard,
@@ -142,7 +139,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     .WaitAsync(cancellationToken);
                 await collector.StopAsync();
                 await access.VerifyCaptureAsync(cancellationToken);
-                await access.EnsureArchivingAllowedAsync(cancellationToken);
                 if (documentVersion != access.DocumentVersion)
                     throw new CaptureFailedException("Die Seite hat während der Aufnahme das Dokument gewechselt.");
 
