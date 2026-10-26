@@ -199,7 +199,8 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 
 - approved versioned public captures load from a dedicated credential-free origin in an opaque iframe with `sandbox="allow-scripts"`;
 - archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
-- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a snapshot shim independently prevent live network access, forms, workers, pop-ups, storage privileges, and top navigation;
+- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a snapshot shim independently prevent live network access, forms, persistent workers, pop-ups, storage privileges, and top navigation;
+- dedicated `blob:` workers inherit the document boundary, while exact captured worker scripts run through a local bootstrap that installs snapshot URL mapping and connection guards before classic or module code executes;
 - executable policy is sent only for structured `Sec-CH-UA` hints matching the configured tested Chromium version; all other clients receive a script-disabled policy at the same URL;
 - the isolated snapshot origin strips credentials and exposes only the snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
 - public and access-controlled content use an opaque `sandbox="allow-scripts"` iframe; clients without the required connection boundary receive a script-disabled response policy;

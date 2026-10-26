@@ -10,7 +10,7 @@ public sealed record SnapshotDocument(string Html, bool ContainsExecutableConten
 public static class SnapshotDocumentNormalizer
 {
     /// <summary>Identifier persisted when this canonical normalization contract is applied.</summary>
-    public const string Version = "archive-snapshot-v1";
+    public const string Version = "archive-snapshot-v2";
 
     private static readonly string[] UrlAttributes = ["src", "href", "poster", "action"];
 
@@ -90,7 +90,7 @@ public static class SnapshotDocumentNormalizer
         }
 
         var shim = document.CreateElement("script");
-        shim.SetAttribute("data-archive-snapshot", "v1");
+        shim.SetAttribute("data-archive-snapshot", "v2");
         shim.TextContent = SnapshotRuntimeShim.Build(baseUrl, documentMap);
         head.InsertBefore(shim, baseElement.NextSibling);
 

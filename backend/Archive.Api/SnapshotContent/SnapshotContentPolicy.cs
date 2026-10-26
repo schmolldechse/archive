@@ -8,13 +8,16 @@ namespace Archive.Api.SnapshotContent;
 public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentication)
 {
     private const string DeniedPermissions =
-        "accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), clipboard-read=(), " +
+        "accelerometer=(), autoplay=(), bluetooth=(), camera=(), clipboard-read=(), " +
         "clipboard-write=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), hid=(), " +
         "magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), " +
         "serial=(), usb=(), web-share=(), window-management=()";
 
     public bool IsAllowedDestination(string role, string contentType, string? destination)
     {
+        if (destination is "serviceworker" or "sharedworker")
+            return false;
+
         var isDocumentDestination = destination is "document" or "iframe";
         if (role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument)
             return isDocumentDestination;
@@ -53,9 +56,10 @@ public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentic
     private string DocumentPolicy(string scope, bool root, bool interactive)
     {
         var policy = interactive
-            ? $"default-src 'none'; script-src {scope} 'unsafe-inline'; style-src {scope} 'unsafe-inline' data:; " +
+            ? $"default-src 'none'; script-src {scope} 'unsafe-inline' 'wasm-unsafe-eval'; " +
+              $"style-src {scope} 'unsafe-inline' data:; " +
               $"img-src {scope} data: blob:; font-src {scope} data:; media-src {scope} data: blob:; " +
-              $"frame-src {scope} data:; connect-src {scope} blob: data:; worker-src 'none'; object-src 'none'; " +
+              $"frame-src {scope} data:; connect-src {scope} blob: data:; worker-src blob:; object-src 'none'; " +
               $"form-action 'none'; base-uri {scope}; sandbox allow-scripts;"
             : $"default-src 'none'; img-src {scope} data: blob:; style-src {scope} 'unsafe-inline' data:; " +
               $"font-src {scope} data:; media-src {scope} data: blob:; frame-src {scope} data:; " +

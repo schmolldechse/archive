@@ -16,6 +16,7 @@ public static class SnapshotRuntimeShim
               const originalBase = {{serializedBase}} || "about:blank";
               const resources = Object.freeze({{serializedMap}});
               const nativeFetch = window.fetch.bind(window);
+              const NativeWorker = window.Worker;
               const withoutHash = (value, base) => {
                 const url = new URL(String(value), base);
                 url.hash = "";
@@ -126,7 +127,168 @@ public static class SnapshotRuntimeShim
                 return nativeWriteln.call(this, ...parts.map(rewriteMarkup));
               };
 
-              for (const name of ["WebSocket", "EventSource", "WebTransport", "Worker", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
+              const workerResources = Object.freeze(Object.fromEntries(Object.entries(resources)
+                .map(([source, local]) => [source, withoutHash(local, document.baseURI)])));
+              const buildWorkerBootstrap = (target, source, type) => {
+                const serializedResources = JSON.stringify(workerResources);
+                const serializedTarget = JSON.stringify(target);
+                const serializedSource = JSON.stringify(source);
+                const loadEntry = type === "module"
+                  ? `const pendingMessages = [];
+                     const queueMessage = event => {
+                       event.stopImmediatePropagation();
+                       pendingMessages.push(event);
+                     };
+                     self.addEventListener("message", queueMessage);
+                     import(${serializedTarget}).then(() => {
+                       self.removeEventListener("message", queueMessage);
+                       for (const event of pendingMessages)
+                         self.dispatchEvent(new MessageEvent("message", {
+                           data: event.data,
+                           origin: event.origin,
+                           lastEventId: event.lastEventId,
+                           ports: event.ports
+                         }));
+                     }).catch(error => setTimeout(() => { throw error; }));`
+                  : `nativeImportScripts(${serializedTarget});`;
+                return `(() => {
+                  "use strict";
+                  const originalBase = ${serializedSource};
+                  const entryUrl = ${serializedTarget};
+                  const resources = Object.freeze(${serializedResources});
+                  const withoutHash = (value, base) => {
+                    const url = new URL(String(value), base);
+                    url.hash = "";
+                    return url.href;
+                  };
+                  const sourceByLocal = Object.create(null);
+                  for (const [source, local] of Object.entries(resources))
+                    sourceByLocal[withoutHash(local, entryUrl)] = source;
+                  const tryResolve = (input) => {
+                    const raw = input instanceof URL ? input.href : String(input);
+                    const candidate = new URL(raw, entryUrl);
+                    if (candidate.protocol === "blob:" || candidate.protocol === "data:" || candidate.href === "about:blank")
+                      return candidate.href;
+                    const localUrl = withoutHash(raw, entryUrl);
+                    if (sourceByLocal[localUrl]) return localUrl;
+                    const sourceUrl = withoutHash(raw, originalBase);
+                    const local = resources[sourceUrl];
+                    return local ? withoutHash(local, entryUrl) : null;
+                  };
+                  const resolve = (input) => {
+                    const local = tryResolve(input);
+                    if (!local) throw new TypeError("The archived snapshot blocked an uncaptured resource.");
+                    return local;
+                  };
+                  const nativeFetch = self.fetch.bind(self);
+                  self.fetch = (input, init = {}) => {
+                    const request = input instanceof Request ? input : null;
+                    const method = String(init.method || request?.method || "GET").toUpperCase();
+                    if (method !== "GET" && method !== "HEAD")
+                      return Promise.reject(new TypeError("The archived snapshot permits only GET and HEAD."));
+                    return nativeFetch(resolve(request?.url || input), {
+                      ...init, method, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer"
+                    });
+                  };
+                  if (typeof XMLHttpRequest !== "undefined") {
+                    const nativeOpen = XMLHttpRequest.prototype.open;
+                    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                      const normalized = String(method).toUpperCase();
+                      if (normalized !== "GET" && normalized !== "HEAD")
+                        throw new TypeError("The archived snapshot permits only GET and HEAD.");
+                      return nativeOpen.call(this, normalized, resolve(url), ...rest);
+                    };
+                  }
+                  const nativeImportScripts = self.importScripts?.bind(self);
+                  if (nativeImportScripts)
+                    self.importScripts = (...urls) => nativeImportScripts(...urls.map(resolve));
+                  const NativeWorker = self.Worker;
+                  if (NativeWorker) {
+                    const workerResources = resources;
+                    const buildWorkerBootstrap = ${buildWorkerBootstrap.toString()};
+                    const ArchivedWorker = new Proxy(NativeWorker, {
+                      construct(target, args) {
+                        const raw = args[0] instanceof URL ? args[0].href : String(args[0]);
+                        const candidate = new URL(raw, entryUrl);
+                        const options = args[1] && typeof args[1] === "object"
+                          ? { ...args[1], credentials: "omit" }
+                          : { credentials: "omit" };
+                        if (candidate.protocol === "blob:")
+                          return new target(candidate.href, options);
+                        const local = tryResolve(args[0]);
+                        const localUrl = local ? withoutHash(local, entryUrl) : null;
+                        const nestedSource = localUrl ? sourceByLocal[localUrl] : null;
+                        if (!localUrl || !nestedSource)
+                          throw new TypeError("The archived snapshot blocked an uncaptured resource.");
+                        const nestedType = options.type === "module" ? "module" : "classic";
+                        const bootstrap = new Blob([
+                          buildWorkerBootstrap(localUrl, nestedSource, nestedType)
+                        ], { type: "text/javascript" });
+                        const bootstrapUrl = URL.createObjectURL(bootstrap);
+                        try {
+                          const bootstrapOptions = nestedType === "module"
+                            ? { ...options, type: "classic" }
+                            : options;
+                          const worker = new target(bootstrapUrl, bootstrapOptions);
+                          setTimeout(() => URL.revokeObjectURL(bootstrapUrl));
+                          return worker;
+                        } catch (error) {
+                          URL.revokeObjectURL(bootstrapUrl);
+                          throw error;
+                        }
+                      }
+                    });
+                    try { Object.defineProperty(self, "Worker", { value: ArchivedWorker }); } catch {}
+                  }
+                  for (const name of ["WebSocket", "EventSource", "WebTransport", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
+                    try { Object.defineProperty(self, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
+                  ${loadEntry}
+                })();`;
+              };
+              if (NativeWorker) {
+                const ArchivedWorker = new Proxy(NativeWorker, {
+                  construct(target, args) {
+                    const raw = args[0] instanceof URL ? args[0].href : String(args[0]);
+                    const candidate = new URL(raw, document.baseURI);
+                    const options = args[1] && typeof args[1] === "object"
+                      ? { ...args[1], credentials: "omit" }
+                      : { credentials: "omit" };
+                    if (candidate.protocol === "blob:")
+                      return new target(candidate.href, options);
+                    const local = tryResolve(args[0]);
+                    const localUrl = local ? withoutHash(local, document.baseURI) : null;
+                    const source = localUrl ? sourceByLocal[localUrl] : null;
+                    if (!localUrl || !source)
+                      throw new TypeError("The archived snapshot blocked an uncaptured resource.");
+                    const type = options.type === "module" ? "module" : "classic";
+                    const bootstrap = new Blob([buildWorkerBootstrap(localUrl, source, type)],
+                      { type: "text/javascript" });
+                    const bootstrapUrl = URL.createObjectURL(bootstrap);
+                    try {
+                      // The bootstrap itself is classic so it can start from an opaque sandbox origin.
+                      // A requested module entry still executes as a module through dynamic import().
+                      const bootstrapOptions = type === "module" ? { ...options, type: "classic" } : options;
+                      const worker = new target(bootstrapUrl, bootstrapOptions);
+                      // Module workers may defer their initial Blob read until after construction returns.
+                      // Revoke in the next task, after Chromium has retained the entry response.
+                      setTimeout(() => URL.revokeObjectURL(bootstrapUrl));
+                      return worker;
+                    } catch (error) {
+                      URL.revokeObjectURL(bootstrapUrl);
+                      throw error;
+                    }
+                  }
+                });
+                try { Object.defineProperty(window, "Worker", { value: ArchivedWorker }); } catch {}
+              }
+              try {
+                const serviceWorker = navigator.serviceWorker;
+                if (serviceWorker)
+                  Object.defineProperty(serviceWorker, "register", {
+                    value: () => Promise.reject(new TypeError("The archived snapshot blocked this capability."))
+                  });
+              } catch {}
+              for (const name of ["WebSocket", "EventSource", "WebTransport", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
                 try { Object.defineProperty(window, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
               window.open = () => null;
               addEventListener("submit", event => event.preventDefault(), true);

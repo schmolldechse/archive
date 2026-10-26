@@ -217,7 +217,7 @@ Use the relevant manual path when changing snapshot normalization, URL selection
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
 - confirm owner and administrator previews use short-lived capability URLs and execute captured scripts without exposing private snapshots anonymously;
-- confirm public and access-controlled snapshots execute captured scripts for an admitted client while external requests, forms, workers, storage, and navigation remain blocked;
+- confirm public and access-controlled snapshots execute captured scripts and dedicated `blob:` or exact captured workers for an admitted client while external requests, forms, Shared/Service Workers, storage, and navigation remain blocked;
 - repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
 
 ## Common startup failures

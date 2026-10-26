@@ -6,7 +6,7 @@ Archived snapshots preserve client-side interaction in addition to their visual 
 
 This behavior applies to every completed snapshot, independent of moderation status. Public snapshots and access-controlled owner or administrator previews use the same canonical document and the same isolated execution boundary. Moderation continues to determine who may access a snapshot; it does not determine whether its stored JavaScript is executable.
 
-Archived code must remain disconnected from the live website and from Archive application privileges. It may read only resources captured into its own snapshot and must not gain cookies, authentication, browser storage, form submission, workers, pop-ups, downloads, device permissions, top-level navigation, or arbitrary network access.
+Archived code must remain disconnected from the live website and from Archive application privileges. It may read only resources captured into its own snapshot and must not gain cookies, authentication, browser storage, form submission, persistent workers, pop-ups, downloads, device permissions, top-level navigation, or arbitrary network access. Dedicated workers are available only through the bounded replay behavior described below.
 
 ## Snapshot model
 
@@ -38,7 +38,7 @@ Normalization performs the following operations:
 2. Rewrite captured document, stylesheet, image, font, media, frame, script, module, JSON, model, and binary references to safe relative snapshot paths.
 3. Rewrite bounded JavaScript literal forms, including static module imports, dynamic imports, `new URL(..., import.meta.url)`, `fetch`, and XHR reads, when their absolute target is an exact captured resource.
 4. Insert a deterministic `<base>` for the stored document location.
-5. Insert a fixed snapshot shim before archived scripts. The shim resolves exact captured runtime URLs, forces credential omission, restricts methods to `GET` and `HEAD`, and disables selected connection capabilities as defense in depth.
+5. Insert a fixed snapshot shim before archived scripts. The shim resolves exact captured runtime URLs, forces credential omission, restricts methods to `GET` and `HEAD`, and disables selected connection capabilities as defense in depth. It also preserves application-created `blob:` dedicated workers and loads exact captured worker scripts through an isolated `blob:` bootstrap with the same runtime guards.
 6. Assign every served object one browser role: `root-document`, `nested-document`, or `asset`.
 7. Hash the source, canonical document, and every manifest-authorized resource with SHA-256.
 8. Record missing resources and normalization diagnostics without discarding an otherwise readable snapshot.
@@ -64,7 +64,7 @@ The current snapshot manifest is version `4`. Its top-level structure is:
     "redirectChain": []
   },
   "interaction": {
-    "normalizer": "archive-snapshot-v1",
+    "normalizer": "archive-snapshot-v2",
     "containsExecutableContent": true,
     "diagnostic": null
   },
@@ -146,7 +146,11 @@ The frontend embeds every snapshot with:
 
 `allow-same-origin` is intentionally absent. The document receives an opaque origin and cannot read application cookies or storage even if it is opened from an authorized private view.
 
-The document response supplies a restrictive policy whose sources are scoped to the exact public or capability-prefixed snapshot content path. It permits captured scripts, inline historical scripts, styles, images, fonts, media, frames, and same-snapshot reads while denying objects, forms, workers, and connections outside that path.
+The document response supplies a restrictive policy whose sources are scoped to the exact public or capability-prefixed snapshot content path. It permits captured scripts, inline historical scripts, styles, images, fonts, media, frames, same-snapshot reads, and `blob:` entry URLs for dedicated workers while denying objects, forms, persistent workers, and connections outside that path.
+
+Application-created `blob:` workers run their original captured bytes and inherit the document's CSP and `Connection-Allowlist`. The interactive policy permits WebAssembly compilation through the narrow `wasm-unsafe-eval` source expression without enabling JavaScript `eval`. A dedicated worker requested through an exact captured source URL is resolved to its snapshot asset and started through a short-lived `blob:` bootstrap. That bootstrap installs the captured-resource resolver before loading classic or module worker code. It limits Fetch and XHR to captured resources with `GET` or `HEAD`, omits credentials, rejects redirects, and blocks WebSocket, EventSource, WebTransport, Shared Worker, and WebRTC constructors as defense in depth. Shared Workers and Service Workers remain unavailable, and their request destinations are rejected by the content endpoint.
+
+Because the runtime shim is stored in the canonical document, this behavior applies to snapshots normalized with `archive-snapshot-v2`. Existing version 1 snapshots remain immutable and require a fresh capture to gain dedicated-worker replay.
 
 Additional response controls include:
 
