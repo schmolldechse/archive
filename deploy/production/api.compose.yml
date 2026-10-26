@@ -57,6 +57,7 @@ services:
       Processing__TerminalRetentionSeconds: ${PROCESSING_TERMINAL_RETENTION_SECONDS:-60}
       Archive__Browser__Headless: ${ARCHIVE_BROWSER_HEADLESS:-true}
       Archive__Browser__UserAgent: ${ARCHIVE_BROWSER_USER_AGENT:-ArchiveBot/1.0}
+      Archive__Browser__MaxLinkedPages: ${ARCHIVE_BROWSER_MAX_LINKED_PAGES:-100}
     depends_on:
       api:
         condition: service_healthy

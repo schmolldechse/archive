@@ -1,4 +1,5 @@
 using Archive.Worker.Capture.Browser;
+using Archive.Worker.Capture.Network;
 using Archive.Worker.Import;
 using Archive.Worker.Import.Decoders;
 using Archive.Worker.Processing;
@@ -15,6 +16,7 @@ public static class Injection
             .PostConfigure(options => options.UserAgent = options.UserAgent?.Trim() ?? "")
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton(provider => provider.GetRequiredService<IOptions<ArchiveBrowserOptions>>().Value);
+        services.AddSingleton<ICaptureNetworkGuard, PublicNetworkGuard>();
         services.AddSingleton<BrowserCaptureEngine>();
         services.AddSingleton<IUploadedDocumentDecoder, HtmlDecoder>();
         services.AddSingleton<IUploadedDocumentDecoder, MhtmlDecoder>();

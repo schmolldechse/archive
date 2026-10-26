@@ -17,5 +17,8 @@ public sealed class ArchiveBrowserOptions
     [Range(1, 3)]
     public int ChallengeReloadAttempts { get; set; } = 1;
 
+    [Range(0, 10_000)]
+    public int MaxLinkedPages { get; set; } = 100;
+
     public TimeSpan ChallengeTimeout => TimeSpan.FromSeconds(ChallengeTimeoutSeconds);
 }

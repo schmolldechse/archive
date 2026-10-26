@@ -7,7 +7,7 @@ namespace Archive.Worker.Capture.Network;
 // Application-level SSRF guard. Production deployments must additionally deny
 // private/link-local destinations at the network boundary to close DNS rebinding
 // and proxy-related gaps outside the browser process.
-internal sealed class PublicNetworkGuard
+internal sealed class PublicNetworkGuard : ICaptureNetworkGuard
 {
     private readonly ConcurrentDictionary<string, Task<IPAddress[]>> _lookups =
         new(StringComparer.OrdinalIgnoreCase);

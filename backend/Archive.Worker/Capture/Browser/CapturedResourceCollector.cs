@@ -1,5 +1,6 @@
 using Archive.Core.Jobs;
 using Archive.Worker.Capture.Browser.Access;
+using Archive.Worker.Capture.Browser.Crawl;
 using Microsoft.Playwright;
 
 namespace Archive.Worker.Capture.Browser;
@@ -7,24 +8,22 @@ namespace Archive.Worker.Capture.Browser;
 internal sealed class CapturedResourceCollector : IAsyncDisposable
 {
     private readonly IPage _page;
-    private readonly CaptureLimits _limits;
+    private readonly CapturedResourceArchive _archive;
     private readonly ILogger _logger;
     private readonly CancellationToken _cancellationToken;
     private readonly object _gate = new();
-    private readonly Dictionary<string, CapturedResource> _resources = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, long> _failures = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, long> _successes = new(StringComparer.Ordinal);
     private readonly List<Task> _captureTasks = [];
     private bool _accepting = true;
-    private long _sequence;
-    private long _capturedBytes;
     private Task? _stopTask;
     private CapturedMainDocument? _mainDocument;
+    private long _reservedDocumentBytes;
+    private bool _documentCommitted;
 
-    public CapturedResourceCollector(IPage page, CaptureLimits limits, ILogger logger, CancellationToken cancellationToken)
+    public CapturedResourceCollector(IPage page, CapturedResourceArchive archive, ILogger logger,
+        CancellationToken cancellationToken)
     {
         _page = page;
-        _limits = limits;
+        _archive = archive;
         _logger = logger;
         _cancellationToken = cancellationToken;
         _page.Response += OnResponse;
@@ -38,7 +37,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             lock (_gate)
             {
                 EnsureStopped();
-                return new Dictionary<string, CapturedResource>(_resources, StringComparer.Ordinal);
+                return _archive.SnapshotResources();
             }
         }
     }
@@ -50,7 +49,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             lock (_gate)
             {
                 EnsureStopped();
-                return _failures.Count > 0;
+                return _archive.SnapshotFailedUrls().Count > 0;
             }
         }
     }
@@ -65,7 +64,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             lock (_gate)
             {
                 EnsureStopped();
-                return _failures.Keys.Order(StringComparer.Ordinal).ToArray();
+                return _archive.SnapshotFailedUrls();
             }
         }
     }
@@ -103,7 +102,21 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
         await drain.ConfigureAwait(false);
     }
 
-    public ValueTask DisposeAsync() => new(StopAsync());
+    public async ValueTask DisposeAsync()
+    {
+        try { await StopAsync(); }
+        finally { ReleaseUncommittedDocument(); }
+    }
+
+    public CapturedMainDocument? CommitMainDocument()
+    {
+        lock (_gate)
+        {
+            EnsureStopped();
+            _documentCommitted = true;
+            return _mainDocument;
+        }
+    }
 
     private void OnResponse(object? sender, IResponse response)
     {
@@ -114,7 +127,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
 
             // Retain every task, including faulted tasks and duplicate URLs: a later
             // successful response must never hide an earlier resource-limit failure.
-            _captureTasks.Add(CaptureResponseAsync(response, ++_sequence));
+            _captureTasks.Add(CaptureResponseAsync(response, _archive.NextSequence()));
         }
     }
 
@@ -126,7 +139,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
                 CloudflareChallengeDetector.IsChallengeResource(request.Url) || IsMainDocument(request))
                 return;
 
-            RecordFailure(request.Url, ++_sequence);
+            _archive.RecordFailure(request.Url, _archive.NextSequence());
             _logger.LogDebug("Ressourcenanfrage {Url} fehlgeschlagen: {Failure}", request.Url, request.Failure);
         }
     }
@@ -143,7 +156,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             if (CloudflareChallengeDetector.IsChallengeResponse(response) || response.Status >= 400)
             {
                 lock (_gate)
-                    RecordFailure(response.Url, sequence);
+                    _archive.RecordFailure(response.Url, sequence);
                 return;
             }
 
@@ -164,9 +177,13 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
                 _cancellationToken.ThrowIfCancellationRequested();
                 lock (_gate)
                 {
-                    if (mainBody.LongLength > _limits.MaxStorageBytes - _capturedBytes)
-                        throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
-                    _capturedBytes += mainBody.LongLength;
+                    if (_reservedDocumentBytes > 0)
+                    {
+                        _archive.ReleaseDocument(_reservedDocumentBytes);
+                        _reservedDocumentBytes = 0;
+                    }
+                    _archive.ReserveDocument(mainBody.LongLength);
+                    _reservedDocumentBytes = mainBody.LongLength;
                     _mainDocument = new(response.Url, contentType, response.Status, mainBody,
                         RedirectChain(response.Request));
                 }
@@ -181,18 +198,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
 
             lock (_gate)
             {
-                if (!_resources.ContainsKey(response.Url))
-                {
-                    if (_resources.Count >= _limits.MaxResources)
-                        throw new CaptureDiscardedException("Das Ressourcenlimit wurde überschritten.");
-                    if (body.LongLength > _limits.MaxStorageBytes - _capturedBytes)
-                        throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
-
-                    _resources.Add(response.Url, new CapturedResource(response.Url, contentType, body));
-                    _capturedBytes += body.LongLength;
-                }
-
-                RecordSuccess(response.Url, sequence);
+                _archive.StoreResource(response.Url, contentType, body, sequence);
             }
         }
         catch (CaptureDiscardedException)
@@ -207,7 +213,7 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
         {
             _cancellationToken.ThrowIfCancellationRequested();
             lock (_gate)
-                RecordFailure(response.Url, sequence);
+                _archive.RecordFailure(response.Url, sequence);
             _logger.LogDebug(exception, "Ressource {Url} konnte nicht gespeichert werden", response.Url);
         }
     }
@@ -237,24 +243,6 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
         }
     }
 
-    // Called only while holding _gate. Sequence numbers follow browser events rather
-    // than body completion order, so a slow earlier failure cannot undo a retry.
-    private void RecordFailure(string url, long sequence)
-    {
-        if (_successes.TryGetValue(url, out var success) && success >= sequence)
-            return;
-        if (!_failures.TryGetValue(url, out var failure) || failure < sequence)
-            _failures[url] = sequence;
-    }
-
-    private void RecordSuccess(string url, long sequence)
-    {
-        if (!_successes.TryGetValue(url, out var success) || success < sequence)
-            _successes[url] = sequence;
-        if (_failures.TryGetValue(url, out var failure) && failure <= sequence)
-            _failures.Remove(url);
-    }
-
     private void EnsureStopped()
     {
         if (_stopTask is not { IsCompletedSuccessfully: true })
@@ -273,4 +261,15 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
         contentType.StartsWith("font/", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
         contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+
+    private void ReleaseUncommittedDocument()
+    {
+        lock (_gate)
+        {
+            if (_documentCommitted || _reservedDocumentBytes == 0)
+                return;
+            _archive.ReleaseDocument(_reservedDocumentBytes);
+            _reservedDocumentBytes = 0;
+        }
+    }
 }

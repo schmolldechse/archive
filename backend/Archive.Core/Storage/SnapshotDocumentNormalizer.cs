@@ -56,7 +56,8 @@ public static class SnapshotDocumentNormalizer
             foreach (var attribute in UrlAttributes)
             {
                 var value = element.GetAttribute(attribute);
-                if (value is not null && TryResolve(value, baseUrl, map, out var local))
+                var preserveFragment = attribute == "href" && element.LocalName is "a" or "area";
+                if (value is not null && TryResolve(value, baseUrl, map, preserveFragment, out var local))
                 {
                     element.SetAttribute(attribute, local);
                     if (attribute == "src" && element.LocalName is "img" or "audio" or "video")
@@ -67,7 +68,8 @@ public static class SnapshotDocumentNormalizer
             var sourceSet = element.GetAttribute("srcset");
             if (sourceSet is not null)
                 element.SetAttribute("srcset", SnapshotSourceSet.Rewrite(sourceSet,
-                    candidate => TryResolve(candidate, baseUrl, map, out var local) ? local : null));
+                    candidate => TryResolve(candidate, baseUrl, map, preserveFragment: false, out var local)
+                        ? local : null));
         }
 
         var head = document.Head ?? throw new InvalidDataException("The HTML document has no head element.");
@@ -117,7 +119,7 @@ public static class SnapshotDocumentNormalizer
     }
 
     private static bool TryResolve(string value, string? baseUrl, IReadOnlyDictionary<string, string> map,
-        out string local)
+        bool preserveFragment, out string local)
     {
         var decoded = WebUtility.HtmlDecode(value);
         if (map.TryGetValue(decoded, out local!))
@@ -125,7 +127,11 @@ public static class SnapshotDocumentNormalizer
         if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var documentBase) &&
             Uri.TryCreate(documentBase, decoded, out var absolute) &&
             map.TryGetValue(SnapshotResourcePath.ToAbsoluteUrlKey(absolute), out local!))
+        {
+            if (preserveFragment)
+                local += absolute.Fragment;
             return true;
+        }
         local = string.Empty;
         return false;
     }
