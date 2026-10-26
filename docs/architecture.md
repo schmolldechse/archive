@@ -150,7 +150,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive} immutable main response or uploaded source
 ```
 
-The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Interaction is a delivery capability rather than snapshot metadata; the entity has no separate JavaScript version or snapshot type.
+The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. The manifest and browser security boundary determine interactive delivery for the canonical snapshot document.
 
 Profile images are stored with the user record in PostgreSQL. Their public or owner-only visibility is decided by the profile repository and API route.
 

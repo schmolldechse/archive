@@ -22,9 +22,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive}
 ```
 
-`index.html` is the canonical document presented to readers. The immutable source object provides provenance. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, and source-to-document relationship.
-
-The snapshot entity does not store a JavaScript or interaction version. Executable delivery is not a second snapshot state. The current manifest contract and the browser security boundary are sufficient to decide how the canonical document may be served.
+`index.html` is the canonical document presented to readers. The immutable source object provides provenance. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, and source-to-document relationship. The current manifest contract and browser security boundary determine how the canonical document is served.
 
 ## Capture and normalization
 
@@ -45,7 +43,7 @@ Normalization performs the following operations:
 7. Hash the source, canonical document, and every manifest-authorized resource with SHA-256.
 8. Record missing resources and normalization diagnostics without discarding an otherwise readable snapshot.
 
-Normalization failures do not create a distinct static snapshot category. The worker retains the safest rewritten document it can produce, and the isolated response boundary continues to restrict its execution and network access.
+When normalization is incomplete, the worker retains the safest rewritten document it can produce and records the diagnostic. The isolated response boundary continues to restrict its execution and network access.
 
 ## Manifest contract
 
@@ -173,7 +171,7 @@ This client gate protects readers from archived code; it is not a snapshot class
 
 - Public metadata returns a public snapshot-origin URL.
 - Authorized owner and administrator metadata returns a short-lived capability URL on the same origin.
-- The frontend does not select between different snapshot representations.
+- The frontend embeds the returned canonical snapshot URL directly.
 
 The OpenAPI description documents these semantics, and generated frontend types continue to be produced through `bun --bun run generate:api` while the backend is running.
 
