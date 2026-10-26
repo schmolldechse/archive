@@ -19,6 +19,8 @@ public sealed class SnapshotContentPolicyTests
 
         var contentSecurityPolicy = response.Headers.ContentSecurityPolicy.ToString();
         Assert.Contains("worker-src blob:", contentSecurityPolicy, StringComparison.Ordinal);
+        Assert.Contains("'wasm-unsafe-eval'", contentSecurityPolicy, StringComparison.Ordinal);
+        Assert.DoesNotContain("'unsafe-eval'", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain($"worker-src {scope}", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.Contains(scope, response.Headers["Connection-Allowlist"].ToString(), StringComparison.Ordinal);
     }
@@ -32,6 +34,8 @@ public sealed class SnapshotContentPolicyTests
             SnapshotResourceRoles.RootDocument, "text/html", interactive: false);
 
         Assert.Contains("worker-src 'none'", response.Headers.ContentSecurityPolicy.ToString(),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("'wasm-unsafe-eval'", response.Headers.ContentSecurityPolicy.ToString(),
             StringComparison.Ordinal);
         Assert.False(response.Headers.ContainsKey("Connection-Allowlist"));
     }
