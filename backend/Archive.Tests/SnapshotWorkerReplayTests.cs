@@ -34,6 +34,7 @@ public sealed class SnapshotWorkerReplayTests
         var snapshotHtml = $$"""
             <!doctype html><html><head><meta charset="utf-8"><script>{{shim}}</script></head><body>
             <output id="blob">pending</output>
+            <output id="wasm">pending</output>
             <output id="classic">pending</output>
             <output id="module">pending</output>
             <output id="external">pending</output>
@@ -51,6 +52,25 @@ public sealed class SnapshotWorkerReplayTests
               blobWorker.onmessage = event => result("blob", event.data);
               blobWorker.onerror = () => result("blob", "error");
               blobWorker.postMessage(21);
+
+              const wasmUrl = URL.createObjectURL(new Blob([
+                `self.onmessage = async () => {
+                  const bytes = new Uint8Array([
+                    0, 97, 115, 109, 1, 0, 0, 0,
+                    1, 5, 1, 96, 0, 1, 127,
+                    3, 2, 1, 0,
+                    7, 10, 1, 6, 97, 110, 115, 119, 101, 114, 0, 0,
+                    10, 6, 1, 4, 0, 65, 42, 11
+                  ]);
+                  const { instance } = await WebAssembly.instantiate(bytes);
+                  postMessage(instance.exports.answer());
+                };`
+              ], { type: "text/javascript" }));
+              const wasmWorker = new Worker(wasmUrl);
+              URL.revokeObjectURL(wasmUrl);
+              wasmWorker.onmessage = event => result("wasm", event.data);
+              wasmWorker.onerror = () => result("wasm", "error");
+              wasmWorker.postMessage(null);
 
               const classicWorker = new Worker("https://source.example/worker.js");
               classicWorker.onmessage = event => result("classic", event.data);
@@ -185,7 +205,7 @@ public sealed class SnapshotWorkerReplayTests
             try
             {
                 await frame.WaitForFunctionAsync("""
-                    () => ["blob", "classic", "module", "external", "uncaptured", "shared", "service"]
+                    () => ["blob", "wasm", "classic", "module", "external", "uncaptured", "shared", "service"]
                       .every(id => document.getElementById(id)?.textContent !== "pending")
                     """, null, new() { Timeout = 5_000 });
             }
@@ -197,6 +217,7 @@ public sealed class SnapshotWorkerReplayTests
             var expected = new Dictionary<string, string>
             {
                 ["blob"] = "42",
+                ["wasm"] = "42",
                 ["classic"] = "42",
                 ["module"] = "42",
                 ["external"] = "blocked",
