@@ -476,9 +476,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             return false;
         }
 
-        if (!string.IsNullOrEmpty(absolute.Fragment))
-            absolute = new UriBuilder(absolute) { Fragment = string.Empty }.Uri;
-        return map.TryGetValue(absolute.ToString(), out replacement!);
+        return map.TryGetValue(SnapshotResourcePath.ToAbsoluteUrlKey(absolute), out replacement!);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

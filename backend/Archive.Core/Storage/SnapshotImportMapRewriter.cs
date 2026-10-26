@@ -104,9 +104,7 @@ public static class SnapshotImportMapRewriter
         absolute = string.Empty;
         if (!Uri.TryCreate(baseUri, value, out var resolved))
             return false;
-        if (!string.IsNullOrEmpty(resolved.Fragment))
-            resolved = new UriBuilder(resolved) { Fragment = string.Empty }.Uri;
-        absolute = resolved.ToString();
+        absolute = SnapshotResourcePath.ToAbsoluteUrlKey(resolved);
         return true;
     }
 }

@@ -171,7 +171,8 @@ internal static class OfflinePageNormalizer
         if (map.TryGetValue(value, out local!))
             return true;
         if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri) &&
-            Uri.TryCreate(baseUri, value, out var absolute) && map.TryGetValue(absolute.ToString(), out local!))
+            Uri.TryCreate(baseUri, value, out var absolute) &&
+            map.TryGetValue(SnapshotResourcePath.ToAbsoluteUrlKey(absolute), out local!))
             return true;
         local = string.Empty;
         return false;
