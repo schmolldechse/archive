@@ -6,6 +6,20 @@ namespace Archive.Core.Storage;
 /// <summary>Builds route-neutral resource references for objects within one archived snapshot.</summary>
 public static class SnapshotResourcePath
 {
+    /// <summary>
+    /// Returns the escaped, fragment-free absolute URL used to match a browser resource response.
+    /// </summary>
+    public static string ToAbsoluteUrlKey(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri)
+            throw new ArgumentException("Snapshot resource URLs must be absolute.", nameof(uri));
+
+        if (!string.IsNullOrEmpty(uri.Fragment))
+            uri = new UriBuilder(uri) { Fragment = string.Empty }.Uri;
+        return uri.AbsoluteUri;
+    }
+
     /// <summary>Returns a relative HTML base that resolves from a document to the snapshot root.</summary>
     public static string HtmlBaseFor(string documentPath)
     {

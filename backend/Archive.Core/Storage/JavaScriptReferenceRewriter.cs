@@ -24,9 +24,7 @@ public static partial class JavaScriptReferenceRewriter
         var raw = WebUtility.HtmlDecode(match.Groups["url"].Value);
         if (!Uri.TryCreate(baseUri, raw, out var absolute))
             return match.Value;
-        if (!string.IsNullOrEmpty(absolute.Fragment))
-            absolute = new UriBuilder(absolute) { Fragment = string.Empty }.Uri;
-        if (!map.TryGetValue(absolute.ToString(), out var local))
+        if (!map.TryGetValue(SnapshotResourcePath.ToAbsoluteUrlKey(absolute), out var local))
             return match.Value;
         return match.Groups["prefix"].Value + match.Groups["quote"].Value + AsRelativeUrl(local) +
             match.Groups["quote"].Value + match.Groups["suffix"].Value;

@@ -108,10 +108,10 @@ public static class SnapshotDocumentNormalizer
         foreach (var pair in map)
         {
             if (Uri.TryCreate(pair.Key, UriKind.Absolute, out var absolute))
-                result[WithoutFragment(absolute).ToString()] = pair.Value;
+                result[SnapshotResourcePath.ToAbsoluteUrlKey(absolute)] = pair.Value;
             else if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var documentBase) &&
                 Uri.TryCreate(documentBase, pair.Key, out absolute))
-                result[WithoutFragment(absolute).ToString()] = pair.Value;
+                result[SnapshotResourcePath.ToAbsoluteUrlKey(absolute)] = pair.Value;
         }
         return result;
     }
@@ -124,14 +124,10 @@ public static class SnapshotDocumentNormalizer
             return true;
         if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var documentBase) &&
             Uri.TryCreate(documentBase, decoded, out var absolute) &&
-            map.TryGetValue(WithoutFragment(absolute).ToString(), out local!))
+            map.TryGetValue(SnapshotResourcePath.ToAbsoluteUrlKey(absolute), out local!))
             return true;
         local = string.Empty;
         return false;
     }
-
-    private static Uri WithoutFragment(Uri uri) => string.IsNullOrEmpty(uri.Fragment)
-        ? uri
-        : new UriBuilder(uri) { Fragment = string.Empty }.Uri;
 
 }
