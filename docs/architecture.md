@@ -147,8 +147,7 @@ snapshots/{snapshotId}/
 ├── manifest.json                 snapshot allowlist, hashes, roles, provenance, and diagnostics
 ├── assets/...                    captured or imported resources
 ├── frames/...                    imported frame documents when present
-├── source.{html|mhtml|webarchive} immutable main response or uploaded source
-└── generations/manifest-v3/...   reversible generations created by the snapshot migrator
+└── source.{html|mhtml|webarchive} immutable main response or uploaded source
 ```
 
 The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Interaction is a delivery capability rather than snapshot metadata; the entity has no separate JavaScript version or snapshot type.
@@ -206,7 +205,7 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 - public and access-controlled content use an opaque `sandbox="allow-scripts"` iframe; clients without the required connection boundary receive a script-disabled response policy;
 - original source objects are downloads and are never manifest-authorized browser resources.
 
-The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque. Older stored generations must be upgraded with `Archive.SnapshotMigrator` before this resolver is deployed.
+The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
 
 The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, crawl policy reads applicable directives, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
@@ -215,4 +214,4 @@ The worker separately restricts what it captures. URL normalization accepts HTTP
 - [Development](development.md)
 - [Configuration](configuration.md)
 - [Deployment](deployment.md)
-- [Snapshot manifest migration](snapshot-migration.md)
+- [Interactive snapshots](interactive-snapshots.md)

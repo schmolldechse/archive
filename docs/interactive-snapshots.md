@@ -1,8 +1,8 @@
-# Proposal: JavaScript interaction for archived snapshots
+# Interactive snapshots
 
-## Objective
+## Behavior
 
-Archived snapshots should preserve client-side interaction in addition to their visual document. A reader should be able to use captured disclosure controls, tabs, local validation, filtering, animations, modules, canvas rendering, bounded client-side routing, and requests for resources stored in the same snapshot.
+Archived snapshots preserve client-side interaction in addition to their visual document. A reader can use captured disclosure controls, tabs, local validation, filtering, animations, modules, canvas rendering, bounded client-side routing, and requests for resources stored in the same snapshot.
 
 This behavior applies to every completed snapshot, independent of moderation status. Public snapshots and access-controlled owner or administrator previews use the same canonical document and the same isolated execution boundary. Moderation continues to determine who may access a snapshot; it does not determine whether its stored JavaScript is executable.
 
@@ -165,7 +165,7 @@ Content Security Policy does not cover every connection channel available to unt
 
 The API therefore sends `Connection-Allowlist` scoped to the current snapshot. Redirects and WebRTC remain blocked by default. JavaScript is enabled only when the structured `Sec-CH-UA` hint identifies a configured Chromium product at or above the tested minimum version. Missing, malformed, conflicting, unknown, or older hints receive the same snapshot with scripts disabled.
 
-This client gate protects readers from archived code; it is not a snapshot classification or moderation rule. Cross-browser execution can be added only when those browsers provide an equivalent enforceable network boundary or when execution moves to a server-side isolated browser.
+This client gate protects readers from archived code; it is not a snapshot classification or moderation rule. Clients without the required enforceable network boundary receive a script-disabled response policy.
 
 ## Public API
 
@@ -177,57 +177,6 @@ This client gate protects readers from archived code; it is not a snapshot class
 
 The OpenAPI description documents these semantics, and generated frontend types continue to be produced through `bun --bun run generate:api` while the backend is running.
 
-## Temporary preparation of existing snapshots
+## Deployment requirements
 
-Existing object generations without a current manifest must be prepared before manifest-only delivery is deployed. `Archive.SnapshotMigrator` is a one-time C# operational tool with its own Dockerfile and Compose definition.
-
-It supports:
-
-- `--dry-run` to classify stored generations without writes and validate current resource hashes;
-- `--update` to normalize legacy HTML and JavaScript with the current worker rules, then create, validate, journal, and activate an immutable manifest-backed generation;
-- `--restore` to reactivate the verified original generation;
-- `--cleanup --confirm` to remove the inactive generation and migration journal.
-
-The migrator never contacts live origins. Activation and restore use conditional database updates. The original generation remains available throughout the rollback observation period.
-
-This project is temporary. After production preparation, verification, observation, and cleanup are complete, remove the migrator project, its Compose definition, documentation, and its specific tests from the repository.
-
-## Acceptance coverage
-
-Acceptance uses at least three snapshots across URL, MHTML, and WebArchive inputs. Complexity is selected using five dimensions scored from `0` to `2`:
-
-1. DOM and frame depth;
-2. number and variety of stored resources;
-3. JavaScript interaction count;
-4. asynchronous or module behavior;
-5. canvas, WebGL, binary, or other advanced browser APIs.
-
-Scores of `0–2`, `3–5`, and `6–10` represent simple, intermediate, and complex fixtures.
-
-Verification must cover:
-
-- immediate interaction without a user activation control;
-- public and access-controlled snapshots;
-- current and migrated object generations;
-- desktop and mobile viewport behavior;
-- captured classic scripts, modules, dynamic imports, events, canvas, and WebGL;
-- same-snapshot Fetch and XHR without credentials;
-- browser rejection when the connection boundary is unavailable;
-- no external DNS, HTTP, WebSocket, WebTransport, redirect, or WebRTC/STUN traffic;
-- blocked forms, workers, pop-ups, downloads, storage, and top navigation;
-- exact manifest authorization, hashes, roles, MIME types, and path normalization;
-- clean backend tests, frontend diagnostics, production build, Compose validation, and secret scan.
-
-The completed local baseline is recorded in [Interactive snapshot acceptance](interactive-snapshots-acceptance.md).
-
-## Deployment sequence
-
-1. Pause the worker so the stored snapshot set remains stable.
-2. Build and run the temporary migrator dry run.
-3. Resolve every blocked or inconsistent snapshot.
-4. Prepare all snapshots and require a final audit containing only current manifests.
-5. Deploy the API, worker, frontend, isolated snapshot-origin routing, and persistent API data-protection key ring.
-6. Verify public and access-controlled snapshots in production.
-7. Retain original generations and journals during the rollback observation period.
-8. Run confirmed cleanup after rollback is no longer required.
-9. Remove all temporary migration code, Compose configuration, documentation, and tests.
+Deploy the API, worker, frontend, isolated snapshot-origin routing, and persistent API data-protection key ring together. Verify both public and access-controlled snapshot URLs through the configured credential-free origin. The reverse proxy must preserve the snapshot host and forward it to the API container without adding authentication or session cookies. See [Deployment](deployment.md) for the complete origin and proxy contract.

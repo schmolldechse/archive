@@ -110,9 +110,7 @@ docker compose --project-name archive --env-file deploy/production/.env -f deplo
 
 Complete deployment verification with one capture. Confirm that it leaves the queue, stores a screenshot and content, appears to its owner, and becomes public only under the expected moderation rule.
 
-Before the first deployment of manifest-only snapshot delivery, follow [Snapshot manifest migration](snapshot-migration.md): pause the worker, run `Archive.SnapshotMigrator --dry-run --all`, migrate all candidates, and require a final result containing only `Current` snapshots. Deploying the new resolver while older generations remain would intentionally make those snapshots unavailable rather than bypassing manifest authorization.
-
-For newly captured, migrated, public, and access-controlled snapshots, confirm that `contentUrl` uses the credential-free snapshot origin. Private URLs must contain a valid short-lived capability prefix and must return `404` after modification or expiration. Responses must vary on `Sec-CH-UA`; a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`, while a request without the required hint must receive the same stored bytes with `script-src 'none'`.
+For public and access-controlled snapshots, confirm that `contentUrl` uses the credential-free snapshot origin. Private URLs must contain a valid short-lived capability prefix and must return `404` after modification or expiration. Responses must vary on `Sec-CH-UA`; a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`, while a request without the required hint must receive the same stored bytes with `script-src 'none'`.
 
 ## Bootstrap the first administrator
 
