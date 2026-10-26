@@ -12,7 +12,7 @@ Capture and publication are separate. A worker can finish storing a snapshot whi
 - Inspect source, capture time, quality, resource count, size, submitter, and lifecycle history.
 - Follow queued and running captures through server-sent events with polling fallback.
 - Review submissions and manage role-based access with per-user permission overrides.
-- Respect crawl policy, public-network boundaries, capture limits, and optional Web Bot Auth signatures.
+- Enforce public-network boundaries and capture limits.
 
 ## Architecture
 
@@ -24,7 +24,6 @@ Capture and publication are separate. A worker can finish storing a snapshot whi
 | [`backend/Archive.Core`](backend/Archive.Core/) | EF Core, Npgsql, AWS S3 client | Shared domain model, repositories, PostgreSQL access, and S3-compatible storage. |
 | PostgreSQL | PostgreSQL 18 in the deployment stack | Metadata, accounts, permissions, history, and processing state. |
 | MinIO | S3-compatible object storage | Snapshot content, screenshots, manifests, and temporary uploads. |
-| [`cloudflare/archive-bot-identity/`](cloudflare/archive-bot-identity/) | Cloudflare Workers | Bot identity page and Web Bot Auth key directory. |
 
 See [Architecture](docs/architecture.md) for component boundaries, capture flows, persistence, and access controls.
 
@@ -32,7 +31,6 @@ See [Architecture](docs/architecture.md) for component boundaries, capture flows
 
 ```text
 backend/                         .NET solution: API, worker, and shared core
-cloudflare/archive-bot-identity Bot identity and signed key-directory worker
 corporate-design/                Source and exported brand assets
 deploy/production/               Production Docker Compose fragments
 docs/                            Architecture, development, API, and operations guides
@@ -51,10 +49,9 @@ Start with [Development](docs/development.md). It covers configuration, process 
 - [Development](docs/development.md)
 - [Configuration](docs/configuration.md)
 - [Deployment](docs/deployment.md)
-- [Bot identity worker](cloudflare/archive-bot-identity/README.md)
 
 The API publishes its OpenAPI document at runtime in Development. The repository does not keep a generated API specification under version control.
 
 ## Current validation coverage
 
-The repository currently has no automated test projects or CI workflow. Available checks are the .NET build, Svelte type/static checks, Prettier, production frontend build, Storybook build, and the Cloudflare Worker dry run described in [Development](docs/development.md#validation).
+The repository currently has no CI workflow. Available checks are the .NET build and tests, Svelte type/static checks, Prettier, production frontend build, and Storybook build described in [Development](docs/development.md#validation).
