@@ -163,7 +163,7 @@ The `ADMIN` role grants the current default permission set, including portal, us
 | `minio-data` | Snapshot resources, manifests, screenshots, and temporary uploads | Required to render stored captures. |
 | `api-key-ring` | ASP.NET data-protection keys | Preserves session-cookie readability across API replacement. |
 
-Back up PostgreSQL and MinIO as one logical recovery point. A database record can reference an object prefix written shortly before its transaction committed, so unrelated backup times can restore metadata without the corresponding bytes or vice versa. The API key ring is separate from archive records but affects existing sessions after restore.
+Back up PostgreSQL and MinIO as one logical recovery point. A database record can reference an object prefix written shortly before its transaction committed, so unrelated backup times can restore metadata without the corresponding bytes or vice versa. PostgreSQL also retains minimal cleanup work until object storage confirms permanent snapshot deletion; restoring unmatched backup times can therefore restore bytes that the live system had already deleted. Applying an external backup-retention purge remains an operator responsibility. The API key ring is separate from archive records but affects existing sessions after restore.
 
 The MinIO image is built by `deploy/production/minio/Dockerfile`. It currently compiles `github.com/minio/minio@latest` and `github.com/minio/mc@latest`; the repository does not pin a MinIO release.
 

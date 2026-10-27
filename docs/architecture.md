@@ -44,6 +44,7 @@ Public search uses a SvelteKit remote function. Authenticated server loads forwa
 - Google authentication and the application session;
 - profile completion and profile images;
 - owner-only submission details, editing, and resubmission;
+- owner and administrative permanent snapshot deletion;
 - administrative snapshot editing, moderation, attribution, and access management;
 - OpenAPI and Scalar in Development;
 - `/healthz` for container and operator checks.
@@ -89,11 +90,23 @@ flowchart LR
     Review --> Public[APPROVED and public]
     Review --> Rejected[REJECTED and private]
     Rejected --> Review
+    Queued --> Deleted[Permanently deleted]
+    Running --> Deleted
+    Stored --> Deleted
+    Review --> Deleted
+    Public --> Deleted
+    Rejected --> Deleted
 ```
 
 A submission records `CreatedByUserId` only for an authenticated account that has completed registration. Anonymous callers and authenticated callers with incomplete registration create unattributed snapshots and cannot use the owner routes for them. Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
 
 Owners may edit title, description, and tags without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the same fields and change or remove account attribution without changing moderation.
+
+Fully registered owners may permanently delete their own snapshots in every processing or moderation state. Users with both `admin.access` and `admin.snapshots.access` may delete any snapshot, including unattributed submissions. Deletion uses the same strong conditional validator as editing and moderation, so an unseen concurrent capture completion, edit, attribution change, or review decision must be reloaded before it can be deleted.
+
+The database deletion transaction inserts a minimal storage-cleanup work item and then removes the snapshot. Foreign-key cascades remove processing state, tag associations, and lifecycle history; tags without any remaining snapshot association are removed as part of the transaction. The work item retains only the snapshot ID, object prefix, optional temporary upload key, and retry timing. It is not a recoverable tombstone and is removed after object storage confirms that the upload and complete snapshot prefix are empty.
+
+For a running capture, the missing snapshot record causes subsequent continuation and publication checks to fail. The worker rolls back the objects it tracked. A delayed final cleanup pass after the configured maximum capture duration also removes objects from an upload that was already in progress when deletion committed. This keeps the snapshot immediately inaccessible while making physical byte removal durable across API, worker, or object-storage interruptions.
 
 ### Snapshot history
 
@@ -126,6 +139,7 @@ The EF Core model uses separate schemas for concerns such as archive data, authe
 - snapshots, tags, and snapshot-tag associations;
 - append-only snapshot lifecycle history;
 - transient snapshot-processing state;
+- temporary, metadata-free object-cleanup work for permanently deleted snapshots;
 - users, external identities, roles, and permission overrides.
 
 PostgreSQL is authoritative for ownership, moderation, visibility, processing state, and the active content prefix. Object presence alone never grants public access.
@@ -166,7 +180,7 @@ Roles provide defaults; individual `ALLOW` or `DENY` overrides take precedence. 
 | ------------------------------------ | --------------------------------------------------------- |
 | `admin.access`                       | Enter the administration portal.                          |
 | `admin.users.access`                 | Read users, roles, and overrides.                         |
-| `admin.snapshots.access`             | Read, edit, reattribute, and moderate all submissions.    |
+| `admin.snapshots.access`             | Read, edit, delete, reattribute, and moderate submissions. |
 | `snapshots.publish_without_approval` | Publish the user's own completed captures without review. |
 | `users.assign_roles`                 | Change another user's role.                               |
 | `users.assign_permissions`           | Change another user's overrides.                          |
@@ -184,6 +198,8 @@ Administrative access changes cannot target the current actor and cannot leave t
 | Any caller outside those rules                   | Any route                   | Not found, unauthenticated, or forbidden according to the route contract. |
 
 Private responses use `private, no-store`. Mutations for moderation, resubmission, roles, and permission overrides require the configured frontend origin and one strong `If-Match` value obtained from the corresponding detail response.
+
+Permanent deletion follows the same origin and `If-Match` boundary. The owner endpoint returns `404` for a foreign or unattributed record; the administration endpoint re-evaluates current portal and snapshot permissions inside the deletion transaction. After commit, public, private, status, history, screenshot, and content routes all return the same missing result they use for an unknown snapshot.
 
 Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
 

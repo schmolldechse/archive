@@ -12,6 +12,7 @@ Capture and publication are separate. A worker can finish storing a snapshot whi
 - Inspect source, capture time, quality, resource count, size, submitter, and lifecycle history.
 - Follow queued and running captures through server-sent events with polling fallback.
 - Review submissions and manage role-based access with per-user permission overrides.
+- Permanently delete owned snapshots or, with snapshot administration access, any snapshot in every lifecycle state.
 - Enforce public-network boundaries and capture limits.
 
 ## Architecture
