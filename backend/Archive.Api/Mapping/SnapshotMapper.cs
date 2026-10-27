@@ -39,17 +39,7 @@ public partial class SnapshotMapper(PublicUserMapper publicUserMapper, SnapshotC
         MapPage(page, page.Items.Select(item => ToResponse(item, publicBaseUrl)).ToArray());
 
     /// <summary>Maps validated manifest page metadata without exposing storage authorization fields.</summary>
-    public static SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree) => new()
-    {
-        RootPath = pageTree.RootPath,
-        Pages = pageTree.Pages.Select(page => new SnapshotPageResponse
-        {
-            Path = page.Path,
-            ParentPath = page.ParentPath,
-            SourceUrl = page.SourceUrl,
-            Title = page.Title
-        }).ToArray()
-    };
+    public partial SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree);
 
     [MapperIgnoreSource(nameof(SnapshotPage.Items))]
     private partial SnapshotListResponse MapPage(SnapshotPage page, IReadOnlyList<SnapshotResponse> items);

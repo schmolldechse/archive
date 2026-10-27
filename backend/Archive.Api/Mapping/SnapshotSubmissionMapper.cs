@@ -35,7 +35,7 @@ public partial class SnapshotSubmissionMapper(
     public partial SnapshotOwnerListResponse ToOwnerResponse(UserListPage page);
 
     /// <summary>Maps validated capture-page metadata for a private snapshot scope.</summary>
-    public SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree) => SnapshotMapper.ToResponse(pageTree);
+    public partial SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree);
 
     /// <summary>Maps private details with resource URLs scoped to the calling controller.</summary>
     public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl,

@@ -97,7 +97,7 @@ public sealed partial class SnapshotsController(
         CancellationToken cancellationToken)
     {
         var pageTree = await snapshotRepository.GetPageTreeAsync(snapshotId, cancellationToken);
-        return pageTree is null ? NotFound() : Ok(SnapshotMapper.ToResponse(pageTree));
+        return pageTree is null ? NotFound() : Ok(mapper.ToResponse(pageTree));
     }
 
     [HttpGet("{snapshotId:guid}/history")]
