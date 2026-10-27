@@ -92,6 +92,7 @@ public static class Injection
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
             .AddScoped<IUserRepository, UserRepository>()
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
+            .AddScoped<SnapshotManifestReader>()
             .AddScoped<ISnapshotProcessingRepository, SnapshotProcessingRepository>()
             .AddScoped<ISnapshotSubmissionRepository, SnapshotSubmissionRepository>()
             .AddScoped<ISnapshotHistoryRepository, SnapshotHistoryRepository>()

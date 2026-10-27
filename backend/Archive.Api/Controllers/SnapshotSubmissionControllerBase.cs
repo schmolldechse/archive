@@ -1,5 +1,6 @@
 using Archive.Api.Authentication;
 using Archive.Api.Contracts.Snapshots.Submission;
+using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Mapping;
 using Archive.Api.Validation;
 using Archive.Core.Models.Snapshots;
@@ -24,6 +25,9 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         var resourceBaseUrl = $"{options.PublicApiOrigin.TrimEnd('/')}/{routeBase.Trim('/')}/{detail.Snapshot.Id}";
         return Ok(mapper.ToResponse(detail, resourceBaseUrl, User.ReadUserId()));
     }
+
+    protected ActionResult<SnapshotPageTreeResponse> PageTreeResponse(SnapshotPageTree? pageTree) =>
+        pageTree is null ? NotFound() : Ok(mapper.ToResponse(pageTree));
 
     /// <summary>Checks browser origin and exactly one strong validator before a private mutation.</summary>
     protected ObjectResult? ValidateWrite(out string tag)

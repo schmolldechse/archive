@@ -1,6 +1,7 @@
 using Archive.Api.Authentication;
 using Archive.Api.Authorization;
 using Archive.Api.Contracts.Snapshots.Submission;
+using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Mapping;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Repositories.SnapshotSubmissionRepository;
@@ -27,6 +28,13 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ProblemDetails>(404)]
     public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Get(Guid id, CancellationToken token) =>
         Detail(await Submissions.GetOwnAsync(User.ReadUserId(), id, token), "api/users/snapshots");
+
+    [HttpGet("{id:guid}/page-tree"), EndpointName("GetOwnSnapshotPageTree"),
+     EndpointSummary("Reads the captured page tree of an own snapshot.")]
+    [EndpointDescription("Returns captured documents in deterministic breadth-first discovery order. Legacy and non-URL snapshots without page-tree metadata return 404.")]
+    [ProducesResponseType<SnapshotPageTreeResponse>(200), ProducesResponseType<ProblemDetails>(404)]
+    public async Task<ActionResult<SnapshotPageTreeResponse>> PageTree(Guid id, CancellationToken token) =>
+        PageTreeResponse(await Submissions.PageTreeOwnAsync(User.ReadUserId(), id, token));
 
     [HttpPut("{id:guid}"), Consumes("application/json"), EndpointName("UpdateOwnSnapshot"),
      EndpointSummary("Updates editable fields of an own snapshot.")]

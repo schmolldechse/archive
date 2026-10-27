@@ -7,6 +7,7 @@ using Archive.Api.SnapshotContent;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Models.Users;
+using Archive.Core.Storage;
 using Riok.Mapperly.Abstractions;
 
 namespace Archive.Api.Mapping;
@@ -32,6 +33,9 @@ public partial class SnapshotSubmissionMapper(
 
     /// <summary>Maps registered owner candidates without exposing internal user identifiers.</summary>
     public partial SnapshotOwnerListResponse ToOwnerResponse(UserListPage page);
+
+    /// <summary>Maps validated capture-page metadata for a private snapshot scope.</summary>
+    public SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree) => SnapshotMapper.ToResponse(pageTree);
 
     /// <summary>Maps private details with resource URLs scoped to the calling controller.</summary>
     public SnapshotSubmissionDetailResponse ToResponse(SnapshotSubmissionDetail detail, string resourceBaseUrl,

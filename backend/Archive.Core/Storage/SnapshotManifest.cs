@@ -19,6 +19,9 @@ public sealed class SnapshotManifest
     [JsonPropertyName("resources")]
     public required IReadOnlyList<SnapshotResource> Resources { get; init; }
 
+    [JsonPropertyName("pageTree")]
+    public SnapshotPageTree? PageTree { get; init; }
+
     [JsonPropertyName("missingUrls")]
     public IReadOnlyList<string> MissingUrls { get; init; } = [];
 
@@ -27,6 +30,32 @@ public sealed class SnapshotManifest
 
     [JsonPropertyName("incomplete")]
     public bool Incomplete { get; init; }
+}
+
+/// <summary>Deterministic first-discovery hierarchy for documents captured from a URL.</summary>
+public sealed class SnapshotPageTree
+{
+    [JsonPropertyName("rootPath")]
+    public required string RootPath { get; init; }
+
+    [JsonPropertyName("pages")]
+    public required IReadOnlyList<SnapshotPageTreeEntry> Pages { get; init; }
+}
+
+/// <summary>One captured document and its first-discovery parent within a snapshot.</summary>
+public sealed class SnapshotPageTreeEntry
+{
+    [JsonPropertyName("path")]
+    public required string Path { get; init; }
+
+    [JsonPropertyName("parentPath")]
+    public string? ParentPath { get; init; }
+
+    [JsonPropertyName("sourceUrl")]
+    public required string SourceUrl { get; init; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; init; }
 }
 
 /// <summary>Immutable source and derived-document provenance retained for a capture.</summary>

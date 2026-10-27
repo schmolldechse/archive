@@ -6,6 +6,7 @@ namespace Archive.Worker.Capture.Browser.Crawl;
 internal sealed class CapturedDocument(
     string requestedUrl,
     string url,
+    string? title,
     string contentType,
     int? statusCode,
     byte[] sourceBody,
@@ -19,6 +20,7 @@ internal sealed class CapturedDocument(
 
     public string RequestedUrl { get; } = requestedUrl;
     public string Url { get; } = url;
+    public string? Title { get; } = title;
     public string ContentType { get; } = contentType;
     public int? StatusCode { get; } = statusCode;
     public byte[] SourceBody { get; } = sourceBody;

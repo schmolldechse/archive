@@ -11,6 +11,8 @@ public interface ISnapshotSubmissionRepository
     Task<SnapshotSubmissionPage> SearchForAdminAsync(string? text, SnapshotModerationStatus? status, SnapshotQuality? quality, int page, int pageSize, CancellationToken token);
     Task<SnapshotSubmissionDetail?> GetOwnAsync(Guid userId, Guid id, CancellationToken token);
     Task<SnapshotSubmissionDetail?> GetForReviewAsync(Guid id, CancellationToken token);
+    Task<SnapshotPageTree?> PageTreeOwnAsync(Guid userId, Guid id, CancellationToken token);
+    Task<SnapshotPageTree?> PageTreeForReviewAsync(Guid id, CancellationToken token);
     Task<SnapshotHistoryPage?> HistoryOwnAsync(Guid userId, Guid id, int page, int pageSize, CancellationToken token);
     Task<SnapshotHistoryPage?> HistoryForReviewAsync(Guid id, int page, int pageSize, CancellationToken token);
     Task<ArchiveObject?> ScreenshotOwnAsync(Guid userId, Guid id, CancellationToken token);

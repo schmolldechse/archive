@@ -375,6 +375,42 @@ export type SnapshotOwnerListResponse = {
 };
 
 /**
+ * One captured document and its first-discovery parent.
+ */
+export type SnapshotPageResponse = {
+	/**
+	 * Snapshot-local document path and stable node identity.
+	 */
+	path: string;
+	/**
+	 * Snapshot-local path of the first-discovery parent. Null only for the root document.
+	 */
+	parentPath: null | string;
+	/**
+	 * Canonical final HTTP or HTTPS URL captured for this document.
+	 */
+	sourceUrl: string;
+	/**
+	 * Captured document title. Null when the document supplied no title.
+	 */
+	title: null | string;
+};
+
+/**
+ * Captured pages in deterministic breadth-first discovery order.
+ */
+export type SnapshotPageTreeResponse = {
+	/**
+	 * Snapshot-local path of the root document.
+	 */
+	rootPath: string;
+	/**
+	 * Captured documents and their first-discovery parents.
+	 */
+	pages: Array<SnapshotPageResponse>;
+};
+
+/**
  * Processing status of a snapshot.
  */
 export type SnapshotProcessingResponse = {
@@ -1015,6 +1051,33 @@ export type GetSnapshotResponses = {
 
 export type GetSnapshotResponse = GetSnapshotResponses[keyof GetSnapshotResponses];
 
+export type GetSnapshotPageTreeData = {
+	body?: never;
+	path: {
+		snapshotId: string;
+	};
+	query?: never;
+	url: "/api/snapshots/{snapshotId}/page-tree";
+};
+
+export type GetSnapshotPageTreeErrors = {
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotPageTreeError = GetSnapshotPageTreeErrors[keyof GetSnapshotPageTreeErrors];
+
+export type GetSnapshotPageTreeResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotPageTreeResponse;
+};
+
+export type GetSnapshotPageTreeResponse = GetSnapshotPageTreeResponses[keyof GetSnapshotPageTreeResponses];
+
 export type GetSnapshotHistoryData = {
 	body?: never;
 	path: {
@@ -1413,6 +1476,37 @@ export type UpdateOwnSnapshotResponses = {
 
 export type UpdateOwnSnapshotResponse = UpdateOwnSnapshotResponses[keyof UpdateOwnSnapshotResponses];
 
+export type GetOwnSnapshotPageTreeData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}/page-tree";
+};
+
+export type GetOwnSnapshotPageTreeErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetOwnSnapshotPageTreeError = GetOwnSnapshotPageTreeErrors[keyof GetOwnSnapshotPageTreeErrors];
+
+export type GetOwnSnapshotPageTreeResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotPageTreeResponse;
+};
+
+export type GetOwnSnapshotPageTreeResponse = GetOwnSnapshotPageTreeResponses[keyof GetOwnSnapshotPageTreeResponses];
+
 export type GetOwnSnapshotHistoryData = {
 	body?: never;
 	path: {
@@ -1777,6 +1871,42 @@ export type UpdateSnapshotForAdminResponses = {
 };
 
 export type UpdateSnapshotForAdminResponse = UpdateSnapshotForAdminResponses[keyof UpdateSnapshotForAdminResponses];
+
+export type GetSnapshotPageTreeForReviewData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}/page-tree";
+};
+
+export type GetSnapshotPageTreeForReviewErrors = {
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+};
+
+export type GetSnapshotPageTreeForReviewError = GetSnapshotPageTreeForReviewErrors[keyof GetSnapshotPageTreeForReviewErrors];
+
+export type GetSnapshotPageTreeForReviewResponses = {
+	/**
+	 * OK
+	 */
+	200: SnapshotPageTreeResponse;
+};
+
+export type GetSnapshotPageTreeForReviewResponse =
+	GetSnapshotPageTreeForReviewResponses[keyof GetSnapshotPageTreeForReviewResponses];
 
 export type ListSnapshotOwnersData = {
 	body?: never;

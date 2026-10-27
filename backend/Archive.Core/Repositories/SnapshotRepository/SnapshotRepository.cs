@@ -6,7 +6,6 @@ using Archive.Core.Uploads;
 using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Archive.Core.Authorization;
 
@@ -18,6 +17,7 @@ internal sealed partial class SnapshotRepository(
     UploadFormatSelector uploadFormatSelector,
     ArchiveOptions options,
     ISnapshotHistoryRepository history,
+    SnapshotManifestReader manifestReader,
     ILogger<SnapshotRepository> logger) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
@@ -34,6 +34,23 @@ internal sealed partial class SnapshotRepository(
     public Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
         CancellationToken cancellationToken = default) =>
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
+
+    public async Task<SnapshotPageTree?> GetPageTreeAsync(Guid snapshotId,
+        CancellationToken cancellationToken = default)
+    {
+        var prefix = await database.Snapshots.AsNoTracking()
+            .Where(snapshot => snapshot.Id == snapshotId &&
+                snapshot.ModerationStatus == SnapshotModerationStatus.Approved && snapshot.Quality != null)
+            .Select(snapshot => snapshot.ContentPrefix)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (prefix is null)
+            return null;
+
+        var manifest = await manifestReader.ReadAsync(prefix, cancellationToken);
+        return manifest is not null && SnapshotManifestReader.TryGetPageTree(manifest, out var pageTree)
+            ? pageTree
+            : null;
+    }
 
     public Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
         CancellationToken cancellationToken = default) =>
@@ -78,32 +95,11 @@ internal sealed partial class SnapshotRepository(
             return new SnapshotContentResult.InvalidPath();
         }
 
-        var storedManifest = await objectStore.GetAsync($"{snapshot.ContentPrefix}/manifest.json", cancellationToken);
-        if (storedManifest is null)
+        var manifest = await manifestReader.ReadAsync(snapshot.ContentPrefix, cancellationToken);
+        if (manifest is null)
         {
-            logger.LogWarning("Snapshot {SnapshotId} has no manifest in active generation {ContentPrefix}",
+            logger.LogWarning("Snapshot {SnapshotId} has no readable current manifest in active generation {ContentPrefix}",
                 snapshotId, snapshot.ContentPrefix);
-            return new SnapshotContentResult.NotFound();
-        }
-
-        SnapshotManifest? manifest;
-        try
-        {
-            await using (storedManifest.Content)
-                manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(storedManifest.Content,
-                    cancellationToken: cancellationToken);
-        }
-        catch (JsonException)
-        {
-            logger.LogWarning("Snapshot {SnapshotId} has an unreadable manifest in active generation {ContentPrefix}",
-                snapshotId, snapshot.ContentPrefix);
-            return new SnapshotContentResult.NotFound();
-        }
-
-        if (manifest is null || manifest.Version != SnapshotManifest.CurrentVersion)
-        {
-            logger.LogWarning("Snapshot {SnapshotId} manifest contract does not match its active database metadata",
-                snapshotId);
             return new SnapshotContentResult.NotFound();
         }
 
