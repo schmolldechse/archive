@@ -7,13 +7,14 @@ using Archive.Core.Models.Snapshots.History;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Serialization;
 using Archive.Core.Storage;
+using Archive.Core.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace Archive.Core.Repositories.SnapshotSubmissionRepository;
 
 /// <summary>Reads private records without relaxing the public repository's visibility rule.</summary>
 internal sealed partial class SnapshotSubmissionRepository(DataContext database, IArchiveObjectStore objectStore,
-    ISnapshotHistoryRepository history) : ISnapshotSubmissionRepository
+    ISnapshotHistoryRepository history, ArchiveOptions archiveOptions) : ISnapshotSubmissionRepository
 {
     private static readonly string[] ModerationEventTypes =
         [SnapshotHistoryTypes.Submitted, SnapshotHistoryTypes.Moderated, SnapshotHistoryTypes.Resubmitted,

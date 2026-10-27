@@ -109,6 +109,17 @@
 		transform: translateY(0);
 	}
 
+	.dialog-content[data-modal="true"] {
+		position: fixed;
+		inset: 50% auto auto 50%;
+		margin: 0;
+		transform: translate(-50%, calc(-50% + 0.5rem));
+	}
+
+	.dialog-content[data-modal="true"][open] {
+		transform: translate(-50%, -50%);
+	}
+
 	.dialog-content[data-size="small"] {
 		max-width: 24rem;
 	}
@@ -159,6 +170,10 @@
 		.dialog-content[open] {
 			opacity: 0;
 			transform: translateY(0.5rem);
+		}
+
+		.dialog-content[data-modal="true"][open] {
+			transform: translate(-50%, calc(-50% + 0.5rem));
 		}
 
 		.dialog-content[open]::backdrop {

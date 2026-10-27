@@ -24,6 +24,7 @@
 	import SnapshotHistory from "./SnapshotHistory.svelte";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	import SnapshotBreadcrumb from "./SnapshotBreadcrumb.svelte";
+	import SnapshotDeleteDialog from "./SnapshotDeleteDialog.svelte";
 	let {
 		data
 	}: {
@@ -219,6 +220,14 @@
 					<ArrowRight aria-hidden="true" />Open archived page
 				</Button>
 			{/if}
+			<SnapshotDeleteDialog
+				endpoint={apiUrl(base)}
+				title={detail.snapshot.title}
+				sourceUrl={detail.snapshot.sourceUrl}
+				processingStatus={detail.processingStatus}
+				{etag}
+				admin={data.admin}
+			/>
 		</div>
 	</header>
 	{#if message}<div bind:this={errorNotice} tabindex="-1" class="detail-message" role="alert">

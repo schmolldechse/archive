@@ -45,6 +45,22 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
         return Detail(await Submissions.GetOwnAsync(User.ReadUserId(), id, token), "api/users/snapshots");
     }
 
+    [HttpDelete("{id:guid}"), EndpointName("DeleteOwnSnapshot"),
+     EndpointSummary("Permanently deletes an own snapshot in any lifecycle state.")]
+    [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET. The snapshot record, history, processing state and stored objects are removed and cannot be recovered.")]
+    [ProducesResponseType(204), ProducesResponseType<ProblemDetails>(400)]
+    [ProducesResponseType<ProblemDetails>(403), ProducesResponseType<ProblemDetails>(404),
+     ProducesResponseType<ProblemDetails>(412), ProducesResponseType<ProblemDetails>(428)]
+    public async Task<IActionResult> Delete(Guid id,
+        [FromHeader(Name = "If-Match")] string? ifMatch, CancellationToken token)
+    {
+        if (ValidateWrite(out var tag) is { } error) return error;
+        if (Request.ContentLength is > 0 || Request.Headers.TransferEncoding.Count > 0)
+            return SnapshotProblem(400, "Request body not supported",
+                "Delete this snapshot without submitting a request body.", "request_body_not_supported");
+        return DeletionOutcome(await Submissions.DeleteOwnAsync(User.ReadUserId(), id, tag, token));
+    }
+
     [HttpGet("{id:guid}/history"), EndpointName("GetOwnSnapshotHistory"), EndpointSummary("Reads permitted lifecycle events for an own snapshot.")]
     [ProducesResponseType<SnapshotHistoryResponse>(200), ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ValidationProblemDetails>(400)]
     public async Task<ActionResult<SnapshotHistoryResponse>> History(Guid id, [FromQuery] SnapshotSubmissionQuery query, CancellationToken token)

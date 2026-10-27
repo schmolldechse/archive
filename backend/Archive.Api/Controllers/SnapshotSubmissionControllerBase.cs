@@ -73,6 +73,17 @@ public abstract class SnapshotSubmissionControllerBase(ISnapshotSubmissionReposi
         }
     }
 
+    /// <summary>Maps a completed conditional deletion without exposing owner-scope misses.</summary>
+    protected IActionResult DeletionOutcome(SnapshotDeletionResult outcome) => outcome switch
+    {
+        SnapshotDeletionResult.Deleted => NoContent(),
+        SnapshotDeletionResult.NotFound => NotFound(),
+        SnapshotDeletionResult.Forbidden => Forbid(),
+        SnapshotDeletionResult.Stale => SnapshotProblem(412, "Snapshot changed",
+            "Reload the snapshot before deleting it.", "snapshot_changed"),
+        _ => throw new InvalidOperationException("Unknown snapshot deletion result.")
+    };
+
     /// <summary>Serves a private screenshot only to requests from the configured frontend.</summary>
     protected IActionResult Screenshot(ArchiveObject? stored)
     {

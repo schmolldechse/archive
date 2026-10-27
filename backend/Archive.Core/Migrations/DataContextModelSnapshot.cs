@@ -166,6 +166,49 @@ namespace Archive.Core.Migrations
                     b.ToTable("user_auth_identities", "authentication");
                 });
 
+            modelBuilder.Entity("Archive.Core.Entities.Processing.SnapshotDeletion", b =>
+                {
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("snapshot_id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTimeOffset>("CleanupAfter")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cleanup_after");
+
+                    b.Property<string>("ContentPrefix")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("content_prefix");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("UploadedObjectKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("uploaded_object_key");
+
+                    b.HasKey("SnapshotId");
+
+                    b.HasIndex("NextAttemptAt", "SnapshotId");
+
+                    b.ToTable("snapshot_deletions", "processing", t =>
+                        {
+                            t.HasCheckConstraint("CK_snapshot_deletions_attempt_count", "attempt_count >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Archive.Core.Entities.Processing.SnapshotProcessing", b =>
                 {
                     b.Property<Guid>("SnapshotId")

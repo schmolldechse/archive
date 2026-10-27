@@ -60,6 +60,7 @@ builder.Services.AddArchiveCore(builder.Configuration, initializeDatabase: true)
 builder.Services.AddSingleton<PublicUserMapper>();
 builder.Services.AddSingleton<UserAccessMapper>();
 builder.Services.AddHostedService<Archive.Api.Processing.SnapshotProcessingCleanupService>();
+builder.Services.AddHostedService<Archive.Api.Processing.SnapshotDeletionCleanupService>();
 builder.Services.AddSingleton<SnapshotMapper>();
 builder.Services.AddSingleton<SnapshotSubmissionMapper>();
 builder.Services.AddArchiveAuthentication(builder.Configuration, builder.Environment.IsDevelopment());

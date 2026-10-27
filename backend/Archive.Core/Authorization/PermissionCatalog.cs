@@ -26,7 +26,7 @@ public static class PermissionCatalog
         new(
             ArchivePermissions.AccessAdminSnapshots,
             "Access snapshot moderation",
-            "View and edit submissions, previews, attribution, and snapshot history. Approve or reject snapshots with an optional reason. Requires access to the admin portal.",
+            "View, edit, permanently delete, and moderate submissions, previews, attribution, and snapshot history. Approve or reject snapshots with an optional reason. Requires access to the admin portal.",
             [ArchiveRole.Admin]),
         new(
             ArchivePermissions.PublishSnapshotsWithoutApproval,

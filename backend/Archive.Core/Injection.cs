@@ -10,6 +10,7 @@ using Archive.Core.Repositories.SnapshotRepository;
 using Archive.Core.Repositories.UserRepository;
 using Archive.Core.Repositories.SnapshotSubmissionRepository;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
+using Archive.Core.Repositories.SnapshotDeletionRepository;
 using Archive.Core.Storage;
 using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +95,7 @@ public static class Injection
             .AddScoped<ISnapshotRepository, SnapshotRepository>()
             .AddScoped<ISnapshotProcessingRepository, SnapshotProcessingRepository>()
             .AddScoped<ISnapshotSubmissionRepository, SnapshotSubmissionRepository>()
+            .AddScoped<ISnapshotDeletionRepository, SnapshotDeletionRepository>()
             .AddScoped<ISnapshotHistoryRepository, SnapshotHistoryRepository>()
             .AddScoped<IProfileImageRepository, ProfileImageRepository>();
         return services;

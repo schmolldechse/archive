@@ -21,4 +21,8 @@ public interface ISnapshotSubmissionRepository
         CancellationToken token);
     Task<SnapshotUpdateResult> UpdateForAdminAsync(Guid actorId, Guid id, string expectedTag,
         SnapshotAdministrationUpdate update, CancellationToken token);
+    Task<SnapshotDeletionResult> DeleteOwnAsync(Guid userId, Guid id, string expectedTag,
+        CancellationToken token);
+    Task<SnapshotDeletionResult> DeleteForAdminAsync(Guid actorId, Guid id, string expectedTag,
+        CancellationToken token);
 }
