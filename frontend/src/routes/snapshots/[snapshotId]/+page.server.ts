@@ -1,6 +1,10 @@
 import { error } from "@sveltejs/kit";
 import { backendOrigin } from "$lib/server/api";
-import type { SnapshotHistoryResponse, SnapshotResponse, SnapshotSubmissionDetailResponse } from "$api";
+import type {
+	SnapshotHistoryResponse,
+	SnapshotResponse,
+	SnapshotSubmissionDetailResponse
+} from "$api";
 import type { PageServerLoad } from "./$types";
 
 const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,7 +38,10 @@ async function readPrivateSnapshot(
 
 	const detail = (await response.json()) as SnapshotSubmissionDetailResponse;
 	return detail.snapshot.contentUrl
-		? { snapshot: detail.snapshot, historyPath: `/api/${scope}/snapshots/${snapshotId}/history` }
+		? {
+				snapshot: detail.snapshot,
+				historyPath: `/api/${scope}/snapshots/${snapshotId}/history`
+			}
 		: null;
 }
 
@@ -109,5 +116,11 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 			? requestedReturn
 			: "/";
 
-	return { snapshot, history, historyAvailable: loadedHistory !== null, returnHref, isPrivate };
+	return {
+		snapshot,
+		history,
+		historyAvailable: loadedHistory !== null,
+		returnHref,
+		isPrivate
+	};
 };

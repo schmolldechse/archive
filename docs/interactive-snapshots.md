@@ -15,6 +15,7 @@ A snapshot remains the only content model. Each completed snapshot has one activ
 ```text
 snapshots/{snapshotId}/
 ├── index.html
+├── pages/...
 ├── screenshot.png
 ├── manifest.json
 ├── assets/...
@@ -22,13 +23,15 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive}
 ```
 
-`index.html` is the canonical document presented to readers. The immutable source object provides provenance. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, and source-to-document relationship. The current manifest contract and browser security boundary determine how the canonical document is served.
+`index.html` is the canonical document presented to readers. URL captures store recursively discovered same-origin pages below `pages/` as nested documents of the same snapshot. The immutable source object provides provenance for the seed document. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, and source-to-document relationship. The current manifest contract and browser security boundary determine how every stored document is served.
 
 ## Capture and normalization
 
 The worker preserves scripts and inline event handlers while rewriting captured dependencies to snapshot-local paths.
 
-For URL captures it retains the final successful main-document response before application scripts mutate the page. That response becomes `source.html` and is the input for the canonical document. If that response cannot be retained or parsed, the bounded rewritten browser document remains usable and the manifest records the diagnostic.
+For URL captures it retains the final successful seed response before application scripts mutate the page. That response becomes `source.html` and is the input for the canonical root document. After the rendered page settles, the worker discovers anchor and area links on the seed's effective origin and captures them recursively in serial breadth-first order. Every linked HTML response is normalized as a `nested-document`; a global URL map keeps navigation and shared dependencies inside the snapshot. If a response cannot be retained or parsed, the bounded rewritten browser document remains usable and the manifest records the diagnostic.
+
+The linked-page queue is bounded and de-duplicated after URL normalization. Query strings remain part of route identity, fragments share one stored document and are preserved on rewritten links, and external origins, subdomains, downloads, forms, and non-HTTP schemes are not crawled. A failed or omitted in-scope route makes the stored capture incomplete. Hard duration, resource, and storage limits retain their discard behavior.
 
 For HTML, MHTML, and WebArchive uploads, the uploaded bytes remain immutable source material. The importer decodes the archive, builds a deterministic resource map, produces the canonical document, and keeps JavaScript disabled only in the worker context used to generate the screenshot.
 

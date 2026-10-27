@@ -43,6 +43,22 @@ public sealed class SnapshotResourceUrlTests
     }
 
     [Fact]
+    public void DocumentNormalizerPreservesFragmentOnCapturedRoute()
+    {
+        const string linkedUrl = "https://de.wikipedia.org/wiki/Potsdam";
+        var normalized = SnapshotDocumentNormalizer.Normalize(
+            "<html><head></head><body><a href=\"/wiki/Potsdam#History\">History</a></body></html>",
+            SourceUrl,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [linkedUrl] = "pages/potsdam.html"
+            },
+            "index.html");
+
+        Assert.Contains("href=\"pages/potsdam.html#History\"", normalized.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void JavaScriptRewriterUsesEscapedAbsoluteResourceKey()
     {
         var resources = new Dictionary<string, string>(StringComparer.Ordinal)

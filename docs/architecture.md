@@ -54,7 +54,7 @@ The API applies EF Core migrations when `Database:Initialize` is enabled. In the
 
 `backend/Archive.Worker` is a background service with no HTTP endpoint. It acquires the processing lease, recovers interrupted work, and claims queued snapshots in queue order.
 
-URL submissions use Playwright Chromium. The browser path checks target-network eligibility, collects eligible resources, rewrites stored references to route-neutral paths, and captures a screenshot.
+URL submissions use Playwright Chromium. The browser path checks target-network eligibility, captures the submitted document and recursively discovered same-origin links in breadth-first order, collects eligible resources across the complete crawl, rewrites stored references to route-neutral paths, and captures a screenshot of the root document. Traversal is serial and bounded by the linked-page, duration, resource, and storage limits.
 
 File submissions select a decoder by validated content and extension:
 
@@ -138,6 +138,7 @@ The configured bucket contains two main key spaces:
 jobs/{snapshotId}/...             temporary uploaded source
 snapshots/{snapshotId}/
 ├── index.html                    canonical normalized entry document
+├── pages/...                     normalized linked same-origin documents
 ├── screenshot.png                capture preview
 ├── manifest.json                 snapshot allowlist, hashes, roles, provenance, and diagnostics
 ├── assets/...                    captured or imported resources
@@ -145,7 +146,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive} immutable main response or uploaded source
 ```
 
-The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. The manifest and browser security boundary determine interactive delivery for the canonical snapshot document.
+The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Linked pages are `nested-document` resources within the same snapshot, not separate snapshot records. The manifest and browser security boundary determine interactive delivery for every stored document.
 
 Profile images are stored with the user record in PostgreSQL. Their public or owner-only visibility is decided by the profile repository and API route.
 
@@ -203,7 +204,7 @@ Archived pages are untrusted input. Static and interactive delivery read the sam
 
 The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
 
-The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, and resource, byte, duration, and import-depth limits bound work. The final URL main response is retained as `source.html`; `index.html` is derived once through the versioned parser and keeps scripts while rewriting captured literal dependencies. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
+The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, and page, resource, byte, duration, and import-depth limits bound work. Every redirect hop is revalidated. The final seed response is retained as `source.html`; `index.html` and linked documents below `pages/` are derived through the versioned parser and keep scripts while rewriting captured literal dependencies. Only rendered HTTP(S) anchor and area links on the seed's effective origin enter the recursive queue; forms, downloads, external origins, subdomains, and undiscoverable routes do not. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
 ## Related documentation
 

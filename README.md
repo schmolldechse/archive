@@ -6,7 +6,7 @@ Capture and publication are separate. A worker can finish storing a snapshot whi
 
 ## Capabilities
 
-- Capture public pages with Playwright, including loaded resources and a viewport screenshot.
+- Capture public pages with Playwright, including recursively linked same-origin routes, loaded resources, and a viewport screenshot.
 - Import HTML, MHTML, and WebArchive documents.
 - Search approved snapshots by text, tags, source, quality, and capture date.
 - Inspect source, capture time, quality, resource count, size, submitter, and lifecycle history.

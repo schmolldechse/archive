@@ -9,11 +9,13 @@ namespace Archive.Worker.Capture.Browser.Access;
 // a new document, including a same-URL reload during a Cloudflare challenge.
 internal sealed class CapturePageAccess : IDisposable
 {
+    private const int MaxRedirects = 3;
     private readonly IPage _page;
     private readonly string _sourceUrl;
     private readonly Uri _sourceUri;
+    private readonly Uri? _requiredOrigin;
     private readonly ArchiveBrowserOptions _options;
-    private readonly PublicNetworkGuard _networkGuard;
+    private readonly ICaptureNetworkGuard _networkGuard;
     private readonly BrowserRequestRouter _requestRouter;
     private readonly ILogger _logger;
     private readonly object _sync = new();
@@ -25,14 +27,19 @@ internal sealed class CapturePageAccess : IDisposable
     private bool _challengeObserved;
     private long _challengeStarted;
     private long _documentVersion;
+    private Uri _challengeDocumentUri;
+    private string? _finalUrl;
     private IDisposable? _routeRegistration;
 
     public CapturePageAccess(IPage page, string sourceUrl, ArchiveBrowserOptions options,
-        PublicNetworkGuard networkGuard, BrowserRequestRouter requestRouter, ILogger logger)
+        ICaptureNetworkGuard networkGuard, BrowserRequestRouter requestRouter, ILogger logger,
+        Uri? requiredOrigin = null)
     {
         _page = page;
         _sourceUrl = sourceUrl;
         _sourceUri = new Uri(sourceUrl);
+        _requiredOrigin = requiredOrigin;
+        _challengeDocumentUri = _sourceUri;
         _options = options;
         _networkGuard = networkGuard;
         _requestRouter = requestRouter;
@@ -44,6 +51,7 @@ internal sealed class CapturePageAccess : IDisposable
 
     public bool ChallengeObserved { get { lock (_sync) return _challengeObserved; } }
     public long DocumentVersion { get { lock (_sync) return _documentVersion; } }
+    public string? FinalUrl { get { lock (_sync) return _finalUrl; } }
 
     public Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -103,7 +111,7 @@ internal sealed class CapturePageAccess : IDisposable
                 return;
             }
 
-            if (!IsAllowedRedirectTarget(redirectUri.AbsoluteUri, request.IsNavigationRequest, mainFrame))
+            if (!IsAllowedRedirectTarget(redirectUri.AbsoluteUri, request, mainFrame))
             {
                 lock (_sync) _blockedNavigation = true;
                 await route.AbortAsync();
@@ -149,12 +157,14 @@ internal sealed class CapturePageAccess : IDisposable
                 if (document.IsChallenge)
                     ObserveChallenge();
 
-                if (document.Ready && IsSourceUrl(_page.Url) && IsSourceUrl(response.Url) && !document.IsChallenge)
+                if (document.Ready && IsStableDocument(response) && !document.IsChallenge)
                 {
                     if (!challengedResponse)
                     {
                         if (response.Status is < 200 or >= 300)
                             throw new CaptureFailedException($"Die Quellseite antwortet mit HTTP {response.Status}.");
+                        lock (_sync)
+                            _finalUrl = NormalizeUrl(response.Url);
                         return;
                     }
 
@@ -249,7 +259,7 @@ internal sealed class CapturePageAccess : IDisposable
             return;
         lock (_sync)
         {
-            if (!IsSourceUrl(frame.Url) && !(_challengeObserved &&
+            if (!IsAllowedCommittedDocument(frame.Url) && !(_challengeObserved &&
                 (IsSameOriginChallenge(frame.Url) || IsSourceChallengeContinuation(frame.Url))))
                 _blockedNavigation = true;
             _committed = true;
@@ -274,7 +284,7 @@ internal sealed class CapturePageAccess : IDisposable
     {
         lock (_sync)
             if (_blockedNavigation)
-                throw new CaptureFailedException("Weiterleitungen werden nicht automatisch archiviert.");
+                throw new CaptureFailedException("Document navigation exceeded the allowed redirect or crawl limit.");
     }
 
     private void ThrowIfNetworkBlocked()
@@ -292,27 +302,29 @@ internal sealed class CapturePageAccess : IDisposable
             _blockedNetworkHost ??= host;
     }
 
-    private bool IsSourceUrl(string url) =>
-        UrlNormalizer.TryNormalizeSource(url, out var normalized, out _) &&
-        string.Equals(normalized, _sourceUrl, StringComparison.Ordinal);
-
     // Caller holds _sync.
     private bool IsAllowedNavigation(IRequest request, bool mainFrame) => mainFrame
-        ? (IsSourceUrl(request.Url) && (request.RedirectedFrom is null || _challengeObserved)) ||
+        ? IsAllowedMainNavigation(request) ||
           (_challengeObserved && (IsSameOriginChallenge(request.Url) || IsSourceChallengeContinuation(request.Url)))
         : true;
 
-    private bool IsAllowedRedirectTarget(string url, bool navigationRequest, bool mainFrame)
+    private bool IsAllowedRedirectTarget(string url, IRequest request, bool mainFrame)
     {
         lock (_sync)
-            return !navigationRequest || !mainFrame ||
-                _challengeObserved &&
-                (IsSourceUrl(url) || IsSameOriginChallenge(url) || IsSourceChallengeContinuation(url));
+        {
+            if (!request.IsNavigationRequest || !mainFrame)
+                return true;
+            if (_challengeObserved && (IsSameOriginChallenge(url) || IsSourceChallengeContinuation(url)))
+                return true;
+            if (RedirectDepth(request) >= MaxRedirects ||
+                !Uri.TryCreate(url, UriKind.Absolute, out var target) || !IsHttp(target))
+                return false;
+            return _requiredOrigin is null || SnapshotCrawlUrl.IsSameOrigin(target, _requiredOrigin);
+        }
     }
 
     private bool IsSameOriginChallenge(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-        uri.Scheme == _sourceUri.Scheme && uri.Host.Equals(_sourceUri.Host, StringComparison.OrdinalIgnoreCase) &&
-        uri.Port == _sourceUri.Port && CloudflareChallengeDetector.IsChallengePath(uri);
+        SnapshotCrawlUrl.IsSameOrigin(uri, _challengeDocumentUri) && CloudflareChallengeDetector.IsChallengePath(uri);
 
     // Managed Challenge temporarily uses history.replaceState and form targets on
     // the original path with __cf_chl_* parameters. Allow only that query delta;
@@ -320,14 +332,12 @@ internal sealed class CapturePageAccess : IDisposable
     private bool IsSourceChallengeContinuation(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            !uri.Scheme.Equals(_sourceUri.Scheme, StringComparison.OrdinalIgnoreCase) ||
-            !uri.Host.Equals(_sourceUri.Host, StringComparison.OrdinalIgnoreCase) ||
-            uri.Port != _sourceUri.Port ||
+            !SnapshotCrawlUrl.IsSameOrigin(uri, _challengeDocumentUri) ||
             !uri.GetComponents(UriComponents.Path, UriFormat.UriEscaped).Equals(
-                _sourceUri.GetComponents(UriComponents.Path, UriFormat.UriEscaped), StringComparison.Ordinal))
+                _challengeDocumentUri.GetComponents(UriComponents.Path, UriFormat.UriEscaped), StringComparison.Ordinal))
             return false;
 
-        var sourceParts = QueryParts(_sourceUri).Order(StringComparer.Ordinal).ToArray();
+        var sourceParts = QueryParts(_challengeDocumentUri).Order(StringComparer.Ordinal).ToArray();
         var candidateParts = new List<string>();
         var foundChallengeParameter = false;
         foreach (var part in QueryParts(uri))
@@ -348,6 +358,63 @@ internal sealed class CapturePageAccess : IDisposable
 
     private static IEnumerable<string> QueryParts(Uri uri) => uri.Query.TrimStart('?')
         .Split('&', StringSplitOptions.RemoveEmptyEntries);
+
+    private bool IsAllowedMainNavigation(IRequest request)
+    {
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var target) || !IsHttp(target) ||
+            RedirectDepth(request) > MaxRedirects)
+            return false;
+        if (_requiredOrigin is not null && !SnapshotCrawlUrl.IsSameOrigin(target, _requiredOrigin))
+            return false;
+
+        var root = request;
+        while (root.RedirectedFrom is not null)
+            root = root.RedirectedFrom;
+        if (NormalizeUrl(root.Url) == _sourceUrl)
+            return true;
+
+        return _challengeObserved && NormalizeUrl(request.Url) == NormalizeUrl(_challengeDocumentUri.AbsoluteUri);
+    }
+
+    private bool IsAllowedCommittedDocument(string url)
+    {
+        if (_request is null || !IsAllowedMainNavigation(_request))
+            return false;
+        var frameUrl = NormalizeUrl(url);
+        var requestUrl = NormalizeUrl(_request.Url);
+        if (frameUrl is null || requestUrl is null || !string.Equals(frameUrl, requestUrl, StringComparison.Ordinal))
+            return false;
+        if (Uri.TryCreate(requestUrl, UriKind.Absolute, out var current))
+            _challengeDocumentUri = current;
+        return true;
+    }
+
+    private bool IsStableDocument(IResponse response)
+    {
+        lock (_sync)
+        {
+            if (!ReferenceEquals(response.Request, _request) || !IsAllowedMainNavigation(response.Request))
+                return false;
+            var pageUrl = NormalizeUrl(_page.Url);
+            var responseUrl = NormalizeUrl(response.Url);
+            return pageUrl is not null && string.Equals(pageUrl, responseUrl, StringComparison.Ordinal);
+        }
+    }
+
+    private static int RedirectDepth(IRequest request)
+    {
+        var count = 0;
+        for (var current = request.RedirectedFrom; current is not null; current = current.RedirectedFrom)
+            count++;
+        return count;
+    }
+
+    private static string? NormalizeUrl(string url) =>
+        UrlNormalizer.TryNormalizeSource(url, out var normalized, out _) ? normalized : null;
+
+    private static bool IsHttp(Uri uri) =>
+        uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
 
     public void Dispose()
     {

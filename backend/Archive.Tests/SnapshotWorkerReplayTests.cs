@@ -12,6 +12,7 @@ using Microsoft.Playwright;
 
 namespace Archive.Tests;
 
+[Collection(PlaywrightCollection.Name)]
 public sealed class SnapshotWorkerReplayTests
 {
     [Fact]

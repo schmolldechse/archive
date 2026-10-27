@@ -9,6 +9,7 @@ using Archive.Core.Jobs;
 using Archive.Core.Options;
 using Archive.Core.Storage;
 using Archive.Worker.Capture.Browser.Access;
+using Archive.Worker.Capture.Browser.Crawl;
 using Archive.Worker.Capture.Network;
 using Archive.Worker.Storage;
 using Microsoft.Playwright;
@@ -17,7 +18,8 @@ using Archive.Core.Entities.Processing;
 namespace Archive.Worker.Capture.Browser;
 
 public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, ArchiveOptions options,
-    ArchiveBrowserOptions browserOptions, ILogger<BrowserCaptureEngine> logger)
+    ArchiveBrowserOptions browserOptions, ICaptureNetworkGuard networkGuard,
+    ILogger<BrowserCaptureEngine> logger)
 {
     private readonly CaptureLimits _limits = options.ToCaptureLimits();
 
@@ -34,7 +36,9 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = browserOptions.Headless,
-                Channel = browserOptions.Headless ? "chromium" : null,
+                // The explicit Chromium channel uses the modern container path on Linux,
+                // but can fail to spawn the bundled browser on Windows development hosts.
+                Channel = browserOptions.Headless && !OperatingSystem.IsWindows() ? "chromium" : null,
                 Timeout = (float)_limits.MaxDuration.TotalMilliseconds
             });
             // Playwright operations do not accept CancellationToken. Closing the
@@ -86,7 +90,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             throw new CaptureFailedException(urlError);
 
         progress?.Report(ProgressStep.SourceCheck);
-        var networkGuard = new PublicNetworkGuard();
         var accessPage = await context.NewPageAsync();
         using (var access = new CapturePageAccess(accessPage, normalizedUrl, browserOptions, networkGuard,
                    requestRouter, logger))
@@ -104,15 +107,112 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             }
         }
 
-        // A new page isolates late responses from the access phase; the browser
-        // context retains Cloudflare-issued cookies without using a user profile.
+        var resourceArchive = new CapturedResourceArchive(_limits);
+        var root = await CaptureDocumentAsync(job.Id, normalizedUrl, context, requestRouter, networkGuard,
+            resourceArchive, requiredOrigin: null, captureScreenshot: true, progress, cancellationToken);
+        if (!Uri.TryCreate(root.Url, UriKind.Absolute, out var effectiveOrigin))
+            throw new CaptureFailedException("The source page's final URL is invalid.");
+
+        root.AddAliases([normalizedUrl, root.Url, .. root.RedirectChain]);
+        resourceArchive.RemovePromotedDocument(root.Aliases);
+        var documents = new List<CapturedDocument> { root };
+        var documentsByUrl = new Dictionary<string, CapturedDocument>(StringComparer.Ordinal);
+        foreach (var alias in root.Aliases)
+            documentsByUrl[alias] = root;
+
+        var pending = new Queue<string>();
+        var scheduled = new HashSet<string>(root.Aliases, StringComparer.Ordinal);
+        var missingRoutes = new HashSet<string>(StringComparer.Ordinal);
+        var scheduledLinkedPages = 0;
+
+        EnqueueDiscoveredLinks(root);
+        while (pending.TryDequeue(out var routeUrl))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (documentsByUrl.ContainsKey(routeUrl))
+                continue;
+
+            CapturedDocument document;
+            try
+            {
+                document = await CaptureDocumentAsync(job.Id, routeUrl, context, requestRouter, networkGuard,
+                    resourceArchive, effectiveOrigin, captureScreenshot: false, progress, cancellationToken);
+            }
+            catch (CaptureFailedException exception)
+            {
+                missingRoutes.Add(routeUrl);
+                logger.LogWarning(exception, "Job {JobId}: verlinkte Route {RouteUrl} konnte nicht archiviert werden",
+                    job.Id, routeUrl);
+                continue;
+            }
+
+            document.AddAliases([routeUrl, document.Url, .. document.RedirectChain]);
+            var existing = document.Aliases.Select(alias => documentsByUrl.GetValueOrDefault(alias))
+                .FirstOrDefault(candidate => candidate is not null);
+            if (existing is not null)
+            {
+                existing.AddAliases(document.Aliases);
+                foreach (var alias in document.Aliases)
+                    documentsByUrl[alias] = existing;
+                resourceArchive.RemovePromotedDocument(document.Aliases);
+                resourceArchive.ReleaseDocument(document.ReservedBytes);
+                continue;
+            }
+
+            documents.Add(document);
+            foreach (var alias in document.Aliases)
+                documentsByUrl[alias] = document;
+            resourceArchive.RemovePromotedDocument(document.Aliases);
+            EnqueueDiscoveredLinks(document);
+        }
+
+        progress?.Report(ProgressStep.SavingSnapshot);
+        var missingUrls = resourceArchive.SnapshotFailedUrls().Concat(missingRoutes)
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        var manifest = await StoreResourcesAsync(job.Id, documents, root.Screenshot!,
+            resourceArchive.SnapshotResources(), cancellationToken, missingUrls);
+        var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
+
+        return new CaptureResult(
+            manifest.Incomplete ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
+            manifest.ContentPrefix,
+            manifest.StorageBytes, manifest.ResourceCount, duration, manifest.StoredObjectKeys);
+
+        void EnqueueDiscoveredLinks(CapturedDocument document)
+        {
+            foreach (var href in document.DiscoveredLinks)
+            {
+                if (!SnapshotCrawlUrl.TryNormalizeInScope(href, effectiveOrigin, out var candidate) ||
+                    documentsByUrl.ContainsKey(candidate) || !scheduled.Add(candidate))
+                    continue;
+                if (browserOptions.MaxLinkedPages == 0)
+                    continue;
+                if (scheduledLinkedPages >= browserOptions.MaxLinkedPages)
+                {
+                    missingRoutes.Add(candidate);
+                    continue;
+                }
+
+                scheduledLinkedPages++;
+                pending.Enqueue(candidate);
+            }
+        }
+    }
+
+    // A fresh page isolates late responses from earlier documents while the shared
+    // context retains challenge cookies and the resource archive de-duplicates bytes.
+    private async Task<CapturedDocument> CaptureDocumentAsync(Guid jobId, string sourceUrl, IBrowserContext context,
+        BrowserRequestRouter requestRouter, ICaptureNetworkGuard networkGuard,
+        CapturedResourceArchive resourceArchive, Uri? requiredOrigin, bool captureScreenshot,
+        IProgress<ProgressStep>? progress, CancellationToken cancellationToken)
+    {
         for (var attempt = 0; attempt <= browserOptions.ChallengeReloadAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var page = await context.NewPageAsync();
-            using var access = new CapturePageAccess(page, normalizedUrl, browserOptions, networkGuard,
-                requestRouter, logger);
-            var collector = new CapturedResourceCollector(page, _limits, logger, cancellationToken);
+            using var access = new CapturePageAccess(page, sourceUrl, browserOptions, networkGuard,
+                requestRouter, logger, requiredOrigin);
+            var collector = new CapturedResourceCollector(page, resourceArchive, logger, cancellationToken);
             try
             {
                 await access.InitializeAsync(cancellationToken);
@@ -134,26 +234,35 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 await LoadDynamicContentAsync(page, cancellationToken);
                 await access.VerifyCaptureAsync(cancellationToken);
                 var documentVersion = access.DocumentVersion;
+                var discoveredLinks = await DiscoverLinksAsync(page, cancellationToken);
                 var html = await CloudflareChallengeDetector.SnapshotHtmlAsync(page, cancellationToken);
-                var screenshot = await page.ScreenshotAsync(new PageScreenshotOptions { FullPage = false, Type = ScreenshotType.Png })
-                    .WaitAsync(cancellationToken);
+                var screenshot = captureScreenshot
+                    ? await page.ScreenshotAsync(new PageScreenshotOptions
+                        { FullPage = false, Type = ScreenshotType.Png }).WaitAsync(cancellationToken)
+                    : null;
                 await collector.StopAsync();
                 await access.VerifyCaptureAsync(cancellationToken);
                 if (documentVersion != access.DocumentVersion)
                     throw new CaptureFailedException("Die Seite hat während der Aufnahme das Dokument gewechselt.");
 
-                // Freeze the browser before writing; later navigation cannot change
-                // the validated HTML, screenshot or the drained resource collection.
+                var finalUrl = access.FinalUrl;
+                if (finalUrl is null || !UrlNormalizer.TryNormalizeSource(finalUrl, out finalUrl, out _))
+                    throw new CaptureFailedException("The document's final URL could not be determined.");
+                var mainDocument = collector.CommitMainDocument();
+                if (requiredOrigin is not null && mainDocument is null)
+                    throw new CaptureFailedException("The linked route did not return a supported HTML document.");
                 await ClosePageAsync(page);
-                progress?.Report(ProgressStep.SavingSnapshot);
-                var manifest = await StoreResourcesAsync(job.Id, normalizedUrl, html, screenshot, collector.Resources,
-                    collector.MainDocument, cancellationToken, collector.FailedUrls);
-                var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
-
-                return new CaptureResult(
-                    manifest.Incomplete ? SnapshotQuality.Incomplete : SnapshotQuality.Complete,
-                    manifest.ContentPrefix,
-                    manifest.StorageBytes, manifest.ResourceCount, duration, manifest.StoredObjectKeys);
+                return new CapturedDocument(
+                    sourceUrl,
+                    finalUrl,
+                    mainDocument?.ContentType ?? "text/html; charset=utf-8",
+                    mainDocument?.StatusCode,
+                    mainDocument?.Body ?? Encoding.UTF8.GetBytes(html),
+                    html,
+                    mainDocument?.RedirectChain ?? [],
+                    discoveredLinks,
+                    screenshot,
+                    mainDocument?.Body.LongLength ?? 0);
             }
             catch (Exception exception) when (exception is CaptureChallengeEncounteredException ||
                 (exception is PlaywrightException && access.ChallengeObserved))
@@ -163,7 +272,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     throw new CaptureAccessBlockedException();
                 await access.WaitForAccessAsync(cancellationToken);
                 logger.LogInformation("Job {JobId}: wiederhole saubere Aufnahme nach Challenge ({Attempt}/{Limit})",
-                    job.Id, attempt + 1, browserOptions.ChallengeReloadAttempts);
+                    jobId, attempt + 1, browserOptions.ChallengeReloadAttempts);
             }
             finally
             {
@@ -176,13 +285,19 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 {
                     // StopAsync above propagates collection failures on the success
                     // path. Cleanup must preserve the original capture/access error.
-                    logger.LogDebug(exception, "Ressourcensammler für Job {JobId} beendet", job.Id);
+                    logger.LogDebug(exception, "Ressourcensammler für Job {JobId} beendet", jobId);
                 }
             }
         }
 
         throw new CaptureAccessBlockedException();
     }
+
+    private static Task<string[]> DiscoverLinksAsync(IPage page, CancellationToken cancellationToken) =>
+        page.EvaluateAsync<string[]>(@"() => Array.from(document.querySelectorAll('a[href], area[href]'))
+            .filter(element => !element.hasAttribute('download'))
+            .map(element => element.href)
+            .filter(Boolean)").WaitAsync(cancellationToken);
 
     private async Task ClosePageAsync(IPage page)
     {
@@ -238,64 +353,91 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         await Task.Delay(_limits.QuietPeriod, cancellationToken);
     }
 
-    private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId, string? originalUrl, string fallbackHtml,
-        byte[] screenshot, IReadOnlyDictionary<string, CapturedResource> captured, CapturedMainDocument? mainDocument,
-        CancellationToken cancellationToken, IReadOnlyList<string> missingUrls)
+    private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId,
+        IReadOnlyList<CapturedDocument> documents, byte[] screenshot,
+        IReadOnlyDictionary<string, CapturedResource> captured, CancellationToken cancellationToken,
+        IReadOnlyList<string> missingUrls)
     {
         var writer = new SnapshotObjectWriter(objectStore, snapshotId, _limits.MaxStorageBytes, logger);
-        const string contentBase = "./";
-        var map = captured.Values.ToDictionary(x => x.Url, x => $"assets/{Hash(x.Url)}", StringComparer.Ordinal);
-        var sourceBytes = mainDocument?.Body ?? Encoding.UTF8.GetBytes(fallbackHtml);
-        var sourceUrl = mainDocument?.Url ?? originalUrl;
-        var sourceType = mainDocument?.ContentType ?? "text/html; charset=utf-8";
-        var sourceHtml = SnapshotTextEncoding.Decode(sourceBytes, sourceType, out _);
-        string? interactionDiagnostic = null;
-        bool containsExecutableContent;
-        string rewrittenHtml;
-        try
+        var root = documents[0];
+        var documentPaths = new Dictionary<CapturedDocument, string>(ReferenceEqualityComparer.Instance);
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 0; index < documents.Count; index++)
         {
-            var rewrittenSource = RewriteReferences(sourceHtml, map, sourceUrl, contentBase, htmlDocument: true);
-            var snapshotDocument = SnapshotDocumentNormalizer.Normalize(rewrittenSource, sourceUrl, map, "index.html");
-            rewrittenHtml = snapshotDocument.Html;
-            containsExecutableContent = snapshotDocument.ContainsExecutableContent;
+            var document = documents[index];
+            var path = index == 0 ? "index.html" : $"pages/{Hash(document.Url)}.html";
+            documentPaths[document] = path;
+            foreach (var alias in document.Aliases)
+                map.TryAdd(alias, path);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+
+        foreach (var resource in captured.Values)
         {
-            // A readable capture remains valuable when optional interaction normalization cannot be completed.
-            interactionDiagnostic = exception.GetType().Name;
-            containsExecutableContent = Regex.IsMatch(fallbackHtml, "<script\\b|\\son[a-z]+\\s*=",
-                RegexOptions.IgnoreCase);
-            rewrittenHtml = RewriteReferences(fallbackHtml, map, originalUrl, contentBase, htmlDocument: true);
-            logger.LogWarning(exception, "Snapshot interaction normalization for {SnapshotId} failed; stored rewritten fallback",
-                snapshotId);
+            var url = AbsoluteUrlKey(resource.Url);
+            if (url is not null)
+                map.TryAdd(url, $"assets/{Hash(url)}");
         }
-        var htmlKey = writer.GetObjectKey("index.html");
-        var screenshotKey = writer.GetObjectKey("screenshot.png");
+
         var sourceKey = writer.GetObjectKey("source.html");
+        var manifestResources = new List<SnapshotResource>();
+        string? interactionDiagnostic = null;
+        var containsExecutableContent = false;
+        byte[]? rootDocumentBytes = null;
 
         try
         {
-            var rewrittenHtmlBytes = Encoding.UTF8.GetBytes(rewrittenHtml);
-            await writer.WriteAsync("index.html", rewrittenHtmlBytes, "text/html; charset=utf-8", cancellationToken);
             await writer.WriteAsync("screenshot.png", screenshot, "image/png", cancellationToken);
-            await writer.WriteAsync("source.html", sourceBytes, sourceType, cancellationToken);
+            await writer.WriteAsync("source.html", root.SourceBody, root.ContentType, cancellationToken);
 
-            var manifestResources = new List<SnapshotResource>
+            foreach (var document in documents)
             {
-                new()
+                var documentPath = documentPaths[document];
+                var sourceHtml = SnapshotTextEncoding.Decode(document.SourceBody, document.ContentType, out _);
+                string rewrittenHtml;
+                try
                 {
-                    Path = "index.html",
-                    SourceUrl = sourceUrl,
-                    ContentType = "text/html; charset=utf-8",
-                    ObjectKey = htmlKey,
-                    Sha256 = Hash(rewrittenHtmlBytes),
-                    Role = SnapshotResourceRoles.RootDocument
+                    var rewrittenSource = RewriteReferences(sourceHtml, map, document.Url,
+                        SnapshotResourcePath.HtmlBaseFor(documentPath), htmlDocument: true);
+                    var normalized = SnapshotDocumentNormalizer.Normalize(rewrittenSource, document.Url, map,
+                        documentPath);
+                    rewrittenHtml = normalized.Html;
+                    containsExecutableContent |= normalized.ContainsExecutableContent;
                 }
-            };
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    interactionDiagnostic ??= exception.GetType().Name;
+                    containsExecutableContent |= Regex.IsMatch(document.FallbackHtml,
+                        "<script\\b|\\son[a-z]+\\s*=", RegexOptions.IgnoreCase);
+                    rewrittenHtml = RewriteReferences(document.FallbackHtml, map, document.Url,
+                        SnapshotResourcePath.HtmlBaseFor(documentPath), htmlDocument: true);
+                    logger.LogWarning(exception,
+                        "Snapshot document normalization for {SnapshotId} and {DocumentUrl} failed; stored rewritten fallback",
+                        snapshotId, document.Url);
+                }
+
+                var body = Encoding.UTF8.GetBytes(rewrittenHtml);
+                await writer.WriteAsync(documentPath, body, "text/html; charset=utf-8", cancellationToken);
+                if (ReferenceEquals(document, root))
+                    rootDocumentBytes = body;
+                manifestResources.Add(new()
+                {
+                    Path = documentPath,
+                    SourceUrl = document.Url,
+                    ContentType = "text/html; charset=utf-8",
+                    ObjectKey = writer.GetObjectKey(documentPath),
+                    Sha256 = Hash(body),
+                    Role = ReferenceEquals(document, root)
+                        ? SnapshotResourceRoles.RootDocument
+                        : SnapshotResourceRoles.NestedDocument
+                });
+            }
+
             foreach (var resource in captured.Values)
             {
-                writer.EnsureCapacity(resource.Body.LongLength);
-                var assetPath = $"assets/{Hash(resource.Url)}";
+                var resourceUrl = AbsoluteUrlKey(resource.Url);
+                if (resourceUrl is null || documentPaths.Keys.Any(document => document.Aliases.Contains(resourceUrl)))
+                    continue;
+                var assetPath = map[resourceUrl];
                 var isCss = resource.ContentType.StartsWith("text/css", StringComparison.OrdinalIgnoreCase);
                 var isHtml = resource.ContentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) ||
                     resource.ContentType.StartsWith("application/xhtml+xml", StringComparison.OrdinalIgnoreCase);
@@ -310,15 +452,17 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                         : map.ToDictionary(pair => pair.Key,
                             pair => SnapshotResourcePath.RelativeTo(assetPath, pair.Value), StringComparer.Ordinal);
                     var text = SnapshotTextEncoding.Decode(resource.Body, resource.ContentType, out _);
-                    var resourceBase = isHtml ? SnapshotResourcePath.HtmlBaseFor(assetPath) : contentBase;
+                    var resourceBase = isHtml ? SnapshotResourcePath.HtmlBaseFor(assetPath) : "./";
                     var rewritten = RewriteReferences(text, relativeMap, resource.Url, resourceBase,
                         htmlDocument: isHtml);
                     if (isHtml)
                     {
                         try
                         {
-                            rewritten = SnapshotDocumentNormalizer.Normalize(rewritten, resource.Url, relativeMap,
-                                assetPath).Html;
+                            var normalized = SnapshotDocumentNormalizer.Normalize(rewritten, resource.Url, relativeMap,
+                                assetPath);
+                            rewritten = normalized.Html;
+                            containsExecutableContent |= normalized.ContainsExecutableContent;
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
                         {
@@ -352,6 +496,8 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 });
             }
 
+            if (rootDocumentBytes is null)
+                throw new InvalidDataException("The root snapshot document was not written.");
             var manifest = new SnapshotManifest
             {
                 Version = SnapshotManifest.CurrentVersion,
@@ -359,14 +505,14 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 {
                     DerivedDisplayDocument = true,
                     SourceObjectKey = sourceKey,
-                    SourceSha256 = Hash(sourceBytes),
-                    IndexSha256 = Hash(rewrittenHtmlBytes),
-                    SourceUrl = sourceUrl,
-                    SourceMimeType = sourceType,
-                    SourceStatusCode = mainDocument?.StatusCode,
+                    SourceSha256 = Hash(root.SourceBody),
+                    IndexSha256 = Hash(rootDocumentBytes),
+                    SourceUrl = root.Url,
+                    SourceMimeType = root.ContentType,
+                    SourceStatusCode = root.StatusCode,
                     CapturedAt = DateTimeOffset.UtcNow,
-                    DocumentState = mainDocument is null ? "post-execution-fallback" : "original-response",
-                    RedirectChain = mainDocument?.RedirectChain ?? []
+                    DocumentState = root.StatusCode is null ? "post-execution-fallback" : "original-response",
+                    RedirectChain = root.RedirectChain
                 },
                 Interaction = new()
                 {
@@ -381,8 +527,8 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             };
             await writer.WriteManifestAsync(manifest, new JsonSerializerOptions { WriteIndented = true }, cancellationToken);
 
-            return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, captured.Count, missingUrls.Count > 0,
-                writer.StoredObjectKeys);
+            return new StoredManifest(writer.ContentPrefix, writer.StorageBytes, manifestResources.Count - 1,
+                missingUrls.Count > 0, writer.StoredObjectKeys);
         }
         catch
         {
@@ -391,6 +537,11 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         }
     }
 
+    private static string? AbsoluteUrlKey(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            ? SnapshotResourcePath.ToAbsoluteUrlKey(uri)
+            : null;
+
     private static string RewriteReferences(string html, IReadOnlyDictionary<string, string> map, string? originalUrl,
         string contentBase, bool htmlDocument)
     {
@@ -398,17 +549,11 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         var resolutionUrl = htmlDocument
             ? SnapshotResourcePath.ResolveDocumentBase(html, originalUrl)
             : originalUrl;
-        foreach (var item in map.OrderByDescending(x => x.Key.Length))
-        {
-            rewritten = rewritten.Replace(item.Key, item.Value, StringComparison.Ordinal);
-            rewritten = rewritten.Replace(item.Key.Replace("&", "&amp;", StringComparison.Ordinal), item.Value, StringComparison.Ordinal);
-        }
-
         if (!string.IsNullOrWhiteSpace(resolutionUrl) && Uri.TryCreate(resolutionUrl, UriKind.Absolute, out var baseUri))
         {
             if (htmlDocument)
             {
-                rewritten = Regex.Replace(rewritten, "(?<prefix>\\b(?:src|href|poster|data-[\\w-]+|srcset)\\s*=\\s*)(?<quote>[\\\"'])(?<value>.*?)(?:\\k<quote>)", match =>
+                rewritten = Regex.Replace(rewritten, "(?<prefix>\\b(?:src|poster|data-[\\w-]+|srcset)\\s*=\\s*)(?<quote>[\\\"'])(?<value>.*?)(?:\\k<quote>)", match =>
                 {
                     var value = match.Groups["value"].Value;
                     if (match.Groups["prefix"].Value.Contains("srcset", StringComparison.OrdinalIgnoreCase))

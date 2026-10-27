@@ -1,5 +1,9 @@
 import { error, redirect, type RequestEvent } from "@sveltejs/kit";
-import type { SnapshotHistoryResponse, SnapshotSubmissionDetailResponse, SnapshotSubmissionListResponse } from "$api";
+import type {
+	SnapshotHistoryResponse,
+	SnapshotSubmissionDetailResponse,
+	SnapshotSubmissionListResponse
+} from "$api";
 import { requireAdmin } from "./admin";
 import { backendUrl } from "./api";
 import { loginHref } from "$lib/auth/return-url";
@@ -98,7 +102,12 @@ export async function loadSubmission(event: SubmissionLoadEvent, admin = false) 
 	if (!detail.etag) error(503, "The submission could not be validated. Please try again.");
 	const lastPage = Math.max(1, Math.ceil(Number(history.value.total) / Number(history.value.pageSize)));
 	if (Number(historyPage) > lastPage) redirect(303, pageHref(event.url, "historyPage", lastPage));
-	return { detail: detail.value, etag: detail.etag, history: history.value, admin };
+	return {
+		detail: detail.value,
+		etag: detail.etag,
+		history: history.value,
+		admin
+	};
 }
 
 /** Loads only the private record and concurrency token needed by an edit page. */

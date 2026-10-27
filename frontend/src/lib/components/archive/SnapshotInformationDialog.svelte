@@ -14,12 +14,20 @@
 		snapshot,
 		history,
 		historyUnavailable = false
-	}: { snapshot: SnapshotResponse; history: SnapshotHistoryResponse; historyUnavailable?: boolean } = $props();
+	}: {
+		snapshot: SnapshotResponse;
+		history: SnapshotHistoryResponse;
+		historyUnavailable?: boolean;
+	} = $props();
 	const source = $derived(snapshot.sourceUrl);
 </script>
 
 <DialogRoot>
-	<DialogTrigger class="snapshot-info-trigger" aria-label="Snapshot information and history" title="Snapshot information">
+	<DialogTrigger
+		class="snapshot-info-trigger"
+		aria-label="Snapshot information and history"
+		title="Snapshot information"
+	>
 		<Info size={20} aria-hidden="true" />
 	</DialogTrigger>
 	<DialogContent class="snapshot-info-dialog" size="large" aria-describedby={undefined}>
@@ -47,7 +55,7 @@
 				</TabsPanel>
 				<TabsPanel value="history">
 					{#if historyUnavailable}
-						<div class="history-unavailable" role="status">
+						<div class="supplementary-unavailable" role="status">
 							<CircleAlert aria-hidden="true" />
 							<div>
 								<h3>History temporarily unavailable</h3>
@@ -150,7 +158,7 @@
 		font-size: 0.8125rem;
 		overflow-wrap: anywhere;
 	}
-	.history-unavailable {
+	.supplementary-unavailable {
 		display: flex;
 		align-items: flex-start;
 		gap: 0.75rem;
@@ -158,17 +166,17 @@
 		background: color-mix(in srgb, var(--warning-ochre) 9%, transparent);
 		padding: 1rem;
 	}
-	.history-unavailable :global(svg) {
+	.supplementary-unavailable :global(svg) {
 		width: 1.125rem;
 		height: 1.125rem;
 		flex: none;
 		color: var(--warning-ochre);
 	}
-	.history-unavailable h3 {
+	.supplementary-unavailable h3 {
 		margin: 0;
 		font: 500 1rem/1.4 var(--font-editorial);
 	}
-	.history-unavailable p {
+	.supplementary-unavailable p {
 		margin: 0.25rem 0 0;
 		color: var(--marginal-note);
 		font-size: 0.875rem;

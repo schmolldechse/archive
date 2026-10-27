@@ -81,6 +81,7 @@ The checked-in appsettings files explicitly list the first six values. The impor
 | `Archive:Browser:UserAgent` | `ARCHIVE_BROWSER_USER_AGENT` | `ArchiveBot/1.0` | ASCII user agent sent by the browser. |
 | `Archive:Browser:ChallengeTimeoutSeconds` | not mapped by Compose | `45` | Maximum challenge wait; 1–300 seconds. |
 | `Archive:Browser:ChallengeReloadAttempts` | not mapped by Compose | `1` | Reload attempts for a detected challenge; 1–3. |
+| `Archive:Browser:MaxLinkedPages` | `ARCHIVE_BROWSER_MAX_LINKED_PAGES` | `100` | Maximum additional same-origin HTML documents captured recursively for one URL snapshot. `0` preserves single-page capture behavior. |
 
 ## Frontend
 
@@ -110,7 +111,7 @@ Never set `INTERNAL_API_BASE_URL` to an address the browser must use. It is inte
 | `AUTHENTICATION_SESSION_COOKIE_DOMAIN` | API session sharing across frontend/API hosts |
 | `PROCESSING_TERMINAL_RETENTION_SECONDS` | API and worker |
 | `PROCESSING_CLEANUP_INTERVAL_SECONDS`, `PROCESSING_CLEANUP_BATCH_SIZE` | API cleanup loop |
-| `ARCHIVE_BROWSER_HEADLESS`, `ARCHIVE_BROWSER_USER_AGENT` | Worker browser |
+| `ARCHIVE_BROWSER_HEADLESS`, `ARCHIVE_BROWSER_USER_AGENT`, `ARCHIVE_BROWSER_MAX_LINKED_PAGES` | Worker browser and linked-page crawl |
 
 ## Values that must agree
 
