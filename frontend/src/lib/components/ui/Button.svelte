@@ -2,7 +2,7 @@
 	import type { Snippet } from "svelte";
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 
-	type ButtonVariant = "primary" | "secondary" | "text";
+	type ButtonVariant = "primary" | "secondary" | "critical" | "text";
 	type ButtonSize = "default" | "large";
 	type ButtonRef = HTMLButtonElement | HTMLAnchorElement | null;
 
@@ -188,6 +188,15 @@
 	.button[data-variant="secondary"]:hover:not([data-disabled]) {
 		border-color: var(--reading-ink);
 		background: var(--archive-layer);
+	}
+
+	.button[data-variant="critical"] {
+		background: var(--time-marker);
+		color: var(--reading-room);
+	}
+
+	.button[data-variant="critical"]:hover:not([data-disabled]) {
+		background: color-mix(in srgb, var(--time-marker) 88%, var(--reading-ink));
 	}
 
 	.button[data-variant="text"] {

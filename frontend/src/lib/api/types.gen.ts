@@ -1328,6 +1328,56 @@ export type ListOwnSnapshotsResponses = {
 
 export type ListOwnSnapshotsResponse = ListOwnSnapshotsResponses[keyof ListOwnSnapshotsResponses];
 
+export type DeleteOwnSnapshotData = {
+	body?: never;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/users/snapshots/{id}";
+};
+
+export type DeleteOwnSnapshotErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type DeleteOwnSnapshotError = DeleteOwnSnapshotErrors[keyof DeleteOwnSnapshotErrors];
+
+export type DeleteOwnSnapshotResponses = {
+	/**
+	 * No Content
+	 */
+	204: void;
+};
+
+export type DeleteOwnSnapshotResponse = DeleteOwnSnapshotResponses[keyof DeleteOwnSnapshotResponses];
+
 export type GetOwnSnapshotData = {
 	body?: never;
 	path: {
@@ -1688,6 +1738,56 @@ export type ListAdminSnapshotsResponses = {
 };
 
 export type ListAdminSnapshotsResponse = ListAdminSnapshotsResponses[keyof ListAdminSnapshotsResponses];
+
+export type DeleteSnapshotForAdminData = {
+	body?: never;
+	headers: {
+		"If-Match": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api/admin/snapshots/{id}";
+};
+
+export type DeleteSnapshotForAdminErrors = {
+	/**
+	 * Bad Request
+	 */
+	400: ProblemDetails;
+	/**
+	 * Unauthorized
+	 */
+	401: ProblemDetails;
+	/**
+	 * Forbidden
+	 */
+	403: ProblemDetails;
+	/**
+	 * Not Found
+	 */
+	404: ProblemDetails;
+	/**
+	 * Precondition Failed
+	 */
+	412: ProblemDetails;
+	/**
+	 * Precondition Required
+	 */
+	428: ProblemDetails;
+};
+
+export type DeleteSnapshotForAdminError = DeleteSnapshotForAdminErrors[keyof DeleteSnapshotForAdminErrors];
+
+export type DeleteSnapshotForAdminResponses = {
+	/**
+	 * No Content
+	 */
+	204: void;
+};
+
+export type DeleteSnapshotForAdminResponse = DeleteSnapshotForAdminResponses[keyof DeleteSnapshotForAdminResponses];
 
 export type GetSnapshotForReviewData = {
 	body?: never;

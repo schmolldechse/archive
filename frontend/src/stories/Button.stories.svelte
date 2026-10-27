@@ -20,6 +20,7 @@
 <script lang="ts">
 	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
+	import Trash2 from "@lucide/svelte/icons/trash-2";
 
 	import Button from "$lib/components/ui/Button.svelte";
 
@@ -37,6 +38,7 @@
 	<div class="story-row">
 		<Button variant="primary">Primary action</Button>
 		<Button variant="secondary">Secondary action</Button>
+		<Button variant="critical"><Trash2 aria-hidden="true" />Critical action</Button>
 		<Button variant="text">Text action</Button>
 	</div>
 </Story>
@@ -82,6 +84,16 @@
 			<div class="story-row">
 				<Button variant="primary" loading loadingLabel="Loading action">Action</Button>
 				<Button href="#button-story-destination" loading loadingLabel="Loading destination">Open destination</Button>
+			</div>
+		</section>
+		<section>
+			<p class="story-label">Critical</p>
+			<div class="story-row">
+				<Button variant="critical"><Trash2 aria-hidden="true" />Critical action</Button>
+				<Button variant="critical" disabled><Trash2 aria-hidden="true" />Disabled critical action</Button>
+				<Button variant="critical" loading loadingLabel="Applying critical action">
+					<Trash2 aria-hidden="true" />Critical action
+				</Button>
 			</div>
 		</section>
 	</div>
