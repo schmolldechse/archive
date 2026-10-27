@@ -284,7 +284,7 @@ internal sealed class CapturePageAccess : IDisposable
     {
         lock (_sync)
             if (_blockedNavigation)
-                throw new CaptureFailedException("Die Dokumentnavigation überschreitet die zulässige Redirect- oder Crawl-Grenze.");
+                throw new CaptureFailedException("Document navigation exceeded the allowed redirect or crawl limit.");
     }
 
     private void ThrowIfNetworkBlocked()

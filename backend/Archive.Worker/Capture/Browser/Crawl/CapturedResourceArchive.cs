@@ -42,7 +42,7 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
             if (!_resources.ContainsKey(url))
             {
                 if (_resources.Count >= limits.MaxResources)
-                    throw new CaptureDiscardedException("Das Ressourcenlimit wurde überschritten.");
+                    throw new CaptureDiscardedException("The resource limit was exceeded.");
                 EnsureCapacity(body.LongLength);
                 _resources.Add(url, new CapturedResource(url, contentType, body));
                 _capturedBytes += body.LongLength;
@@ -100,6 +100,6 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
     private void EnsureCapacity(long byteCount)
     {
         if (byteCount > limits.MaxStorageBytes - _capturedBytes)
-            throw new CaptureDiscardedException("Das Speicherlimit wurde überschritten.");
+            throw new CaptureDiscardedException("The storage limit was exceeded.");
     }
 }

@@ -111,7 +111,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         var root = await CaptureDocumentAsync(job.Id, normalizedUrl, context, requestRouter, networkGuard,
             resourceArchive, requiredOrigin: null, captureScreenshot: true, progress, cancellationToken);
         if (!Uri.TryCreate(root.Url, UriKind.Absolute, out var effectiveOrigin))
-            throw new CaptureFailedException("Die finale URL der Quellseite ist ungültig.");
+            throw new CaptureFailedException("The source page's final URL is invalid.");
 
         root.AddAliases([normalizedUrl, root.Url, .. root.RedirectChain]);
         resourceArchive.RemovePromotedDocument(root.Aliases);
@@ -253,11 +253,11 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
 
                 var finalUrl = access.FinalUrl;
                 if (finalUrl is null || !UrlNormalizer.TryNormalizeSource(finalUrl, out finalUrl, out _))
-                    throw new CaptureFailedException("Die finale Dokument-URL konnte nicht bestimmt werden.");
+                    throw new CaptureFailedException("The document's final URL could not be determined.");
                 var title = NormalizePageTitle(await page.TitleAsync().WaitAsync(cancellationToken));
                 var mainDocument = collector.CommitMainDocument();
                 if (requiredOrigin is not null && mainDocument is null)
-                    throw new CaptureFailedException("Die verlinkte Route liefert kein unterstütztes HTML-Dokument.");
+                    throw new CaptureFailedException("The linked route did not return a supported HTML document.");
                 await ClosePageAsync(page);
                 return new CapturedDocument(
                     sourceUrl,
