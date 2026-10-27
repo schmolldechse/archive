@@ -1,7 +1,6 @@
 using Archive.Api.Authentication;
 using Archive.Api.Authorization.Attributes;
 using Archive.Api.Contracts.Snapshots.Submission;
-using Archive.Api.Contracts.Snapshots;
 using Archive.Api.Mapping;
 using Archive.Core.Authorization;
 using Archive.Core.Models.Snapshots;
@@ -30,13 +29,6 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ProblemDetails>(404)]
     public async Task<ActionResult<SnapshotSubmissionDetailResponse>> Get(Guid id, CancellationToken token) =>
         Detail(await Submissions.GetForReviewAsync(id, token), "api/admin/snapshots");
-
-    [HttpGet("{id:guid}/page-tree"), EndpointName("GetSnapshotPageTreeForReview"),
-     EndpointSummary("Reads the captured page tree for review.")]
-    [EndpointDescription("Returns captured documents in deterministic breadth-first discovery order. Legacy and non-URL snapshots without page-tree metadata return 404.")]
-    [ProducesResponseType<SnapshotPageTreeResponse>(200), ProducesResponseType<ProblemDetails>(404)]
-    public async Task<ActionResult<SnapshotPageTreeResponse>> PageTree(Guid id, CancellationToken token) =>
-        PageTreeResponse(await Submissions.PageTreeForReviewAsync(id, token));
 
     [HttpGet("owners"), EndpointName("ListSnapshotOwners"), EndpointSummary("Lists registered snapshot owner candidates.")]
     [EndpointDescription("Requires snapshot administration access. Returns public user contracts only; internal user identifiers are never exposed.")]

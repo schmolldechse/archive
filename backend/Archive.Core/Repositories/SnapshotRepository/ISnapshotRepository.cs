@@ -9,8 +9,6 @@ public interface ISnapshotRepository
     Task<SnapshotCreationResult> CreateFromFileAsync(SnapshotCreationRequest request, SnapshotUpload upload, CancellationToken cancellationToken = default);
     Task<SnapshotSearchResult> SearchAsync(SnapshotSearch search, CancellationToken cancellationToken = default);
     Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default);
-    /// <summary>Reads the validated first-discovery page tree of an approved stored snapshot.</summary>
-    Task<SnapshotPageTree?> GetPageTreeAsync(Guid snapshotId, CancellationToken cancellationToken = default);
     Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
         CancellationToken cancellationToken = default);
     /// <summary>Opens public content after authorizing the requested resource through the snapshot manifest.</summary>

@@ -1,12 +1,10 @@
 <script lang="ts">
 	import History from "@lucide/svelte/icons/history";
 	import Info from "@lucide/svelte/icons/info";
-	import Network from "@lucide/svelte/icons/network";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import X from "@lucide/svelte/icons/x";
-	import type { SnapshotHistoryResponse, SnapshotPageTreeResponse, SnapshotResponse } from "$api";
+	import type { SnapshotHistoryResponse, SnapshotResponse } from "$api";
 	import SnapshotHistory from "$lib/components/submissions/SnapshotHistory.svelte";
-	import SnapshotPageTree from "./SnapshotPageTree.svelte";
 	import { DialogClose, DialogContent, DialogRoot, DialogTitle, DialogTrigger } from "$lib/components/ui/dialog";
 	import { TabsList, TabsPanel, TabsRoot, TabsTrigger } from "$lib/components/ui/tabs";
 	import CopySourceButton from "./CopySourceButton.svelte";
@@ -15,15 +13,11 @@
 	let {
 		snapshot,
 		history,
-		historyUnavailable = false,
-		pageTree,
-		pageTreeUnavailable = false
+		historyUnavailable = false
 	}: {
 		snapshot: SnapshotResponse;
 		history: SnapshotHistoryResponse;
 		historyUnavailable?: boolean;
-		pageTree: SnapshotPageTreeResponse | null;
-		pageTreeUnavailable?: boolean;
 	} = $props();
 	const source = $derived(snapshot.sourceUrl);
 </script>
@@ -31,7 +25,7 @@
 <DialogRoot>
 	<DialogTrigger
 		class="snapshot-info-trigger"
-		aria-label="Snapshot information, pages and history"
+		aria-label="Snapshot information and history"
 		title="Snapshot information"
 	>
 		<Info size={20} aria-hidden="true" />
@@ -45,7 +39,6 @@
 			<TabsRoot value="info">
 				<TabsList aria-label="Snapshot record sections">
 					<TabsTrigger value="info"><Info aria-hidden="true" />Info</TabsTrigger>
-					<TabsTrigger value="pages"><Network aria-hidden="true" />Pages</TabsTrigger>
 					<TabsTrigger value="history"><History aria-hidden="true" />History</TabsTrigger>
 				</TabsList>
 				<TabsPanel value="info">
@@ -59,19 +52,6 @@
 						{/if}
 						<SnapshotMetadata {snapshot} />
 					</div>
-				</TabsPanel>
-				<TabsPanel value="pages">
-					{#if pageTree}
-						<SnapshotPageTree tree={pageTree} />
-					{:else if pageTreeUnavailable}
-						<div class="supplementary-unavailable" role="status">
-							<CircleAlert aria-hidden="true" />
-							<div>
-								<h3>Page tree unavailable</h3>
-								<p>This capture does not include page hierarchy metadata.</p>
-							</div>
-						</div>
-					{/if}
 				</TabsPanel>
 				<TabsPanel value="history">
 					{#if historyUnavailable}

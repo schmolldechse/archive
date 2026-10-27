@@ -146,7 +146,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive} immutable main response or uploaded source
 ```
 
-The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Linked pages are `nested-document` resources within the same snapshot, not separate snapshot records. URL captures also store an optional flat first-discovery page tree in manifest version 4; public, owner, and administrator detail scopes expose it through separate validated page-tree subresources. The manifest and browser security boundary determine interactive delivery for every stored document.
+The exact resource set is recorded in the snapshot manifest. `Snapshot.ContentPrefix` selects the active stored generation. Archived documents use relative, route-neutral resource references so the same bytes can be served through public and access-controlled snapshot URLs. Linked pages are `nested-document` resources within the same snapshot, not separate snapshot records. The manifest and browser security boundary determine interactive delivery for every stored document.
 
 Profile images are stored with the user record in PostgreSQL. Their public or owner-only visibility is decided by the profile repository and API route.
 

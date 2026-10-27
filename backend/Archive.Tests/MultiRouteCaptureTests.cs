@@ -92,23 +92,6 @@ public sealed class MultiRouteCaptureTests
             Assert.Contains(manifest.Resources, resource => resource.SourceUrl == $"{origin}/c" &&
                 resource.Role == SnapshotResourceRoles.NestedDocument);
 
-            var pageTree = Assert.IsType<SnapshotPageTree>(manifest.PageTree);
-            Assert.Equal("index.html", pageTree.RootPath);
-            Assert.Equal(4, pageTree.Pages.Count);
-            Assert.Equal([origin + "/", origin + "/a", origin + "/b?view=full", origin + "/c"],
-                pageTree.Pages.Select(page => page.SourceUrl));
-            var rootPage = Assert.Single(pageTree.Pages, page => page.Path == pageTree.RootPath);
-            Assert.Null(rootPage.ParentPath);
-            Assert.Equal("Root page", rootPage.Title);
-            var routeA = Assert.Single(pageTree.Pages, page => page.SourceUrl == $"{origin}/a");
-            Assert.Equal(pageTree.RootPath, routeA.ParentPath);
-            Assert.Equal("Section A", routeA.Title);
-            var routeC = Assert.Single(pageTree.Pages, page => page.SourceUrl == $"{origin}/c");
-            Assert.Equal(routeA.Path, routeC.ParentPath);
-            Assert.Equal("Section C", routeC.Title);
-            Assert.True(SnapshotManifestReader.TryGetPageTree(manifest, out var validatedTree));
-            Assert.Same(pageTree, validatedTree);
-
             var rootHtml = Encoding.UTF8.GetString(await store.ReadBytesAsync(
                 $"snapshots/{snapshotId:N}/index.html"));
             Assert.Contains("pages/", rootHtml, StringComparison.Ordinal);
@@ -163,9 +146,6 @@ public sealed class MultiRouteCaptureTests
             Assert.Contains($"{origin}/b", manifest.MissingUrls);
             Assert.Equal(2, manifest.Resources.Count(resource =>
                 resource.Role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument));
-            var pageTree = Assert.IsType<SnapshotPageTree>(manifest.PageTree);
-            Assert.Equal(2, pageTree.Pages.Count);
-            Assert.DoesNotContain(pageTree.Pages, page => page.SourceUrl == $"{origin}/b");
             var rootHtml = Encoding.UTF8.GetString(await store.ReadBytesAsync(
                 $"snapshots/{snapshotId:N}/index.html"));
             Assert.Contains("href=\"/b\"", rootHtml, StringComparison.Ordinal);

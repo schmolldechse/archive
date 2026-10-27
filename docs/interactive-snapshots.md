@@ -23,7 +23,7 @@ snapshots/{snapshotId}/
 └── source.{html|mhtml|webarchive}
 ```
 
-`index.html` is the canonical document presented to readers. URL captures store recursively discovered same-origin pages below `pages/` as nested documents of the same snapshot. The immutable source object provides provenance for the seed document. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, source-to-document relationship, and an optional first-discovery page tree. The current manifest contract and browser security boundary determine how every stored document is served.
+`index.html` is the canonical document presented to readers. URL captures store recursively discovered same-origin pages below `pages/` as nested documents of the same snapshot. The immutable source object provides provenance for the seed document. The manifest authorizes stored resources and records their hashes, media types, browser roles, source URLs, capture diagnostics, and source-to-document relationship. The current manifest contract and browser security boundary determine how every stored document is served.
 
 ## Capture and normalization
 
@@ -72,17 +72,6 @@ The current snapshot manifest is version `4`. Its top-level structure is:
     "diagnostic": null
   },
   "resources": [],
-  "pageTree": {
-    "rootPath": "index.html",
-    "pages": [
-      {
-        "path": "index.html",
-        "parentPath": null,
-        "sourceUrl": "https://example.test/",
-        "title": "Example"
-      }
-    ]
-  },
   "missingUrls": [],
   "missingUrlCount": 0,
   "incomplete": false
@@ -99,18 +88,6 @@ The API serves a resource only when:
 - the browser destination is valid for the recorded resource role.
 
 Original source files are downloads and are not executable manifest resources.
-
-URL captures expose their validated first-discovery hierarchy through scope-matched supplementary endpoints:
-
-```text
-GET /api/snapshots/{snapshotId}/page-tree
-GET /api/users/snapshots/{snapshotId}/page-tree
-GET /api/admin/snapshots/{snapshotId}/page-tree
-```
-
-The response is a flat breadth-first list keyed by manifest document paths. Each non-root page names the page that first scheduled it through `parentPath`. Later cross-links and redirect aliases do not create duplicate nodes. Missing, legacy, imported, or inconsistent tree metadata returns `404` without making the stored snapshot content unavailable.
-
-The frontend renders this data as an interactive left-to-right tree and as a semantic outline. The outline is the initial view on narrow screens. Both presentations share the same selected-page details and remain supplementary to snapshot playback. They are available on owner and administrator snapshot details and in the **Pages** tab of the public snapshot record dialog.
 
 ## Isolated snapshot origin
 

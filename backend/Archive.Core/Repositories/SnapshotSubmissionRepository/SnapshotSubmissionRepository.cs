@@ -13,7 +13,7 @@ namespace Archive.Core.Repositories.SnapshotSubmissionRepository;
 
 /// <summary>Reads private records without relaxing the public repository's visibility rule.</summary>
 internal sealed partial class SnapshotSubmissionRepository(DataContext database, IArchiveObjectStore objectStore,
-    ISnapshotHistoryRepository history, SnapshotManifestReader manifestReader) : ISnapshotSubmissionRepository
+    ISnapshotHistoryRepository history) : ISnapshotSubmissionRepository
 {
     private static readonly string[] ModerationEventTypes =
         [SnapshotHistoryTypes.Submitted, SnapshotHistoryTypes.Moderated, SnapshotHistoryTypes.Resubmitted,
@@ -105,25 +105,6 @@ internal sealed partial class SnapshotSubmissionRepository(DataContext database,
 
     public Task<ArchiveObject?> ScreenshotOwnAsync(Guid userId, Guid id, CancellationToken token) => ScreenshotAsync(id, userId, token);
     public Task<ArchiveObject?> ScreenshotForReviewAsync(Guid id, CancellationToken token) => ScreenshotAsync(id, null, token);
-
-    public Task<SnapshotPageTree?> PageTreeOwnAsync(Guid userId, Guid id, CancellationToken token) =>
-        PageTreeAsync(id, userId, token);
-
-    public Task<SnapshotPageTree?> PageTreeForReviewAsync(Guid id, CancellationToken token) =>
-        PageTreeAsync(id, null, token);
-
-    private async Task<SnapshotPageTree?> PageTreeAsync(Guid id, Guid? ownerId, CancellationToken token)
-    {
-        var prefix = await Scope(ownerId).Where(snapshot => snapshot.Id == id && snapshot.Quality != null)
-            .Select(snapshot => snapshot.ContentPrefix).SingleOrDefaultAsync(token);
-        if (prefix is null)
-            return null;
-
-        var manifest = await manifestReader.ReadAsync(prefix, token);
-        return manifest is not null && SnapshotManifestReader.TryGetPageTree(manifest, out var pageTree)
-            ? pageTree
-            : null;
-    }
 
     private async Task<ArchiveObject?> ScreenshotAsync(Guid id, Guid? ownerId, CancellationToken token)
     {

@@ -5,7 +5,6 @@ using Archive.Core.Models.Processing;
 using Archive.Core.Models.Snapshots;
 using Riok.Mapperly.Abstractions;
 using Archive.Api.Options;
-using Archive.Core.Storage;
 
 namespace Archive.Api.Mapping;
 
@@ -37,9 +36,6 @@ public partial class SnapshotMapper(PublicUserMapper publicUserMapper, SnapshotC
 
     public SnapshotListResponse ToResponse(SnapshotPage page, string publicBaseUrl) =>
         MapPage(page, page.Items.Select(item => ToResponse(item, publicBaseUrl)).ToArray());
-
-    /// <summary>Maps validated manifest page metadata without exposing storage authorization fields.</summary>
-    public partial SnapshotPageTreeResponse ToResponse(SnapshotPageTree pageTree);
 
     [MapperIgnoreSource(nameof(SnapshotPage.Items))]
     private partial SnapshotListResponse MapPage(SnapshotPage page, IReadOnlyList<SnapshotResponse> items);

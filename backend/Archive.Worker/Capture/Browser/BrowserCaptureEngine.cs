@@ -117,23 +117,18 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         resourceArchive.RemovePromotedDocument(root.Aliases);
         var documents = new List<CapturedDocument> { root };
         var documentsByUrl = new Dictionary<string, CapturedDocument>(StringComparer.Ordinal);
-        var parents = new Dictionary<CapturedDocument, CapturedDocument?>(ReferenceEqualityComparer.Instance)
-        {
-            [root] = null
-        };
         foreach (var alias in root.Aliases)
             documentsByUrl[alias] = root;
 
-        var pending = new Queue<PendingRoute>();
+        var pending = new Queue<string>();
         var scheduled = new HashSet<string>(root.Aliases, StringComparer.Ordinal);
         var missingRoutes = new HashSet<string>(StringComparer.Ordinal);
         var scheduledLinkedPages = 0;
 
         EnqueueDiscoveredLinks(root);
-        while (pending.TryDequeue(out var pendingRoute))
+        while (pending.TryDequeue(out var routeUrl))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var routeUrl = pendingRoute.Url;
             if (documentsByUrl.ContainsKey(routeUrl))
                 continue;
 
@@ -165,7 +160,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             }
 
             documents.Add(document);
-            parents[document] = pendingRoute.Parent;
             foreach (var alias in document.Aliases)
                 documentsByUrl[alias] = document;
             resourceArchive.RemovePromotedDocument(document.Aliases);
@@ -175,7 +169,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
         progress?.Report(ProgressStep.SavingSnapshot);
         var missingUrls = resourceArchive.SnapshotFailedUrls().Concat(missingRoutes)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        var manifest = await StoreResourcesAsync(job.Id, documents, parents, root.Screenshot!,
+        var manifest = await StoreResourcesAsync(job.Id, documents, root.Screenshot!,
             resourceArchive.SnapshotResources(), cancellationToken, missingUrls);
         var duration = (long)(DateTime.UtcNow - started).TotalMilliseconds;
 
@@ -200,7 +194,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 }
 
                 scheduledLinkedPages++;
-                pending.Enqueue(new(candidate, document));
+                pending.Enqueue(candidate);
             }
         }
     }
@@ -254,7 +248,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 var finalUrl = access.FinalUrl;
                 if (finalUrl is null || !UrlNormalizer.TryNormalizeSource(finalUrl, out finalUrl, out _))
                     throw new CaptureFailedException("The document's final URL could not be determined.");
-                var title = NormalizePageTitle(await page.TitleAsync().WaitAsync(cancellationToken));
                 var mainDocument = collector.CommitMainDocument();
                 if (requiredOrigin is not null && mainDocument is null)
                     throw new CaptureFailedException("The linked route did not return a supported HTML document.");
@@ -262,7 +255,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 return new CapturedDocument(
                     sourceUrl,
                     finalUrl,
-                    title,
                     mainDocument?.ContentType ?? "text/html; charset=utf-8",
                     mainDocument?.StatusCode,
                     mainDocument?.Body ?? Encoding.UTF8.GetBytes(html),
@@ -362,8 +354,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
     }
 
     private async Task<StoredManifest> StoreResourcesAsync(Guid snapshotId,
-        IReadOnlyList<CapturedDocument> documents,
-        IReadOnlyDictionary<CapturedDocument, CapturedDocument?> parents, byte[] screenshot,
+        IReadOnlyList<CapturedDocument> documents, byte[] screenshot,
         IReadOnlyDictionary<string, CapturedResource> captured, CancellationToken cancellationToken,
         IReadOnlyList<string> missingUrls)
     {
@@ -379,18 +370,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
             foreach (var alias in document.Aliases)
                 map.TryAdd(alias, path);
         }
-
-        var pageTree = new SnapshotPageTree
-        {
-            RootPath = documentPaths[root],
-            Pages = documents.Select(document => new SnapshotPageTreeEntry
-            {
-                Path = documentPaths[document],
-                ParentPath = parents[document] is { } parent ? documentPaths[parent] : null,
-                SourceUrl = document.Url,
-                Title = document.Title
-            }).ToArray()
-        };
 
         foreach (var resource in captured.Values)
         {
@@ -542,7 +521,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                     Diagnostic = interactionDiagnostic
                 },
                 Resources = manifestResources,
-                PageTree = pageTree,
                 MissingUrls = missingUrls.Take(100).ToArray(),
                 MissingUrlCount = missingUrls.Count,
                 Incomplete = missingUrls.Count > 0
@@ -649,29 +627,6 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     private static string Hash(byte[] value) => Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
 
-    private static string? NormalizePageTitle(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-
-        var bounded = TruncateUtf16(value, SnapshotManifestReader.MaxPageTitleLength * 8);
-        var normalized = Regex.Replace(bounded, "\\s+", " ", RegexOptions.None, TimeSpan.FromSeconds(1)).Trim();
-        normalized = string.Concat(normalized.Where(character => !char.IsControl(character)));
-        if (normalized.Length == 0)
-            return null;
-        return TruncateUtf16(normalized, SnapshotManifestReader.MaxPageTitleLength);
-    }
-
-    private static string TruncateUtf16(string value, int maxLength)
-    {
-        if (value.Length <= maxLength)
-            return value;
-        var length = maxLength;
-        if (char.IsHighSurrogate(value[length - 1]) && char.IsLowSurrogate(value[length]))
-            length--;
-        return value[..length];
-    }
-
     private sealed class ScrollDimensions
     {
         public double Top { get; set; }
@@ -681,5 +636,4 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
     }
     private sealed record StoredManifest(string ContentPrefix, long StorageBytes, int ResourceCount, bool Incomplete,
         IReadOnlyList<string> StoredObjectKeys);
-    private sealed record PendingRoute(string Url, CapturedDocument Parent);
 }

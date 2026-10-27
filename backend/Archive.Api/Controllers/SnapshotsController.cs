@@ -87,19 +87,6 @@ public sealed partial class SnapshotsController(
         return Ok(mapper.ToResponse(snapshot, publicBaseUrl));
     }
 
-    [HttpGet("{snapshotId:guid}/page-tree")]
-    [EndpointName("GetSnapshotPageTree")]
-    [EndpointSummary("Gets the captured page tree of an approved snapshot.")]
-    [EndpointDescription("Returns captured documents in deterministic breadth-first discovery order. Legacy and non-URL snapshots without page-tree metadata return 404.")]
-    [ProducesResponseType<SnapshotPageTreeResponse>(StatusCodes.Status200OK, "application/json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public async Task<ActionResult<SnapshotPageTreeResponse>> PageTreeAsync(Guid snapshotId,
-        CancellationToken cancellationToken)
-    {
-        var pageTree = await snapshotRepository.GetPageTreeAsync(snapshotId, cancellationToken);
-        return pageTree is null ? NotFound() : Ok(mapper.ToResponse(pageTree));
-    }
-
     [HttpGet("{snapshotId:guid}/history")]
     [EndpointName("GetSnapshotHistory")]
     [EndpointSummary("Gets public history for an approved snapshot.")]

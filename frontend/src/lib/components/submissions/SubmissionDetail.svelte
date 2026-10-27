@@ -5,8 +5,7 @@
 		SnapshotModerationStatus as Status,
 		type ReviewSnapshotRequest,
 		type SnapshotSubmissionDetailResponse,
-		type SnapshotHistoryResponse,
-		type SnapshotPageTreeResponse
+		type SnapshotHistoryResponse
 	} from "$api";
 	import { apiUrl } from "$lib/api-url";
 	import { processingLabel } from "$lib/submission-status";
@@ -20,7 +19,6 @@
 	import ArchiveTimestamp from "$lib/components/site/ArchiveTimestamp.svelte";
 	import CopySourceButton from "$lib/components/archive/CopySourceButton.svelte";
 	import SnapshotTagList from "$lib/components/archive/SnapshotTagList.svelte";
-	import SnapshotPageTree from "$lib/components/archive/SnapshotPageTree.svelte";
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
@@ -33,8 +31,6 @@
 			detail: SnapshotSubmissionDetailResponse;
 			etag: string;
 			history: SnapshotHistoryResponse;
-			pageTree: SnapshotPageTreeResponse | null;
-			pageTreeUnavailable: boolean;
 			admin: boolean;
 		};
 	} = $props();
@@ -291,29 +287,6 @@
 					/>{/key}
 			</div>{/if}
 	</div>
-	<section class="detail-page-tree" aria-labelledby="detail-page-tree-title">
-		<div class="detail-page-tree__intro">
-			<p class="section-label">Capture topology</p>
-			<h2 id="detail-page-tree-title">Captured pages</h2>
-			<p>Pages are arranged by the route that first discovered them during this capture.</p>
-		</div>
-		{#if data.pageTree}
-			<SnapshotPageTree tree={data.pageTree} />
-		{:else}
-			<div class="detail-page-tree__unavailable" role="status">
-				<CircleAlert aria-hidden="true" />
-				<div>
-					{#if detail.processingStatus !== "COMPLETED"}
-						<h3>Page tree pending</h3>
-						<p>The captured page hierarchy will appear after processing finishes.</p>
-					{:else}
-						<h3>Page tree unavailable</h3>
-						<p>This capture does not include page hierarchy metadata.</p>
-					{/if}
-				</div>
-			</div>
-		{/if}
-	</section>
 	{#if canModerate}<section class="review-actions" aria-labelledby="review-actions-title">
 			<div class="review-actions__intro">
 				<h2 id="review-actions-title">Review this snapshot</h2>
@@ -471,51 +444,6 @@
 	}
 	.detail-preview > h2 {
 		margin-bottom: 1.25rem;
-	}
-	.detail-page-tree {
-		border-top: 1px solid var(--border-trace);
-		padding-block: 2rem;
-	}
-	.detail-page-tree__intro {
-		max-width: 48rem;
-		margin-bottom: 1.25rem;
-	}
-	.detail-page-tree__intro .section-label {
-		margin-bottom: 0.5rem;
-	}
-	.detail-page-tree__intro h2 {
-		margin-bottom: 0.5rem;
-	}
-	.detail-page-tree__intro > p:last-child {
-		margin: 0;
-		color: var(--marginal-note);
-		font-size: 0.9375rem;
-	}
-	.detail-page-tree__unavailable {
-		display: flex;
-		align-items: flex-start;
-		gap: 0.75rem;
-		border-inline-start: 3px solid var(--warning-ochre);
-		background: color-mix(in srgb, var(--warning-ochre) 9%, transparent);
-		padding: 1rem;
-	}
-	.detail-page-tree__unavailable :global(svg) {
-		width: 1.125rem;
-		height: 1.125rem;
-		flex: none;
-		color: var(--warning-ochre);
-	}
-	.detail-page-tree__unavailable h3,
-	.detail-page-tree__unavailable p {
-		margin: 0;
-	}
-	.detail-page-tree__unavailable h3 {
-		font: 500 1rem/1.4 var(--font-editorial);
-	}
-	.detail-page-tree__unavailable p {
-		margin-top: 0.25rem;
-		color: var(--marginal-note);
-		font-size: 0.875rem;
 	}
 	.review-actions {
 		display: grid;
