@@ -104,10 +104,10 @@
 		initialFocus={() => cancel}
 		returnFocus={() => (trigger instanceof HTMLButtonElement ? trigger : null)}
 	>
-		<DialogTitle>Permanently delete snapshot?</DialogTitle>
+		<DialogTitle>Delete snapshot?</DialogTitle>
 		<DialogDescription>
-			This removes the snapshot record, history, archived page, screenshot, and all stored resources. This action cannot be
-			undone.
+			This permanently deletes the snapshot record, history, archived page, screenshot, and stored resources. This action cannot
+			be undone.
 		</DialogDescription>
 		<div class="delete-target">
 			<p class="delete-target__label">Snapshot</p>
@@ -127,7 +127,7 @@
 		<DialogActions>
 			<DialogClose bind:ref={cancel} disabled={deleting}>Cancel</DialogClose>
 			<Button variant="critical" disabled={stale} loading={deleting} loadingLabel="Deleting snapshot…" onclick={deleteSnapshot}>
-				<Trash2 aria-hidden="true" />Permanently delete
+				<Trash2 aria-hidden="true" />Delete permanently
 			</Button>
 		</DialogActions>
 	</DialogContent>
@@ -142,7 +142,6 @@
 	}
 
 	.delete-target p,
-	.processing-notice,
 	.delete-error p {
 		margin: 0;
 	}
