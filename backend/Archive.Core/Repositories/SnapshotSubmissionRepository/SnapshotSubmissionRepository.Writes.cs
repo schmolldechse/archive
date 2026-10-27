@@ -3,6 +3,7 @@ using System.Text.Json;
 using Archive.Core.Authorization;
 using Archive.Core.Entities;
 using Archive.Core.Entities.Authentication;
+using Archive.Core.Entities.Processing;
 using Archive.Core.Jobs;
 using Archive.Core.Models;
 using Archive.Core.Models.Snapshots.History;
@@ -13,6 +14,66 @@ namespace Archive.Core.Repositories.SnapshotSubmissionRepository;
 
 internal sealed partial class SnapshotSubmissionRepository
 {
+    /// <summary>Permanently removes an owned snapshot and schedules deletion of every stored object.</summary>
+    public Task<SnapshotDeletionResult> DeleteOwnAsync(Guid userId, Guid id, string expectedTag,
+        CancellationToken token) => DeleteAsync(userId, id, expectedTag, administrator: false, token);
+
+    /// <summary>Permanently removes any snapshot after revalidating current administration permissions.</summary>
+    public Task<SnapshotDeletionResult> DeleteForAdminAsync(Guid actorId, Guid id, string expectedTag,
+        CancellationToken token) => DeleteAsync(actorId, id, expectedTag, administrator: true, token);
+
+    /// <summary>
+    /// Deletes relational state atomically while retaining only a metadata-free storage cleanup work item.
+    /// </summary>
+    private async Task<SnapshotDeletionResult> DeleteAsync(Guid actorId, Guid id, string expectedTag,
+        bool administrator, CancellationToken token)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(token);
+        var actor = await LockActorAsync(actorId, token);
+        if (actor is not { IsRegistrationComplete: true })
+            return new SnapshotDeletionResult.Forbidden();
+        if (administrator && (!PermissionEvaluator.IsAllowed(actor, ArchivePermissions.AccessAdminPortal) ||
+            !PermissionEvaluator.IsAllowed(actor, ArchivePermissions.AccessAdminSnapshots)))
+            return new SnapshotDeletionResult.Forbidden();
+
+        var snapshot = await LockSnapshotAsync(id, token);
+        if (snapshot is null || !administrator && snapshot.CreatedByUserId != actorId)
+            return new SnapshotDeletionResult.NotFound();
+        var sequence = await CurrentSequenceAsync(snapshot.Id, token);
+        if (expectedTag != Tag(snapshot, sequence, administrator))
+            return new SnapshotDeletionResult.Stale();
+
+        var processing = await database.SnapshotProcessing.FromSqlInterpolated($"""
+            SELECT * FROM processing.snapshot_processing WHERE snapshot_id = {id} FOR UPDATE
+            """).SingleOrDefaultAsync(token);
+        var tagIds = await database.SnapshotTags.Where(link => link.SnapshotId == id)
+            .Select(link => link.TagId).ToArrayAsync(token);
+        var now = await database.Database.SqlQuery<DateTimeOffset>(
+            $"SELECT clock_timestamp() AS \"Value\"").SingleAsync(token);
+        var cleanupAfter = processing?.Status == ProcessingStatus.Running
+            ? now.AddSeconds(archiveOptions.MaxDurationSeconds + 30L)
+            : now;
+
+        database.SnapshotDeletions.Add(new SnapshotDeletion
+        {
+            SnapshotId = snapshot.Id,
+            ContentPrefix = (snapshot.ContentPrefix ?? $"snapshots/{snapshot.Id:N}").TrimEnd('/'),
+            UploadedObjectKey = processing?.UploadedObjectKey,
+            CleanupAfter = cleanupAfter,
+            NextAttemptAt = cleanupAfter,
+            CreatedAt = now
+        });
+        database.Snapshots.Remove(snapshot);
+        await database.SaveChangesAsync(token);
+
+        if (tagIds.Length > 0)
+            await database.Tags.Where(tag => tagIds.Contains(tag.Id) && !tag.SnapshotTags.Any())
+                .ExecuteDeleteAsync(token);
+
+        await transaction.CommitAsync(token);
+        return new SnapshotDeletionResult.Deleted();
+    }
+
     /// <summary>Changes only reviewable snapshots and appends history in the same transaction.</summary>
     public async Task<SnapshotReviewOutcome> ReviewAsync(Guid actorId, Guid id, string expectedTag,
         SnapshotModerationStatus decision, string? reason, CancellationToken token)

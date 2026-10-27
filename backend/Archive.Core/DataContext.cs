@@ -9,6 +9,7 @@ namespace Archive.Core;
 public sealed class DataContext(DbContextOptions<DataContext> options) : DbContext(options)
 {
     public DbSet<SnapshotProcessing> SnapshotProcessing => Set<SnapshotProcessing>();
+    public DbSet<SnapshotDeletion> SnapshotDeletions => Set<SnapshotDeletion>();
 
     public DbSet<Snapshot> Snapshots => Set<Snapshot>();
     public DbSet<SnapshotHistoryEntry> SnapshotHistory => Set<SnapshotHistoryEntry>();
