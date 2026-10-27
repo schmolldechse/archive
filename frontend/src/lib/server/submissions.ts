@@ -1,5 +1,10 @@
 import { error, redirect, type RequestEvent } from "@sveltejs/kit";
-import type { SnapshotHistoryResponse, SnapshotSubmissionDetailResponse, SnapshotSubmissionListResponse } from "$api";
+import type {
+	SnapshotHistoryResponse,
+	SnapshotPageTreeResponse,
+	SnapshotSubmissionDetailResponse,
+	SnapshotSubmissionListResponse
+} from "$api";
 import { requireAdmin } from "./admin";
 import { backendUrl } from "./api";
 import { loginHref } from "$lib/auth/return-url";
@@ -36,6 +41,22 @@ async function readPrivate<T>(event: RequestEvent, path: string): Promise<{ valu
 	if (response.status === 404) error(404, "This submission could not be found.");
 	if (!response.ok) error(503, "Submissions are temporarily unavailable. Please try again.");
 	return { value: (await response.json()) as T, etag: response.headers.get("etag") };
+}
+
+/** Reads supplementary private metadata without hiding an otherwise usable snapshot record. */
+async function readPrivateSupplement<T>(event: RequestEvent, path: string): Promise<T | null> {
+	try {
+		const response = await fetch(backendUrl(path), {
+			headers: { cookie: event.request.headers.get("cookie") ?? "", accept: "application/json" },
+			cache: "no-store",
+			redirect: "error",
+			signal: AbortSignal.timeout(10000)
+		});
+		if (!response.ok) return null;
+		return (await response.json()) as T;
+	} catch {
+		return null;
+	}
 }
 
 const statuses = ["PENDING", "APPROVED", "REJECTED", "RESUBMITTED"];
@@ -91,14 +112,22 @@ export async function loadSubmission(event: SubmissionLoadEvent, admin = false) 
 	const historyPage = event.url.searchParams.get("historyPage") ?? "1";
 	if (!/^[1-9]\d*$/.test(historyPage) || Number(historyPage) > 1000000) error(400, "Use a valid history page.");
 	const base = `/api/${admin ? "admin" : "users"}/snapshots/${id}`;
-	const [detail, history] = await Promise.all([
+	const [detail, history, pageTree] = await Promise.all([
 		readPrivate<SnapshotSubmissionDetailResponse>(event, base),
-		readPrivate<SnapshotHistoryResponse>(event, `${base}/history?page=${historyPage}&pageSize=25`)
+		readPrivate<SnapshotHistoryResponse>(event, `${base}/history?page=${historyPage}&pageSize=25`),
+		readPrivateSupplement<SnapshotPageTreeResponse>(event, `${base}/page-tree`)
 	]);
 	if (!detail.etag) error(503, "The submission could not be validated. Please try again.");
 	const lastPage = Math.max(1, Math.ceil(Number(history.value.total) / Number(history.value.pageSize)));
 	if (Number(historyPage) > lastPage) redirect(303, pageHref(event.url, "historyPage", lastPage));
-	return { detail: detail.value, etag: detail.etag, history: history.value, admin };
+	return {
+		detail: detail.value,
+		etag: detail.etag,
+		history: history.value,
+		pageTree,
+		pageTreeUnavailable: pageTree === null,
+		admin
+	};
 }
 
 /** Loads only the private record and concurrency token needed by an edit page. */

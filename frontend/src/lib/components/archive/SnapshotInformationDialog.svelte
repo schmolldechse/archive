@@ -1,10 +1,12 @@
 <script lang="ts">
 	import History from "@lucide/svelte/icons/history";
 	import Info from "@lucide/svelte/icons/info";
+	import Network from "@lucide/svelte/icons/network";
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import X from "@lucide/svelte/icons/x";
-	import type { SnapshotHistoryResponse, SnapshotResponse } from "$api";
+	import type { SnapshotHistoryResponse, SnapshotPageTreeResponse, SnapshotResponse } from "$api";
 	import SnapshotHistory from "$lib/components/submissions/SnapshotHistory.svelte";
+	import SnapshotPageTree from "./SnapshotPageTree.svelte";
 	import { DialogClose, DialogContent, DialogRoot, DialogTitle, DialogTrigger } from "$lib/components/ui/dialog";
 	import { TabsList, TabsPanel, TabsRoot, TabsTrigger } from "$lib/components/ui/tabs";
 	import CopySourceButton from "./CopySourceButton.svelte";
@@ -13,13 +15,25 @@
 	let {
 		snapshot,
 		history,
-		historyUnavailable = false
-	}: { snapshot: SnapshotResponse; history: SnapshotHistoryResponse; historyUnavailable?: boolean } = $props();
+		historyUnavailable = false,
+		pageTree,
+		pageTreeUnavailable = false
+	}: {
+		snapshot: SnapshotResponse;
+		history: SnapshotHistoryResponse;
+		historyUnavailable?: boolean;
+		pageTree: SnapshotPageTreeResponse | null;
+		pageTreeUnavailable?: boolean;
+	} = $props();
 	const source = $derived(snapshot.sourceUrl);
 </script>
 
 <DialogRoot>
-	<DialogTrigger class="snapshot-info-trigger" aria-label="Snapshot information and history" title="Snapshot information">
+	<DialogTrigger
+		class="snapshot-info-trigger"
+		aria-label="Snapshot information, pages and history"
+		title="Snapshot information"
+	>
 		<Info size={20} aria-hidden="true" />
 	</DialogTrigger>
 	<DialogContent class="snapshot-info-dialog" size="large" aria-describedby={undefined}>
@@ -31,6 +45,7 @@
 			<TabsRoot value="info">
 				<TabsList aria-label="Snapshot record sections">
 					<TabsTrigger value="info"><Info aria-hidden="true" />Info</TabsTrigger>
+					<TabsTrigger value="pages"><Network aria-hidden="true" />Pages</TabsTrigger>
 					<TabsTrigger value="history"><History aria-hidden="true" />History</TabsTrigger>
 				</TabsList>
 				<TabsPanel value="info">
@@ -45,9 +60,22 @@
 						<SnapshotMetadata {snapshot} />
 					</div>
 				</TabsPanel>
+				<TabsPanel value="pages">
+					{#if pageTree}
+						<SnapshotPageTree tree={pageTree} />
+					{:else if pageTreeUnavailable}
+						<div class="supplementary-unavailable" role="status">
+							<CircleAlert aria-hidden="true" />
+							<div>
+								<h3>Page tree unavailable</h3>
+								<p>This capture does not include page hierarchy metadata.</p>
+							</div>
+						</div>
+					{/if}
+				</TabsPanel>
 				<TabsPanel value="history">
 					{#if historyUnavailable}
-						<div class="history-unavailable" role="status">
+						<div class="supplementary-unavailable" role="status">
 							<CircleAlert aria-hidden="true" />
 							<div>
 								<h3>History temporarily unavailable</h3>
@@ -150,7 +178,7 @@
 		font-size: 0.8125rem;
 		overflow-wrap: anywhere;
 	}
-	.history-unavailable {
+	.supplementary-unavailable {
 		display: flex;
 		align-items: flex-start;
 		gap: 0.75rem;
@@ -158,17 +186,17 @@
 		background: color-mix(in srgb, var(--warning-ochre) 9%, transparent);
 		padding: 1rem;
 	}
-	.history-unavailable :global(svg) {
+	.supplementary-unavailable :global(svg) {
 		width: 1.125rem;
 		height: 1.125rem;
 		flex: none;
 		color: var(--warning-ochre);
 	}
-	.history-unavailable h3 {
+	.supplementary-unavailable h3 {
 		margin: 0;
 		font: 500 1rem/1.4 var(--font-editorial);
 	}
-	.history-unavailable p {
+	.supplementary-unavailable p {
 		margin: 0.25rem 0 0;
 		color: var(--marginal-note);
 		font-size: 0.875rem;

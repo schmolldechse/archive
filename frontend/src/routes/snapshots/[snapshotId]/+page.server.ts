@@ -1,6 +1,11 @@
 import { error } from "@sveltejs/kit";
 import { backendOrigin } from "$lib/server/api";
-import type { SnapshotHistoryResponse, SnapshotResponse, SnapshotSubmissionDetailResponse } from "$api";
+import type {
+	SnapshotHistoryResponse,
+	SnapshotPageTreeResponse,
+	SnapshotResponse,
+	SnapshotSubmissionDetailResponse
+} from "$api";
 import type { PageServerLoad } from "./$types";
 
 const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -8,6 +13,7 @@ const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 interface ResolvedPrivateSnapshot {
 	snapshot: SnapshotResponse;
 	historyPath: string;
+	pageTreePath: string;
 }
 
 /** Reads private metadata only through existing owner or moderator authorization. */
@@ -34,7 +40,11 @@ async function readPrivateSnapshot(
 
 	const detail = (await response.json()) as SnapshotSubmissionDetailResponse;
 	return detail.snapshot.contentUrl
-		? { snapshot: detail.snapshot, historyPath: `/api/${scope}/snapshots/${snapshotId}/history` }
+		? {
+				snapshot: detail.snapshot,
+				historyPath: `/api/${scope}/snapshots/${snapshotId}/history`,
+				pageTreePath: `/api/${scope}/snapshots/${snapshotId}/page-tree`
+			}
 		: null;
 }
 
@@ -64,6 +74,27 @@ async function readHistory(
 	}
 }
 
+/** Loads page-tree metadata through the already selected public or private visibility scope. */
+async function readPageTree(
+	fetcher: typeof fetch,
+	apiBaseUrl: string,
+	path: string,
+	cookie: string
+): Promise<SnapshotPageTreeResponse | null> {
+	try {
+		const response = await fetcher(`${apiBaseUrl}${path}`, {
+			headers: cookie ? { cookie, accept: "application/json" } : { accept: "application/json" },
+			cache: "no-store",
+			redirect: "error",
+			signal: AbortSignal.timeout(10000)
+		});
+		if (!response.ok) return null;
+		return (await response.json()) as SnapshotPageTreeResponse;
+	} catch {
+		return null;
+	}
+}
+
 export const load: PageServerLoad = async ({ params, url, fetch, request, setHeaders }) => {
 	if (!snapshotIdPattern.test(params.snapshotId)) error(404, "Snapshot not found");
 
@@ -82,6 +113,7 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 	let snapshot: SnapshotResponse;
 	let isPrivate = false;
 	let historyPath = `/api/snapshots/${params.snapshotId}/history`;
+	let pageTreePath = `/api/snapshots/${params.snapshotId}/page-tree`;
 	const cookie = request.headers.get("cookie") ?? "";
 	if (response.status === 404) {
 		const authorizedSnapshot =
@@ -90,6 +122,7 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 		if (!authorizedSnapshot) error(404, "Snapshot not found");
 		snapshot = authorizedSnapshot.snapshot;
 		historyPath = authorizedSnapshot.historyPath;
+		pageTreePath = authorizedSnapshot.pageTreePath;
 		isPrivate = true;
 		setHeaders({ "cache-control": "private, no-store" });
 	} else {
@@ -97,7 +130,10 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 		snapshot = (await response.json()) as SnapshotResponse;
 	}
 	// History is supplementary metadata: a transient failure must not hide an otherwise readable capture.
-	const loadedHistory = await readHistory(fetch, apiBaseUrl, historyPath, isPrivate ? cookie : "");
+	const [loadedHistory, pageTree] = await Promise.all([
+		readHistory(fetch, apiBaseUrl, historyPath, isPrivate ? cookie : ""),
+		readPageTree(fetch, apiBaseUrl, pageTreePath, isPrivate ? cookie : "")
+	]);
 	const history: SnapshotHistoryResponse = loadedHistory ?? { items: [], total: 0, page: 1, pageSize: 100 };
 
 	const requestedReturn = url.searchParams.get("from")?.split("#", 1)[0];
@@ -109,5 +145,13 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 			? requestedReturn
 			: "/";
 
-	return { snapshot, history, historyAvailable: loadedHistory !== null, returnHref, isPrivate };
+	return {
+		snapshot,
+		history,
+		historyAvailable: loadedHistory !== null,
+		pageTree,
+		pageTreeAvailable: pageTree !== null,
+		returnHref,
+		isPrivate
+	};
 };

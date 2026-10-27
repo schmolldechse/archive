@@ -26,7 +26,13 @@
 	</header>
 	<main id="main-content" class="archived-page__content">
 		<div class="archived-page__information">
-			<SnapshotInformationDialog snapshot={data.snapshot} history={data.history} historyUnavailable={!data.historyAvailable} />
+			<SnapshotInformationDialog
+				snapshot={data.snapshot}
+				history={data.history}
+				historyUnavailable={!data.historyAvailable}
+				pageTree={data.pageTree}
+				pageTreeUnavailable={!data.pageTreeAvailable}
+			/>
 		</div>
 		<!-- Every snapshot runs on the opaque, credential-free snapshot origin. -->
 		<iframe
