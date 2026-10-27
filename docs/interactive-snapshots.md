@@ -100,7 +100,7 @@ The API serves a resource only when:
 
 Original source files are downloads and are not executable manifest resources.
 
-New URL captures expose their validated first-discovery hierarchy through scope-matched supplementary endpoints:
+URL captures expose their validated first-discovery hierarchy through scope-matched supplementary endpoints:
 
 ```text
 GET /api/snapshots/{snapshotId}/page-tree
@@ -110,7 +110,7 @@ GET /api/admin/snapshots/{snapshotId}/page-tree
 
 The response is a flat breadth-first list keyed by manifest document paths. Each non-root page names the page that first scheduled it through `parentPath`. Later cross-links and redirect aliases do not create duplicate nodes. Missing, legacy, imported, or inconsistent tree metadata returns `404` without making the stored snapshot content unavailable.
 
-The frontend renders this data as an interactive left-to-right tree using LayerChart 2.9.1 and as a semantic outline. The outline is the initial view on narrow screens. Both presentations share the same selected-page details and remain supplementary to snapshot playback.
+The frontend renders this data as an interactive left-to-right tree and as a semantic outline. The outline is the initial view on narrow screens. Both presentations share the same selected-page details and remain supplementary to snapshot playback. They are available on owner and administrator snapshot details and in the **Pages** tab of the public snapshot record dialog.
 
 ## Isolated snapshot origin
 
