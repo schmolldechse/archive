@@ -37,6 +37,7 @@
 	import { onMount, tick } from "svelte";
 	import { snapshotLimits } from "$lib/snapshot-validation";
 	import SnapshotModerationStatus from "$lib/components/submissions/SnapshotModerationStatus.svelte";
+	import SnapshotVisibilityField from "$lib/components/submissions/SnapshotVisibilityField.svelte";
 	import { getAuthContext } from "$lib/auth/context";
 	const account = getAuthContext();
 
@@ -64,7 +65,8 @@
 
 		title: "",
 		description: "",
-		tags: []
+		tags: [],
+		isPrivate: false
 	});
 	let errors = $state<ArchiveFieldErrors>({});
 	let archive = $state<SnapshotProcessingResponse | null>(null);
@@ -85,7 +87,12 @@
 
 	const terminal = $derived(archive !== null && terminalStatuses.has(archive.status));
 	const canCancel = $derived(archive?.canCancel === true);
-	const isPublished = $derived(archive?.status === ProcessingStatus.COMPLETED && archive.moderationStatus === "APPROVED");
+	const isPublished = $derived(
+		archive?.status === ProcessingStatus.COMPLETED && archive.moderationStatus === "APPROVED" && !archive.isPrivate
+	);
+	const isPrivateReady = $derived(
+		archive?.status === ProcessingStatus.COMPLETED && archive.moderationStatus === "APPROVED" && archive.isPrivate
+	);
 	const currentStep = $derived(!archive?.startedAt ? -1 : steps.findIndex((step) => step.key === archive?.progressStep));
 	const heading = $derived(
 		archive?.status === ProcessingStatus.COMPLETED
@@ -100,13 +107,15 @@
 		archive?.status === ProcessingStatus.QUEUED
 			? `Your request is waiting${archive.queuePosition ? ` at position ${archive.queuePosition}` : ""}.`
 			: archive?.status === ProcessingStatus.COMPLETED
-				? isPublished
-					? "The preserved page is ready to read in the archive."
-					: archive.moderationStatus === "REJECTED"
-						? "This snapshot was not approved."
-						: archive.moderationStatus === "RESUBMITTED"
-							? "Your snapshot has been submitted for review again."
-							: "Your snapshot has been submitted for approval."
+				? isPrivateReady
+					? "The preserved page is ready in your private archive."
+					: isPublished
+						? "The preserved page is ready to read in the archive."
+						: archive.moderationStatus === "REJECTED"
+							? "This snapshot was not approved."
+							: archive.moderationStatus === "RESUBMITTED"
+								? "Your snapshot has been submitted for review again."
+								: "Your snapshot has been submitted for approval."
 				: archive?.status === ProcessingStatus.CANCELLED
 					? "The archive was cancelled. No new snapshot was published."
 					: archive && terminal
@@ -164,7 +173,9 @@
 		stopMonitoring();
 		const version = monitorVersion;
 		try {
-			eventSource = new EventSource(`${apiBaseUrl}/api/snapshots/${encodeURIComponent(id)}/events`);
+			eventSource = new EventSource(`${apiBaseUrl}/api/snapshots/${encodeURIComponent(id)}/events`, {
+				withCredentials: true
+			});
 			eventSource.onmessage = (event) => {
 				if (version !== monitorVersion) return;
 				try {
@@ -272,7 +283,8 @@
 				queuePosition: null,
 				canCancel: true,
 				cancelRequested: false,
-				startedAt: null
+				startedAt: null,
+				isPrivate: result.isPrivate
 			});
 			void loadMetadata(result.id);
 			updateSnapshotInUrl(result.id);
@@ -320,7 +332,7 @@
 	function restart(): void {
 		stopMonitoring();
 		archive = null;
-		draft = { source: "url", sourceUrl: "", file: null, title: "", description: "", tags: [] };
+		draft = { source: "url", sourceUrl: "", file: null, title: "", description: "", tags: [], isPrivate: false };
 		errors = {};
 		submittedTitle = "";
 		submittedSource = "";
@@ -387,11 +399,11 @@
 			</BreadcrumbList>
 		</Breadcrumb>
 		<section class="intro" aria-labelledby="page-title">
-			<p class="eyebrow">Contribute to the public record</p>
+			<p class="eyebrow">Contribute an archive record</p>
 			<h1 id="page-title">Archive a page.</h1>
 			<p class="lede">
 				Preserve a public web page as it appears now, or add a saved copy from your device. Give it a clear title so the record
-				can be found later.
+				can be found later in your records or the public register.
 			</p>
 		</section>
 
@@ -414,6 +426,7 @@
 					</div>
 					<p class="progress-description">{progressDescription}</p>
 					{#if archive.status === ProcessingStatus.COMPLETED}<SnapshotModerationStatus status={archive.moderationStatus} />{/if}
+					{#if archive.isPrivate}<p class="visibility-note">Private · visible only to you and authorized archive staff</p>{/if}
 					{#if monitorError}<p class="status-note" role="status">{monitorError}</p>{/if}
 					<dl class="progress-source">
 						{#if submittedTitle}<div>
@@ -467,7 +480,9 @@
 						{#if isPublished}<Button variant="primary" href={`/snapshots/${archive.id}`}
 								>Open snapshot <ArrowRight size={18} aria-hidden="true" /></Button
 							>{/if}
-						{#if archive.status === ProcessingStatus.COMPLETED && !isPublished}<Button variant="text" onclick={refreshStatus}
+						{#if archive.status === ProcessingStatus.COMPLETED && !isPublished && !isPrivateReady}<Button
+								variant="text"
+								onclick={refreshStatus}
 								>Refresh status</Button
 							>{/if}
 						{#if account.session?.user?.isRegistrationComplete}<Button variant="text" href={`/account/submissions/${archive.id}`}
@@ -532,7 +547,11 @@
 									maxlength={snapshotLimits.title}
 									placeholder="A clear title for this page"
 								/>
-								<InputDescription>This title appears in search results and the snapshot record.</InputDescription>
+								<InputDescription>
+									{draft.isPrivate
+										? "This title appears in your private snapshot record."
+										: "This title appears in search results and the snapshot record."}
+								</InputDescription>
 								{#if errors.title}<InputError>{errors.title}</InputError>{/if}
 							</InputRoot>
 							<div class="field-grid">
@@ -562,6 +581,9 @@
 									}}
 								/>
 							</div>
+							{#if account.session?.user?.isRegistrationComplete}
+								<SnapshotVisibilityField bind:checked={draft.isPrivate} disabled={submitting} />
+							{/if}
 							{#if formError}<p class="form-alert" role="alert"><span aria-hidden="true">!</span>{formError}</p>{/if}
 							<div class="form-actions">
 								<Button variant="primary" type="submit" loading={submitting} loadingLabel="Starting archive…"
@@ -820,6 +842,12 @@
 	.progress-description {
 		margin: 0 0 2rem;
 		color: var(--marginal-note);
+	}
+	.visibility-note {
+		margin: -1.25rem 0 2rem;
+		color: var(--reading-ink);
+		font-size: 0.875rem;
+		font-weight: 600;
 	}
 	.status-note {
 		margin: 0;

@@ -80,6 +80,9 @@
 									</a>
 								{/if}
 								<p class="source-type">{item.sourceType}</p>
+								<Badge variant={item.isPrivate ? "warning" : "neutral"} size="compact">
+									{item.isPrivate ? "Private" : "Public"}
+								</Badge>
 							</TableCell>
 							<TableCell class="date-cell" data-label="Date">
 								<ArchiveTimestamp value={item.createdAt} density="compact" />

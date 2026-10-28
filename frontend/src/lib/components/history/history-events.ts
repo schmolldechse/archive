@@ -6,6 +6,7 @@ import HistoryDetailsUpdated from "./events/HistoryDetailsUpdated.svelte";
 import HistoryModerated from "./events/HistoryModerated.svelte";
 import HistorySourceUpdated from "./events/HistorySourceUpdated.svelte";
 import HistorySummary from "./events/HistorySummary.svelte";
+import HistoryVisibilityUpdated from "./events/HistoryVisibilityUpdated.svelte";
 
 export type HistoryTone = "neutral" | "register" | "success" | "warning" | "critical";
 export type HistoryEventComponent = Component<{ item: SnapshotHistoryItemResponse }>;
@@ -130,6 +131,14 @@ const eventDefinitions: Record<string, HistoryEventDefinition> = {
 	"snapshot.attribution_updated@1": {
 		component: HistoryAttributionUpdated,
 		presentation: () => ({ category: "Attribution", title: "Snapshot attribution updated", tone: "register" })
+	},
+	"snapshot.visibility_updated@1": {
+		component: HistoryVisibilityUpdated,
+		presentation: (data) => ({
+			category: "Visibility",
+			title: historyBoolean(data, "isPrivate") ? "Snapshot made private" : "Snapshot made public",
+			tone: "register"
+		})
 	}
 };
 

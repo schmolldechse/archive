@@ -11,6 +11,7 @@ export interface ArchiveDraft {
 	title: string;
 	description: string;
 	tags: string[];
+	isPrivate: boolean;
 }
 
 export type ArchiveFieldErrors = Partial<Record<"sourceUrl" | "file" | "title" | "description" | "tags" | "form", string>>;
@@ -107,7 +108,13 @@ export async function createSnapshot(
 	let body: string | FormData;
 	let headers: HeadersInit | undefined;
 	if (draft.source === "url") {
-		body = JSON.stringify({ sourceUrl: draft.sourceUrl.trim(), title, ...(description ? { description } : {}), tags });
+		body = JSON.stringify({
+			sourceUrl: draft.sourceUrl.trim(),
+			title,
+			...(description ? { description } : {}),
+			tags,
+			isPrivate: draft.isPrivate
+		});
 		headers = { "content-type": "application/json" };
 	} else {
 		body = new FormData();
@@ -116,6 +123,7 @@ export async function createSnapshot(
 		body.append("sourceUrl", draft.sourceUrl.trim());
 		if (description) body.append("description", description);
 		for (const tag of tags) body.append("tags", tag);
+		body.append("isPrivate", String(draft.isPrivate));
 	}
 	return apiResponse(await fetcher(endpoint, { method: "POST", headers, body, credentials: "include" }));
 }
@@ -125,7 +133,11 @@ export async function getSnapshotStatus(
 	id: string,
 	fetcher: typeof fetch = fetch
 ): Promise<SnapshotProcessingResponse> {
-	return apiResponse(await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/status`));
+	return apiResponse(
+		await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/status`, {
+			credentials: "include"
+		})
+	);
 }
 
 export async function cancelSnapshot(
@@ -134,7 +146,10 @@ export async function cancelSnapshot(
 	fetcher: typeof fetch = fetch
 ): Promise<SnapshotProcessingResponse> {
 	return apiResponse(
-		await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/cancel`, { method: "POST" })
+		await fetcher(`${baseUrl.replace(/\/$/, "")}/api/snapshots/${encodeURIComponent(id)}/cancel`, {
+			method: "POST",
+			credentials: "include"
+		})
 	);
 }
 

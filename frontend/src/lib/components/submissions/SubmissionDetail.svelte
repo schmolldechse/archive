@@ -195,6 +195,12 @@
 				<span class="detail-status__label">Review status</span>
 				<SnapshotModerationStatus status={detail.moderation.status} />
 			</div>
+			<div class="detail-status__item">
+				<span class="detail-status__label">Visibility</span>
+				<Badge variant={detail.snapshot.isPrivate ? "warning" : "neutral"} size="compact">
+					{detail.snapshot.isPrivate ? "Private" : "Public"}
+				</Badge>
+			</div>
 			{#if detail.processingStatus !== "COMPLETED" || detail.snapshot.quality === null}
 				<div class="detail-status__item">
 					<span class="detail-status__label">
@@ -255,6 +261,10 @@
 				<div>
 					<dt>Source type</dt>
 					<dd>{detail.snapshot.sourceType}</dd>
+				</div>
+				<div>
+					<dt>Visibility</dt>
+					<dd>{detail.snapshot.isPrivate ? "Private" : "Public"}</dd>
 				</div>
 				{#if detail.snapshot.createdBy}<div>
 						<dt>Submitted by</dt>

@@ -17,6 +17,7 @@
 	import Button from "$lib/components/ui/Button.svelte";
 	import { InputControl, InputDescription, InputError, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import type { SnapshotEditDraft } from "./snapshot-edit-draft";
+	import SnapshotVisibilityField from "./SnapshotVisibilityField.svelte";
 
 	type EditableField = "sourceUrl" | "title" | "description" | "tags" | "createdByHandle" | "form";
 	type FieldErrors = Partial<Record<EditableField, string>>;
@@ -110,7 +111,7 @@
 
 		saving = true;
 		onSavingChange(true);
-		const shared: UpdateOwnSnapshotRequest = {
+		const shared = {
 			sourceUrl: draft.sourceUrl.trim(),
 			title: draft.title.trim(),
 			description: draft.description.trim() || null,
@@ -118,7 +119,7 @@
 		};
 		const body: UpdateOwnSnapshotRequest | UpdateSnapshotForAdminRequest = admin
 			? { ...shared, createdByHandle: draft.createdByHandle.trim().toLowerCase() || null }
-			: shared;
+			: { ...shared, isPrivate: draft.isPrivate };
 		try {
 			const response = await fetch(apiUrl(`/api/${admin ? "admin" : "users"}/snapshots/${detail.snapshot.id}`), {
 				method: "PUT",
@@ -359,6 +360,9 @@
 					<Trash2 aria-hidden="true" />Remove attribution
 				</Button>
 			</div>
+		{/if}
+		{#if !admin}
+			<SnapshotVisibilityField id="snapshot-edit-private" bind:checked={draft.isPrivate} disabled={controlsDisabled} />
 		{/if}
 	</div>
 	{#if sourceChanged}
