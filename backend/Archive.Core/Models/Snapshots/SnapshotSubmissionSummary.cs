@@ -9,4 +9,4 @@ public sealed record SnapshotSubmissionSummary(Guid Id, string Title, string? So
     SourceType SourceType, DateTimeOffset CreatedAt, DateTimeOffset ModerationUpdatedAt,
     SnapshotModerationStatus ModerationStatus, ProcessingStatus ProcessingStatus,
     SnapshotQuality? Quality, DateTimeOffset? CaptureCompletedAt, long? DurationMilliseconds,
-    long? StorageBytes, int? ResourceCount, PublicUser? CreatedBy);
+    long? StorageBytes, int? ResourceCount, PublicUser? CreatedBy, bool IsPrivate);

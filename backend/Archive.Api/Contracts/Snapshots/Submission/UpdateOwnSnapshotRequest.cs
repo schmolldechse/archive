@@ -27,9 +27,14 @@ public sealed class UpdateOwnSnapshotRequest : IValidatableObject
     [MaxLength(SnapshotValidation.MaxTags)]
     public string[]? Tags { get; init; }
 
-    public SnapshotUpdate ToModel() => new(SourceUrl, Title, Description, Tags);
+    [JsonPropertyName("isPrivate")]
+    [Description("Complete desired visibility state. Only the owning account can change this value.")]
+    public required bool IsPrivate { get; init; }
+
+    public SnapshotOwnerUpdate ToModel() =>
+        new(new SnapshotUpdate(SourceUrl, Title, Description, Tags), IsPrivate);
 
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
-        ModelValidation.GetErrors(ToModel()).ToValidationResults();
+        ModelValidation.GetErrors(ToModel().Snapshot).ToValidationResults();
 }

@@ -312,6 +312,10 @@ namespace Archive.Core.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("duration_ms");
 
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_private");
+
                     b.Property<SnapshotModerationStatus>("ModerationStatus")
                         .HasColumnType("types.snapshot_moderation_status")
                         .HasColumnName("moderation_status");

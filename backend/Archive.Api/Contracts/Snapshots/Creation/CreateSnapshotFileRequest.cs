@@ -46,6 +46,11 @@ public sealed class CreateSnapshotFileRequest : IValidatableObject
     [MaxLength(SnapshotValidation.MaxTags)]
     public string[]? Tags { get; init; }
 
+    [FromForm(Name = "isPrivate")]
+    [JsonPropertyName("isPrivate")]
+    [Description("Whether the snapshot is visible only to its owner and authorized archive staff. Requires a fully registered account.")]
+    public bool IsPrivate { get; init; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         foreach (var result in SnapshotRequestValidation.Validate(SourceUrl, Title, Description, Tags))

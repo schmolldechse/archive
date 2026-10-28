@@ -99,6 +99,10 @@ export type CreateSnapshotUrlRequest = {
 	 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
 	 */
 	tags?: null | Array<string>;
+	/**
+	 * Whether the snapshot is visible only to its owner and authorized archive staff. Requires a fully registered account.
+	 */
+	isPrivate?: boolean;
 };
 
 /**
@@ -226,6 +230,10 @@ export type ReviewSnapshotRequest = {
  */
 export type SnapshotCreationResponse = {
 	/**
+	 * Whether this submission is excluded from public discovery and public snapshot routes.
+	 */
+	isPrivate: boolean;
+	/**
 	 * Initial review state. Public metadata remains unavailable until capture and approval are complete.
 	 */
 	moderationStatus: SnapshotModerationStatus;
@@ -238,7 +246,7 @@ export type SnapshotCreationResponse = {
 	 */
 	statusUrl: string;
 	/**
-	 * Relative public metadata URL. Returns 404 until capture storage and approval are complete.
+	 * Relative metadata URL. Private submissions use the authenticated owner route.
 	 */
 	snapshotUrl: string;
 };
@@ -379,6 +387,10 @@ export type SnapshotOwnerListResponse = {
  */
 export type SnapshotProcessingResponse = {
 	/**
+	 * Whether the snapshot is excluded from public metadata and content routes.
+	 */
+	isPrivate: boolean;
+	/**
 	 * Review state; capture completion does not imply approval.
 	 */
 	moderationStatus: SnapshotModerationStatus;
@@ -424,6 +436,10 @@ export enum SnapshotQuality {
  * Snapshot metadata and resource URLs.
  */
 export type SnapshotResponse = {
+	/**
+	 * Whether this snapshot is excluded from public discovery and ordinary public resource routes.
+	 */
+	isPrivate: boolean;
 	/**
 	 * Snapshot identifier.
 	 */
@@ -537,6 +553,10 @@ export type SnapshotSubmissionListResponse = {
  */
 export type SnapshotSubmissionSummaryResponse = {
 	/**
+	 * Whether this submission is excluded from public discovery and ordinary public resource routes.
+	 */
+	isPrivate: boolean;
+	/**
 	 * Snapshot identifier.
 	 */
 	id: string;
@@ -608,6 +628,10 @@ export type UpdateOwnSnapshotRequest = {
 	title: string;
 	description?: null | string;
 	tags?: null | Array<string>;
+	/**
+	 * Complete desired visibility state. Only the owning account can change this value.
+	 */
+	isPrivate: boolean;
 };
 
 /**
@@ -952,6 +976,10 @@ export type CreateSnapshotData = {
 		 * Snapshot tags. Leading hash signs and surrounding whitespace are removed; values are stored in lowercase without duplicates. Empty tags and control characters are not permitted.
 		 */
 		tags?: null | Array<string>;
+		/**
+		 * Whether the snapshot is visible only to its owner and authorized archive staff. Requires a fully registered account.
+		 */
+		isPrivate?: boolean;
 	};
 	path?: never;
 	query?: never;

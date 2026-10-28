@@ -18,4 +18,10 @@ public interface ISnapshotRepository
     Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path, Guid subjectUserId,
         CancellationToken cancellationToken = default);
     Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default);
+    /// <summary>Checks public, owner, or permission-based access to processing state without disclosing privacy.</summary>
+    Task<bool> CanReadProcessingAsync(Guid snapshotId, Guid? subjectUserId,
+        CancellationToken cancellationToken = default);
+    /// <summary>Checks whether the public workflow or a private owner may cancel processing.</summary>
+    Task<bool> CanCancelProcessingAsync(Guid snapshotId, Guid? subjectUserId,
+        CancellationToken cancellationToken = default);
 }

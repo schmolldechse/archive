@@ -10,6 +10,10 @@ namespace Archive.Api.Contracts.Snapshots;
 [Description("Snapshot metadata and resource URLs.")]
 public sealed class SnapshotResponse
 {
+    [JsonPropertyName("isPrivate")]
+    [Description("Whether this snapshot is excluded from public discovery and ordinary public resource routes.")]
+    public required bool IsPrivate { get; init; }
+
     [JsonPropertyName("id")]
     [Description("Snapshot identifier.")]
     public required Guid Id { get; init; }

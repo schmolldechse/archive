@@ -29,6 +29,7 @@ internal sealed partial class SnapshotRepository
 
         var published = database.Snapshots.AsNoTracking()
             .Where(snapshot => snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && !snapshot.IsPrivate
                 && snapshot.Quality != null);
         var query = published;
         foreach (var term in textTerms)

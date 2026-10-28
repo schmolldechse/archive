@@ -67,6 +67,9 @@ public sealed class Snapshot
     [Column("moderation_status")]
     public SnapshotModerationStatus ModerationStatus { get; set; } = SnapshotModerationStatus.Pending;
 
+    [Column("is_private")]
+    public bool IsPrivate { get; set; }
+
     [InverseProperty(nameof(SnapshotTag.Snapshot))]
     public List<SnapshotTag> SnapshotTags { get; set; } = [];
 }

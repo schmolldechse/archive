@@ -42,6 +42,8 @@ internal static partial class SnapshotModelMapper
         nameof(SnapshotSubmissionSummary.StorageBytes))]
     [MapProperty([nameof(SnapshotSubmissionRow.Snapshot), nameof(Snapshot.ResourceCount)],
         nameof(SnapshotSubmissionSummary.ResourceCount))]
+    [MapProperty([nameof(SnapshotSubmissionRow.Snapshot), nameof(Snapshot.IsPrivate)],
+        nameof(SnapshotSubmissionSummary.IsPrivate))]
     [MapProperty([nameof(SnapshotSubmissionRow.Snapshot), nameof(Snapshot.CreatedBy)],
         nameof(SnapshotSubmissionSummary.CreatedBy),
         Use = nameof(MapCreator))]
