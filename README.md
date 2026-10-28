@@ -2,7 +2,7 @@
 
 Archive is a public register of preserved web pages. It captures public URLs or imports HTML, MHTML, and WebArchive files, stores their resources and provenance, and publishes approved snapshots as immutable records.
 
-Capture and publication are separate. A worker can finish storing a snapshot while that snapshot remains private until moderation approves it.
+Capture, moderation, and owner visibility are separate. A worker can finish storing a snapshot while it remains unpublished pending approval, and a fully registered owner can keep even an approved snapshot private.
 
 ## Capabilities
 
@@ -12,6 +12,7 @@ Capture and publication are separate. A worker can finish storing a snapshot whi
 - Inspect source, capture time, quality, resource count, size, submitter, and lifecycle history.
 - Follow queued and running captures through server-sent events with polling fallback.
 - Review submissions and manage role-based access with per-user permission overrides.
+- Let fully registered owners create private snapshots or change their visibility later without exposing them through public search and resource routes.
 - Permanently delete owned snapshots or, with snapshot administration access, any snapshot in every lifecycle state.
 - Enforce public-network boundaries and capture limits.
 
