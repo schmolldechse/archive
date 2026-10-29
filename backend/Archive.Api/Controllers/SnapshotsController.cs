@@ -104,7 +104,7 @@ public sealed partial class SnapshotsController(
     [HttpGet("{snapshotId:guid}/content/{**path}")]
     [EndpointName("GetSnapshotContent")]
     [EndpointSummary("Gets archived snapshot content.")]
-    [EndpointDescription("Returns the archived start page when path is empty, or the requested manifest-authorized resource. The credential-free snapshot origin accepts public snapshots and short-lived bearer capabilities issued after private access has been authorized. The response Content-Type depends on the resource. Static API-origin responses support Byte Range requests and may return HTTP 206 or 416. Content is served with a restrictive Content-Security-Policy.")]
+    [EndpointDescription("Returns the archived start page when path is empty, or the requested manifest-authorized resource. The credential-free snapshot origin accepts public snapshots and short-lived bearer capabilities issued after private access has been authorized. Immutable assets support one HTTP Byte Range and may return 206 or 416 on both delivery origins. Content is served with a restrictive Content-Security-Policy.")]
     [ProducesResponseType<Stream>(StatusCodes.Status200OK, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<Stream>(StatusCodes.Status206PartialContent, "application/octet-stream", "text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -120,14 +120,23 @@ public sealed partial class SnapshotsController(
         if (hasPrivateAccess && (!snapshotOriginDelivery ||
                 !accessTokens.TryValidate(snapshotId, accessToken!, out accessSubjectUserId))) return NotFound();
 
+        var contentRequest = new SnapshotContentRequest(Request.Headers.Range.ToString(),
+            Request.Headers.IfRange.ToString());
         var result = hasPrivateAccess
             ? await snapshotRepository.OpenAuthorizedContentAsync(snapshotId, resourcePath, accessSubjectUserId,
-                cancellationToken)
-            : await snapshotRepository.OpenContentAsync(snapshotId, resourcePath, cancellationToken);
+                contentRequest, cancellationToken)
+            : await snapshotRepository.OpenContentAsync(snapshotId, resourcePath, contentRequest, cancellationToken);
         if (result is SnapshotContentResult.NotFound)
             return NotFound();
         if (result is SnapshotContentResult.InvalidPath)
             return StatusCode(StatusCodes.Status400BadRequest);
+        if (result is SnapshotContentResult.RangeNotSatisfiable unsatisfied)
+        {
+            Response.Headers["Accept-Ranges"] = "bytes";
+            Response.Headers.ETag = unsatisfied.EntityTag;
+            Response.Headers.ContentRange = $"bytes */{unsatisfied.Length}";
+            return StatusCode(StatusCodes.Status416RangeNotSatisfiable);
+        }
         var stored = ((SnapshotContentResult.Found)result).Resource;
         try
         {
@@ -143,6 +152,7 @@ public sealed partial class SnapshotsController(
                 var scope = $"{snapshotContent.PublicOrigin}/api/snapshots/{snapshotId}/content/" +
                     (hasPrivateAccess ? $"~{accessToken}/" : string.Empty);
                 contentPolicies.Apply(Response, scope, stored.ResourceRole, stored.ContentType);
+                ApplyRepresentationHeaders(stored);
                 if (stored.IsOriginalSource)
                 {
                     Response.Headers.ContentDisposition = "attachment";
@@ -157,18 +167,34 @@ public sealed partial class SnapshotsController(
             Response.Headers.AccessControlAllowOrigin = "*";
             Response.Headers.ContentSecurityPolicy = ArchivedContentPolicy(ArchivedContentOrigin(), IsRootHtml(resourcePath, stored.ContentType));
             Response.Headers["Referrer-Policy"] = "no-referrer";
+            ApplyRepresentationHeaders(stored);
             if (stored.IsOriginalSource)
             {
                 Response.Headers.ContentDisposition = "attachment";
-                return File(stored.Content, "application/octet-stream", enableRangeProcessing: true);
+                return File(stored.Content, "application/octet-stream", enableRangeProcessing: false);
             }
-            return File(stored.Content, stored.ContentType ?? "application/octet-stream", enableRangeProcessing: true);
+            return File(stored.Content, stored.ContentType ?? "application/octet-stream", enableRangeProcessing: false);
         }
         catch
         {
             await stored.Content.DisposeAsync();
             throw;
         }
+    }
+
+    private void ApplyRepresentationHeaders(Archive.Core.Models.Snapshots.SnapshotContent stored)
+    {
+        if (!string.IsNullOrWhiteSpace(stored.EntityTag))
+            Response.Headers.ETag = stored.EntityTag;
+        if (stored.SupportsRanges)
+            Response.Headers["Accept-Ranges"] = "bytes";
+        if (stored.RangeStart is long start && stored.TotalLength is long total && stored.Length is long length)
+        {
+            Response.StatusCode = StatusCodes.Status206PartialContent;
+            Response.Headers.ContentRange = $"bytes {start}-{start + length - 1}/{total}";
+        }
+        if (stored.Length is long contentLength)
+            Response.ContentLength = contentLength;
     }
 
     private static bool IsRootHtml(string? path, string? contentType) =>

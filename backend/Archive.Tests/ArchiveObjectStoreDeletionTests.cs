@@ -62,6 +62,12 @@ public sealed class ArchiveObjectStoreDeletionTests
         public Task<ArchiveObject?> GetAsync(string key, CancellationToken cancellationToken = default) =>
             Task.FromResult<ArchiveObject?>(null);
 
+        public Task<ArchiveObjectMetadata?> GetMetadataAsync(string key,
+            CancellationToken cancellationToken = default) => Task.FromResult<ArchiveObjectMetadata?>(null);
+
+        public Task<ArchiveObject?> GetRangeAsync(string key, long offset, long length,
+            CancellationToken cancellationToken = default) => Task.FromResult<ArchiveObject?>(null);
+
         public Task<IReadOnlyList<ArchiveObjectInfo>> ListAsync(string prefix,
             CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ArchiveObjectInfo>>(
             _objects.Keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal))

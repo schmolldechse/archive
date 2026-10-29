@@ -12,10 +12,11 @@ public interface ISnapshotRepository
     Task<SnapshotHistoryPage?> HistoryAsync(Guid snapshotId, int page, int pageSize,
         CancellationToken cancellationToken = default);
     /// <summary>Opens public content after authorizing the requested resource through the snapshot manifest.</summary>
-    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
+    Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, SnapshotContentRequest? request = null,
         CancellationToken cancellationToken = default);
     /// <summary>Opens manifest-authorized content after the API has authorized private snapshot access.</summary>
     Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path, Guid subjectUserId,
+        SnapshotContentRequest? request = null,
         CancellationToken cancellationToken = default);
     Task<ArchiveObject?> OpenScreenshotAsync(Guid snapshotId, CancellationToken cancellationToken = default);
     /// <summary>Checks public, owner, or permission-based access to processing state without disclosing privacy.</summary>

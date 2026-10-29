@@ -38,15 +38,17 @@ internal sealed partial class SnapshotRepository(
         history.ReadPublicAsync(snapshotId, page, pageSize, cancellationToken);
 
     public Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path,
+        SnapshotContentRequest? request = null,
         CancellationToken cancellationToken = default) =>
-        OpenContentAsync(snapshotId, path, null, requireApproved: true, cancellationToken);
+        OpenContentAsync(snapshotId, path, null, requireApproved: true, request, cancellationToken);
 
     public Task<SnapshotContentResult> OpenAuthorizedContentAsync(Guid snapshotId, string? path, Guid subjectUserId,
+        SnapshotContentRequest? request = null,
         CancellationToken cancellationToken = default) =>
-        OpenContentAsync(snapshotId, path, subjectUserId, requireApproved: false, cancellationToken);
+        OpenContentAsync(snapshotId, path, subjectUserId, requireApproved: false, request, cancellationToken);
 
     private async Task<SnapshotContentResult> OpenContentAsync(Guid snapshotId, string? path, Guid? subjectUserId,
-        bool requireApproved, CancellationToken cancellationToken)
+        bool requireApproved, SnapshotContentRequest? request, CancellationToken cancellationToken)
     {
         var snapshot = await database.Snapshots
             .AsNoTracking()
@@ -126,6 +128,26 @@ internal sealed partial class SnapshotRepository(
             return new SnapshotContentResult.NotFound();
         }
 
+        request ??= SnapshotContentRequest.Full;
+        var entityTag = $"\"{resource.Sha256}\"";
+        var isDocument = resource.Role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument;
+        if (!isDocument && !string.IsNullOrWhiteSpace(request.Range) &&
+            (string.IsNullOrWhiteSpace(request.IfRange) ||
+                string.Equals(request.IfRange.Trim(), entityTag, StringComparison.Ordinal)))
+        {
+            var metadata = await objectStore.GetMetadataAsync(resource.ObjectKey, cancellationToken);
+            if (metadata is null)
+                return new SnapshotContentResult.NotFound();
+            if (!SnapshotByteRange.TryResolve(request.Range, metadata.Length, out var selected))
+                return new SnapshotContentResult.RangeNotSatisfiable(metadata.Length, entityTag);
+            var partial = await objectStore.GetRangeAsync(resource.ObjectKey, selected.Start, selected.Length,
+                cancellationToken);
+            if (partial is null)
+                return new SnapshotContentResult.NotFound();
+            return new SnapshotContentResult.Found(new(partial.Content, resource.ContentType, false, resource.Role,
+                selected.Length, metadata.Length, selected.Start, entityTag, SupportsRanges: true));
+        }
+
         var stored = await objectStore.GetAsync(resource.ObjectKey, cancellationToken);
         if (stored is null)
             logger.LogWarning("Snapshot {SnapshotId} manifest resource {Path} is missing from object storage",
@@ -133,12 +155,12 @@ internal sealed partial class SnapshotRepository(
         if (stored is null)
             return new SnapshotContentResult.NotFound();
 
-        var isDocument = resource.Role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument;
         var requiresNormalization = isDocument &&
             (!string.Equals(manifest.Interaction.Normalizer, SnapshotDocumentNormalizer.Version,
                 StringComparison.Ordinal) || manifest.Interaction.Diagnostic is not null);
         if (!requiresNormalization)
-            return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
+            return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role,
+                stored.Length, stored.Length, EntityTag: entityTag, SupportsRanges: !isDocument));
 
         if (!SnapshotDocumentNormalizer.SupportsInputVersion(manifest.Interaction.Normalizer))
         {
@@ -165,8 +187,10 @@ internal sealed partial class SnapshotRepository(
             var normalized = SnapshotDocumentNormalizer.Normalize(html,
                 resource.SourceUrl ?? manifest.Provenance.SourceUrl, replayMap, resource.Path);
             var bytes = Encoding.UTF8.GetBytes(normalized.Html);
+            var normalizedEntityTag = $"\"{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant()}\"";
             return new SnapshotContentResult.Found(new(new MemoryStream(bytes, writable: false),
-                resource.ContentType, false, resource.Role));
+                resource.ContentType, false, resource.Role, bytes.LongLength, bytes.LongLength,
+                EntityTag: normalizedEntityTag));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

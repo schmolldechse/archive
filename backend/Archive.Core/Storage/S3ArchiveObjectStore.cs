@@ -32,6 +32,43 @@ internal sealed class S3ArchiveObjectStore(IAmazonS3 client, ObjectStorageOption
         }
     }
 
+    public async Task<ArchiveObjectMetadata?> GetMetadataAsync(string key,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await client.GetObjectMetadataAsync(_bucket, key, cancellationToken);
+            return new ArchiveObjectMetadata(response.Headers.ContentType ?? "application/octet-stream",
+                response.Headers.ContentLength);
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public async Task<ArchiveObject?> GetRangeAsync(string key, long offset, long length,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
+        try
+        {
+            var response = await client.GetObjectAsync(new GetObjectRequest
+            {
+                BucketName = _bucket,
+                Key = key,
+                ByteRange = new ByteRange(offset, checked(offset + length - 1))
+            }, cancellationToken);
+            return new ArchiveObject(response.ResponseStream,
+                response.Headers.ContentType ?? "application/octet-stream", response.Headers.ContentLength);
+        }
+        catch (AmazonS3Exception exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
     public async Task<IReadOnlyList<ArchiveObjectInfo>> ListAsync(string prefix,
         CancellationToken cancellationToken = default)
     {
