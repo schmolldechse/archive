@@ -213,6 +213,8 @@ Archived pages are untrusted input. Canonical replay applies the same trust boun
 
 - approved versioned public captures load from a dedicated credential-free origin in an opaque iframe with `sandbox="allow-scripts"`;
 - archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
+- finite native audio and video are activated during URL capture; MHTML ingestion can complete only explicit missing media, poster, and text-track references through credential-free, public-network-guarded requests;
+- immutable manifest assets support bounded single-range delivery on public and access-controlled paths, while partial capture responses are never published as complete media;
 - snapshot-scoped CSP, the iframe sandbox, method checks, and a snapshot shim prevent live network access, forms, persistent workers, pop-ups, storage privileges, and top navigation in every browser;
 - `Connection-Allowlist` is sent unconditionally as an additional restriction for browsers that implement it, without controlling whether JavaScript executes;
 - page-created `blob:` workers are rejected, while exact captured worker scripts run through a local bootstrap that installs snapshot URL mapping and connection guards before classic or module code executes;
@@ -224,6 +226,8 @@ Archived pages are untrusted input. Canonical replay applies the same trust boun
 The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot and prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque. New captures persist normalizer v3. Existing v1 and v2 root and nested documents are re-normalized in memory at the manifest-authorized read boundary so they receive the current shim without mutating preserved objects or provenance hashes; unknown normalizers fail closed.
 
 The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, and page, resource, byte, duration, and import-depth limits bound work. Every redirect hop is revalidated. The final seed response is retained as `source.html`; `index.html` and linked documents below `pages/` are derived through the versioned parser and keep scripts while rewriting captured literal dependencies. Only rendered HTTP(S) anchor and area links on the seed's effective origin enter the recursive queue; forms, downloads, external origins, subdomains, and undiscoverable routes do not. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
+
+Media support is intentionally classified by replay properties rather than adding browser roles. Complete directly addressable audio, video, posters, and text tracks remain ordinary manifest assets. Nested players remain nested documents. Adaptive manifests and segments are best-effort observations only; live, device, encrypted, and plugin media are unsupported because they cannot be made into finite self-contained HTTP resources without weakening isolation.
 
 ## Related documentation
 
