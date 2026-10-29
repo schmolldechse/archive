@@ -36,6 +36,7 @@
 		<iframe
 			src={data.snapshot.contentUrl ?? undefined}
 			title={`Archived page: ${data.snapshot.title}`}
+			allow="autoplay"
 			sandbox="allow-scripts"
 			referrerpolicy="no-referrer"
 		></iframe>

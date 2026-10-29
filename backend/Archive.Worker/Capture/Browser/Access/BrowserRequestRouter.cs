@@ -36,8 +36,8 @@ internal sealed class BrowserRequestRouter(IBrowserContext context) : IAsyncDisp
         return new Registration(_handlers, page);
     }
 
-    public Task<IAPIResponse> FetchAsync(IRoute route)
-        => route.FetchAsync(new RouteFetchOptions { MaxRedirects = 0 });
+    public Task<IAPIResponse> FetchAsync(IRoute route, IEnumerable<KeyValuePair<string, string>>? headers = null)
+        => route.FetchAsync(new RouteFetchOptions { MaxRedirects = 0, Headers = headers });
 
     public ValueTask DisposeAsync()
     {

@@ -85,6 +85,7 @@ public sealed class SnapshotContentPolicyTests
 
         var permissionsPolicy = response.Headers["Permissions-Policy"].ToString();
         Assert.DoesNotContain("ambient-light-sensor", permissionsPolicy, StringComparison.Ordinal);
+        Assert.DoesNotContain("autoplay=()", permissionsPolicy, StringComparison.Ordinal);
         Assert.Contains("camera=()", permissionsPolicy, StringComparison.Ordinal);
         Assert.Contains("microphone=()", permissionsPolicy, StringComparison.Ordinal);
     }
@@ -109,6 +110,8 @@ public sealed class SnapshotContentPolicyTests
         Assert.Contains("sendBeacon", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("blocked an arbitrary Blob worker", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("\"SharedWorker\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("HTMLTrackElement", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("enableMediaFallback", normalized.Html, StringComparison.Ordinal);
         Assert.True(normalized.Html.IndexOf("data-archive-snapshot", StringComparison.Ordinal) <
             normalized.Html.IndexOf("window.archived", StringComparison.Ordinal));
     }

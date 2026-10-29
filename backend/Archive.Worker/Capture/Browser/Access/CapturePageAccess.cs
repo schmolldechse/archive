@@ -90,7 +90,7 @@ internal sealed class CapturePageAccess : IDisposable
         // ContinueAsync bypasses routing for the remaining HTTP redirect chain.
         // Fetch and fulfill exactly one hop for every request so navigation and
         // asset redirects both become new routed requests before they are sent.
-        var response = await _requestRouter.FetchAsync(route);
+        var response = await _requestRouter.FetchAsync(route, CompleteInitialMediaRequest(request));
         if (CloudflareChallengeDetector.IsChallengeHeaders(response.Headers))
             ObserveChallenge();
 
@@ -120,6 +120,29 @@ internal sealed class CapturePageAccess : IDisposable
         }
 
         await route.FulfillAsync(new RouteFulfillOptions { Response = response });
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>>? CompleteInitialMediaRequest(IRequest request)
+    {
+        if (!string.Equals(request.ResourceType, "media", StringComparison.OrdinalIgnoreCase) ||
+            !request.Headers.TryGetValue("range", out var range) ||
+            !IsInitialSingleRange(range))
+            return null;
+
+        // Like pywb, request the complete representation when the browser starts at byte zero. Supplying the
+        // complete header set without Range prevents Playwright from retaining the partial upstream request.
+        return request.Headers.Where(header =>
+            !header.Key.Equals("range", StringComparison.OrdinalIgnoreCase)).ToArray();
+    }
+
+    private static bool IsInitialSingleRange(string value)
+    {
+        if (!value.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase) || value.Contains(','))
+            return false;
+        var range = value[6..].Trim();
+        var separator = range.IndexOf('-');
+        return separator == 1 && range[0] == '0' &&
+            (range.Length == 2 || long.TryParse(range[(separator + 1)..], out _));
     }
 
     public async Task NavigateAsync(CancellationToken cancellationToken)
