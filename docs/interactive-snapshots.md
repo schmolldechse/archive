@@ -35,6 +35,10 @@ The linked-page queue is bounded and de-duplicated after URL normalization. Quer
 
 For HTML, MHTML, and WebArchive uploads, the uploaded bytes remain immutable source material. The importer decodes the archive, builds a deterministic resource map, produces the canonical document, and keeps JavaScript disabled only in the worker context used to generate the screenshot.
 
+Native finite media follows the same self-contained model. During URL capture the worker briefly loads muted `video` and `audio` elements in the root document and captured frames so dormant direct sources can be requested. For MHTML uploads, which may reference media bytes that the exporting browser omitted, the importer may retrieve only explicit `video`, `audio`, `source`, `track`, and video-poster HTTP(S) references. Each redirect remains subject to the public-network guard, requests carry no source credentials or referrer, and only complete `200` responses that fit the existing resource and storage limits are retained. The original uploaded archive remains unchanged.
+
+Direct MP4, WebM, Ogg, MP3, AAC, WAV, Opus, FLAC, poster images, and WebVTT tracks can therefore replay when their complete resources were captured and the reader's browser supports the stored codec. A failed, partial, oversized, or unavailable direct resource is recorded as missing and makes the snapshot incomplete. Adaptive HLS/DASH graphs, live streams, Media Source Extensions assembled from uncaptured segments, WebRTC or device streams, DRM/EME, and legacy plugin objects are outside the guaranteed capture path. They remain blocked from contacting the live service during replay.
+
 Normalization performs the following operations:
 
 1. Remove source-provided CSP, refresh, referrer, integrity, credentialed CORS, ping, DNS-prefetch, preconnect, prefetch, and prerender controls that conflict with archive isolation.
@@ -149,6 +153,8 @@ The frontend embeds every snapshot with:
 
 The document response supplies a restrictive policy whose sources are scoped to the exact public or capability-prefixed snapshot content path. It permits captured scripts, inline historical scripts, styles, images, fonts, media, frames, same-snapshot reads, and the first-party `blob:` bootstrap used for captured dedicated workers while denying objects, forms, persistent workers, and connections outside that path.
 
+The viewer delegates `autoplay` to the opaque snapshot frame but does not relax the browser's own audible-media or user-gesture rules. Stored `autoplay`, `loop`, `muted`, `playsinline`, `preload`, and `controls` attributes remain intact. When an archived autoplay attempt is rejected and the original direct media element has no controls, the replay shim exposes native controls as a fallback. Camera, microphone, encrypted media, external frames, and live network access remain denied.
+
 Page-created `blob:` workers are rejected so archived code cannot create an uninstrumented execution realm. The replay policy permits WebAssembly compilation through the narrow `wasm-unsafe-eval` source expression without enabling JavaScript `eval`. A dedicated worker requested through an exact captured source URL is resolved to its snapshot asset and started through a short-lived, first-party `blob:` bootstrap. That bootstrap installs the captured-resource resolver before loading classic or module worker code. It limits Fetch and XHR to captured resources with `GET` or `HEAD`, omits credentials, rejects redirects, and blocks WebSocket, EventSource, WebTransport, Shared Worker, and WebRTC constructors as defense in depth. Shared Workers and Service Workers remain unavailable, and their request destinations are rejected by the content endpoint.
 
 New captures store the runtime shim with normalizer `archive-snapshot-v3`. Manifest-authorized reads upgrade existing v1 and v2 root and nested documents in memory before delivery; preserved objects and provenance hashes remain unchanged. Documents with an unknown normalizer or an unsafe normalization failure fail closed.
@@ -162,6 +168,8 @@ Additional response controls include:
 - `Cache-Control: no-store` for documents;
 - `X-DNS-Prefetch-Control: off` and removal of captured DNS, preconnect, prefetch, and prerender hints;
 - role-specific navigation checks for HTML, SVG, XML, and other active formats.
+
+Immutable assets are served with a strong manifest-hash ETag and support one closed, open-ended, or suffix byte range on both public and capability URLs. Satisfiable requests return `206` with an exact `Content-Range`; malformed, multiple, and unsatisfiable ranges return `416`. This gives native media elements and PDF viewers the seeking behavior they expect without treating a partial capture as a complete archived resource. Runtime-upgraded HTML documents do not advertise range support.
 
 ## Browser-independent containment
 

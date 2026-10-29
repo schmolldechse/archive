@@ -232,6 +232,7 @@ public sealed class BrowserCaptureEngine(IArchiveObjectStore objectStore, Archiv
                 progress?.Report(ProgressStep.LoadingDynamicContent);
 
                 await LoadDynamicContentAsync(page, cancellationToken);
+                await SnapshotMediaActivator.ActivateAsync(page, _limits.QuietPeriod, cancellationToken);
                 await access.VerifyCaptureAsync(cancellationToken);
                 var documentVersion = access.DocumentVersion;
                 var discoveredLinks = await DiscoverLinksAsync(page, cancellationToken);

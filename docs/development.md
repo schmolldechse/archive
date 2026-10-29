@@ -213,6 +213,9 @@ Use the relevant manual path when changing snapshot normalization, URL selection
 - submit a controlled site with recursively linked same-origin routes, follow the stored links in public and private playback, and confirm browser networking never returns to the live source;
 - verify fragments and query-bearing routes, a same-origin redirect, an external link, a missing route, and the configured linked-page limit produce the expected navigation and `COMPLETE`/`INCOMPLETE` quality;
 - repeat with missing, malformed, Safari-like, Firefox-like, and Chromium `Sec-CH-UA` values and confirm the same URL receives an identical script-capable policy without a `Vary` response.
+- capture a controlled page with initially dormant native video and audio, then verify playback, fallback controls, loop, poster, captions, and seeking in Safari and Chromium with the source server offline;
+- import an MHTML fixture whose markup references an omitted direct media file, confirm the completed media is manifest-authorized while the uploaded source hash is unchanged, and confirm a failed completion marks the snapshot incomplete;
+- request a stored media asset as full, closed, open-ended, and suffix representations through public and capability URLs, and verify exact `200`, `206`, and `416` headers without any live-origin request.
 
 ## Common startup failures
 

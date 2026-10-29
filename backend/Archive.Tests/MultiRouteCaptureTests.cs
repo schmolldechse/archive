@@ -157,6 +157,39 @@ public sealed class MultiRouteCaptureTests
         }
     }
 
+    [Fact]
+    public async Task ActivatesAndCapturesDormantNativeAudio()
+    {
+        var origin = $"http://127.0.0.1:{FreeTcpPort()}";
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls(origin);
+        await using var app = builder.Build();
+        app.MapGet("/", () => Results.Content("""
+            <!doctype html><html><head><link rel="icon" href="data:,"></head><body>
+            <audio preload="none" src="/tone.wav"></audio>
+            </body></html>
+            """, "text/html; charset=utf-8"));
+        app.MapGet("/tone.wav", () => Results.Bytes(CreateSilentWave(), "audio/wav"));
+        await app.StartAsync();
+        try
+        {
+            var store = new MemoryObjectStore();
+            var snapshotId = Guid.NewGuid();
+
+            var result = await CreateEngine(store, maxLinkedPages: 0).CaptureAsync(
+                new CaptureInput(snapshotId, SourceType.Url, origin, null), null, CancellationToken.None);
+
+            Assert.Equal(SnapshotQuality.Complete, result.Quality);
+            var manifest = await store.ReadJsonAsync<SnapshotManifest>($"snapshots/{snapshotId:N}/manifest.json");
+            Assert.Contains(manifest.Resources, resource => resource.SourceUrl == $"{origin}/tone.wav" &&
+                resource.ContentType.StartsWith("audio/wav", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
     private static BrowserCaptureEngine CreateEngine(IArchiveObjectStore store, int maxLinkedPages) => new(
         store,
         new ArchiveOptions
@@ -203,6 +236,24 @@ public sealed class MultiRouteCaptureTests
                 new MemoryStream(stored.Body, writable: false), stored.ContentType, stored.Body.LongLength));
         }
 
+        public Task<ArchiveObjectMetadata?> GetMetadataAsync(string key,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_objects.TryGetValue(key, out var stored))
+                return Task.FromResult<ArchiveObjectMetadata?>(null);
+            return Task.FromResult<ArchiveObjectMetadata?>(new(stored.ContentType, stored.Body.LongLength));
+        }
+
+        public Task<ArchiveObject?> GetRangeAsync(string key, long offset, long length,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_objects.TryGetValue(key, out var stored))
+                return Task.FromResult<ArchiveObject?>(null);
+            var body = stored.Body.AsSpan(checked((int)offset), checked((int)length)).ToArray();
+            return Task.FromResult<ArchiveObject?>(new ArchiveObject(
+                new MemoryStream(body, writable: false), stored.ContentType, body.LongLength));
+        }
+
         public Task<IReadOnlyList<ArchiveObjectInfo>> ListAsync(string prefix,
             CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ArchiveObjectInfo>>(
                 _objects.Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal))
@@ -242,5 +293,26 @@ public sealed class MultiRouteCaptureTests
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private static byte[] CreateSilentWave()
+    {
+        using var output = new MemoryStream();
+        using var writer = new BinaryWriter(output, Encoding.ASCII, leaveOpen: true);
+        const int dataLength = 800;
+        writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+        writer.Write(36 + dataLength);
+        writer.Write(Encoding.ASCII.GetBytes("WAVEfmt "));
+        writer.Write(16);
+        writer.Write((short)1);
+        writer.Write((short)1);
+        writer.Write(8_000);
+        writer.Write(8_000);
+        writer.Write((short)1);
+        writer.Write((short)8);
+        writer.Write(Encoding.ASCII.GetBytes("data"));
+        writer.Write(dataLength);
+        writer.Write(new byte[dataLength]);
+        return output.ToArray();
     }
 }

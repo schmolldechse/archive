@@ -7,6 +7,7 @@ namespace Archive.Worker.Capture.Browser;
 
 internal sealed class CapturedResourceCollector : IAsyncDisposable
 {
+    private static readonly TimeSpan MediaBodyTimeout = TimeSpan.FromSeconds(30);
     private readonly IPage _page;
     private readonly CapturedResourceArchive _archive;
     private readonly ILogger _logger;
@@ -164,6 +165,15 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
                 string.Equals(response.Request.Method, "HEAD", StringComparison.OrdinalIgnoreCase))
                 return;
 
+            if (response.Status == 206)
+            {
+                lock (_gate)
+                    _archive.RecordPartialResponse(response.Url, sequence);
+                _logger.LogDebug("Partielle Ressourcenantwort für {Url} wurde nicht als vollständiges Objekt gespeichert",
+                    response.Url);
+                return;
+            }
+
             var contentType = response.Headers.TryGetValue("content-type", out var header)
                 ? header.Trim()
                 : "application/octet-stream";
@@ -192,8 +202,24 @@ internal sealed class CapturedResourceCollector : IAsyncDisposable
             if (!IsArchivableContentType(contentType))
                 return;
 
+            var media = string.Equals(response.Request.ResourceType, "media", StringComparison.OrdinalIgnoreCase) ||
+                contentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase) ||
+                contentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+            if (media && !_archive.ContainsResource(response.Url) &&
+                response.Headers.TryGetValue("content-length", out var lengthHeader) &&
+                long.TryParse(lengthHeader, out var declaredLength) && declaredLength >= 0 &&
+                !_archive.HasCapacity(declaredLength))
+            {
+                lock (_gate)
+                    _archive.RecordFailure(response.Url, sequence);
+                return;
+            }
+
             _cancellationToken.ThrowIfCancellationRequested();
-            var body = await response.BodyAsync().WaitAsync(_cancellationToken).ConfigureAwait(false);
+            var bodyTask = response.BodyAsync();
+            var body = media
+                ? await bodyTask.WaitAsync(MediaBodyTimeout, _cancellationToken).ConfigureAwait(false)
+                : await bodyTask.WaitAsync(_cancellationToken).ConfigureAwait(false);
             _cancellationToken.ThrowIfCancellationRequested();
 
             lock (_gate)

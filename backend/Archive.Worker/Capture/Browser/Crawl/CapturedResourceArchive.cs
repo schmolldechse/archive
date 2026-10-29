@@ -8,6 +8,7 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
     private readonly object _gate = new();
     private readonly Dictionary<string, CapturedResource> _resources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _failures = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _partialResponses = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _successes = new(StringComparer.Ordinal);
     private long _sequence;
     private long _capturedBytes;
@@ -48,6 +49,9 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
                 _capturedBytes += body.LongLength;
             }
 
+            if (_partialResponses.Remove(url, out var partialSequence) &&
+                _failures.TryGetValue(url, out var failure) && failure == partialSequence)
+                _failures.Remove(url);
             RecordSuccessCore(url, sequence);
         }
     }
@@ -63,6 +67,17 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
         }
     }
 
+    public void RecordPartialResponse(string url, long sequence)
+    {
+        lock (_gate)
+        {
+            if (_resources.ContainsKey(url))
+                return;
+            _partialResponses[url] = sequence;
+            RecordFailure(url, sequence);
+        }
+    }
+
     public void RemovePromotedDocument(IEnumerable<string> urls)
     {
         lock (_gate)
@@ -72,6 +87,7 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
                 if (_resources.Remove(url, out var resource))
                     _capturedBytes = Math.Max(0, _capturedBytes - resource.Body.LongLength);
                 _failures.Remove(url);
+                _partialResponses.Remove(url);
                 _successes.Remove(url);
             }
         }
@@ -87,6 +103,19 @@ internal sealed class CapturedResourceArchive(CaptureLimits limits)
     {
         lock (_gate)
             return _failures.Keys.Order(StringComparer.Ordinal).ToArray();
+    }
+
+    public bool HasCapacity(long byteCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        lock (_gate)
+            return byteCount <= limits.MaxStorageBytes - _capturedBytes;
+    }
+
+    public bool ContainsResource(string url)
+    {
+        lock (_gate)
+            return _resources.ContainsKey(url);
     }
 
     private void RecordSuccessCore(string url, long sequence)

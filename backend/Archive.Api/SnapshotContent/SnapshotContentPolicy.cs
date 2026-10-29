@@ -8,7 +8,7 @@ namespace Archive.Api.SnapshotContent;
 public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentication)
 {
     private const string DeniedPermissions =
-        "accelerometer=(), autoplay=(), bluetooth=(), camera=(), clipboard-read=(), " +
+        "accelerometer=(), bluetooth=(), camera=(), clipboard-read=(), " +
         "clipboard-write=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), hid=(), " +
         "magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), " +
         "serial=(), usb=(), web-share=(), window-management=()";

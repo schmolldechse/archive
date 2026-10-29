@@ -20,6 +20,7 @@ public sealed class OfflineImportEngine(
     IArchiveObjectStore objectStore,
     ArchiveOptions options,
     ArchiveBrowserOptions browserOptions,
+    ImportedMediaCompleter mediaCompleter,
     ILogger<OfflineImportEngine> logger)
 {
     private readonly IReadOnlyDictionary<SourceType, IUploadedDocumentDecoder> _decoders = BuildDecoders(decoders);
@@ -67,6 +68,17 @@ public sealed class OfflineImportEngine(
                 throw new CaptureFailedException("Die hochgeladene Datei ist ungültig oder überschreitet ein Importlimit.",
                     exception);
             }
+            var completionMissing = Array.Empty<string>();
+            if (job.SourceType == SourceType.MhtmlFile)
+            {
+                var existingResources = CountResources(imported);
+                var existingBytes = SumResourceBytes(imported);
+                var completion = await mediaCompleter.CompleteAsync(imported,
+                    _captureLimits.MaxStorageBytes - original.LongLength - existingBytes,
+                    _importLimits.MaxResources - existingResources, timeout.Token);
+                imported = completion.Page;
+                completionMissing = completion.MissingUrls.ToArray();
+            }
             progress?.Report(ProgressStep.LoadingPage);
             var normalized = OfflinePageNormalizer.Normalize(imported);
             if (normalized.Assets.Count > _importLimits.MaxResources + _importLimits.MaxObjects)
@@ -75,8 +87,10 @@ public sealed class OfflineImportEngine(
             progress?.Report(ProgressStep.LoadingDynamicContent);
             var screenshot = await ScreenshotAsync(normalized, timeout.Token);
             progress?.Report(ProgressStep.SavingSnapshot);
+            var missingUrls = completionMissing.Concat(screenshot.MissingUrls)
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             var result = await StoreAsync(job, imported, normalized, screenshot.Bytes, original,
-                screenshot.MissingUrls, timer.ElapsedMilliseconds, timeout.Token);
+                missingUrls, timer.ElapsedMilliseconds, timeout.Token);
             return result;
         }
         catch (Exception) when (cancellationToken.IsCancellationRequested)
@@ -243,4 +257,10 @@ public sealed class OfflineImportEngine(
 
     private static string Hash(byte[] value) =>
         Convert.ToHexString(SHA256.HashData(value)).ToLowerInvariant();
+
+    private static int CountResources(ImportedPage page) =>
+        page.Resources.Count + page.Frames.Sum(CountResources);
+
+    private static long SumResourceBytes(ImportedPage page) =>
+        page.Resources.Sum(resource => resource.Body.LongLength) + page.Frames.Sum(SumResourceBytes);
 }

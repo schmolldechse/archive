@@ -21,6 +21,7 @@ public static class Injection
         services.AddSingleton<IUploadedDocumentDecoder, HtmlDecoder>();
         services.AddSingleton<IUploadedDocumentDecoder, MhtmlDecoder>();
         services.AddSingleton<IUploadedDocumentDecoder, WebArchiveDecoder>();
+        services.AddSingleton<ImportedMediaCompleter>();
         services.AddSingleton<OfflineImportEngine>();
         services.AddSingleton<SnapshotProcessor>();
         services.AddHostedService(provider => new ArchiveWorkerService(

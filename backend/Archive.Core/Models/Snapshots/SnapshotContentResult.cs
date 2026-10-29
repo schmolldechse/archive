@@ -6,4 +6,5 @@ public abstract record SnapshotContentResult
     public sealed record Found(SnapshotContent Resource) : SnapshotContentResult;
     public sealed record NotFound : SnapshotContentResult;
     public sealed record InvalidPath : SnapshotContentResult;
+    public sealed record RangeNotSatisfiable(long Length, string EntityTag) : SnapshotContentResult;
 }

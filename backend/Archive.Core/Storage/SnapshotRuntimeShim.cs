@@ -85,6 +85,7 @@ public static class SnapshotRuntimeShim
                 [window.HTMLScriptElement, "src"], [window.HTMLImageElement, "src"],
                 [window.HTMLSourceElement, "src"], [window.HTMLIFrameElement, "src"],
                 [window.HTMLMediaElement, "src"], [window.HTMLVideoElement, "poster"],
+                [window.HTMLTrackElement, "src"],
                 [window.HTMLLinkElement, "href"], [window.HTMLInputElement, "src"]
               ];
               for (const [constructor, property] of urlProperties) {
@@ -114,7 +115,7 @@ public static class SnapshotRuntimeShim
               const networkAttributes = Object.freeze({
                 SCRIPT: new Set(["src"]), IMG: new Set(["src"]), SOURCE: new Set(["src"]),
                 IFRAME: new Set(["src"]), AUDIO: new Set(["src"]), VIDEO: new Set(["src", "poster"]),
-                LINK: new Set(["href"]), INPUT: new Set(["src"])
+                TRACK: new Set(["src"]), LINK: new Set(["href"]), INPUT: new Set(["src"])
               });
               const nativeSetAttribute = Element.prototype.setAttribute;
               lock(Element.prototype, "setAttribute", function(name, value) {
@@ -145,6 +146,25 @@ public static class SnapshotRuntimeShim
               lock(Document.prototype, "writeln", function(...parts) {
                 return nativeWriteln.call(this, ...parts.map(rewriteMarkup));
               });
+
+              // Preserve original controls. If an archived autoplay-only element cannot start under the user's
+              // browser policy, expose native controls as a local replay fallback instead of leaving it inert.
+              const enableMediaFallback = () => {
+                for (const media of document.querySelectorAll("audio[autoplay]:not([controls]), video[autoplay]:not([controls])")) {
+                  const candidates = [media.getAttribute("src"),
+                    ...Array.from(media.querySelectorAll("source[src]"), source => source.getAttribute("src"))];
+                  if (!candidates.some(candidate => candidate && tryResolve(candidate))) continue;
+                  let attempt;
+                  try { attempt = media.play(); }
+                  catch { media.controls = true; continue; }
+                  if (attempt?.catch)
+                    attempt.catch(() => { if (media.isConnected) media.controls = true; });
+                }
+              };
+              if (document.readyState === "loading")
+                document.addEventListener("DOMContentLoaded", enableMediaFallback, { once: true });
+              else
+                queueMicrotask(enableMediaFallback);
 
               const workerResources = Object.freeze(Object.fromEntries(Object.entries(resources)
                 .map(([source, local]) => [source, withoutHash(local, document.baseURI)])));
