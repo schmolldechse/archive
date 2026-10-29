@@ -4,7 +4,7 @@ using Archive.Core.Storage;
 
 namespace Archive.Api.SnapshotContent;
 
-/// <summary>Builds role-specific response controls for untrusted archived resources.</summary>
+/// <summary>Builds browser-independent response controls for untrusted archived resources.</summary>
 public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentication)
 {
     private const string DeniedPermissions =
@@ -27,11 +27,11 @@ public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentic
         return true;
     }
 
-    public void Apply(HttpResponse response, string scope, string role, string contentType, bool interactive)
+    public void Apply(HttpResponse response, string scope, string role, string contentType)
     {
-        response.Headers.Vary = "Sec-CH-UA";
         response.Headers.AccessControlAllowOrigin = "*";
         response.Headers.XContentTypeOptions = "nosniff";
+        response.Headers["X-DNS-Prefetch-Control"] = "off";
         response.Headers["Referrer-Policy"] = "no-referrer";
         response.Headers["Permissions-Policy"] = DeniedPermissions;
 
@@ -39,11 +39,8 @@ public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentic
         {
             response.Headers.CacheControl = "no-store";
             response.Headers.ContentSecurityPolicy = DocumentPolicy(scope,
-                role == SnapshotResourceRoles.RootDocument, interactive);
-            if (interactive)
-            {
-                response.Headers["Connection-Allowlist"] = $"(\"{scope}*\")";
-            }
+                role == SnapshotResourceRoles.RootDocument);
+            response.Headers["Connection-Allowlist"] = $"(\"{scope}*\")";
             return;
         }
 
@@ -53,18 +50,13 @@ public sealed class SnapshotContentPolicy(ArchiveAuthenticationOptions authentic
                 "form-action 'none'; base-uri 'none'; sandbox";
     }
 
-    private string DocumentPolicy(string scope, bool root, bool interactive)
+    private string DocumentPolicy(string scope, bool root)
     {
-        var policy = interactive
-            ? $"default-src 'none'; script-src {scope} 'unsafe-inline' 'wasm-unsafe-eval'; " +
-              $"style-src {scope} 'unsafe-inline' data:; " +
-              $"img-src {scope} data: blob:; font-src {scope} data:; media-src {scope} data: blob:; " +
-              $"frame-src {scope} data:; connect-src {scope} blob: data:; worker-src blob:; object-src 'none'; " +
-              $"form-action 'none'; base-uri {scope}; sandbox allow-scripts;"
-            : $"default-src 'none'; img-src {scope} data: blob:; style-src {scope} 'unsafe-inline' data:; " +
-              $"font-src {scope} data:; media-src {scope} data: blob:; frame-src {scope} data:; " +
-              "script-src 'none'; connect-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; " +
-              $"base-uri {scope}; sandbox;";
+        var policy = $"default-src 'none'; script-src {scope} 'unsafe-inline' 'wasm-unsafe-eval'; " +
+            $"style-src {scope} 'unsafe-inline' data:; " +
+            $"img-src {scope} data: blob:; font-src {scope} data:; media-src {scope} data: blob:; " +
+            $"frame-src {scope}; connect-src {scope} blob: data:; worker-src blob:; object-src 'none'; " +
+            $"form-action 'none'; base-uri {scope}; sandbox allow-scripts;";
 
         return root ? policy + $" frame-ancestors {authentication.FrontendOrigin.TrimEnd('/')};" : policy;
     }

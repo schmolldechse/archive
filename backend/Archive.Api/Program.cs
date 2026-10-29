@@ -35,7 +35,6 @@ builder.Services.AddOptions<SnapshotContentOptions>()
     .Bind(builder.Configuration.GetRequiredSection(SnapshotContentOptions.SectionName))
     .ValidateDataAnnotations().ValidateOnStart();
 builder.Services.AddSingleton(provider => provider.GetRequiredService<IOptions<SnapshotContentOptions>>().Value);
-builder.Services.AddSingleton<SnapshotInteractionCapabilityPolicy>();
 builder.Services.AddSingleton<SnapshotContentPolicy>();
 builder.Services.AddSingleton<SnapshotContentAccessTokenService>();
 

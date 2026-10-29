@@ -42,17 +42,20 @@ public sealed class SnapshotWorkerReplayTests
             <output id="uncaptured">pending</output>
             <output id="shared">pending</output>
             <output id="service">pending</output>
+            <output id="beacon">pending</output>
+            <output id="form">pending</output>
+            <output id="popup">pending</output>
+            <output id="frame">pending</output>
             <script>
               const result = (id, value) => document.getElementById(id).textContent = String(value);
+              const externalUrl = {{sentinelUrl}};
 
               const blobUrl = URL.createObjectURL(new Blob([
                 "self.onmessage = event => postMessage(event.data * 2);"
               ], { type: "text/javascript" }));
-              const blobWorker = new Worker(blobUrl);
-              URL.revokeObjectURL(blobUrl);
-              blobWorker.onmessage = event => result("blob", event.data);
-              blobWorker.onerror = () => result("blob", "error");
-              blobWorker.postMessage(21);
+              try { new Worker(blobUrl); result("blob", "escaped"); }
+              catch { result("blob", "blocked"); }
+              finally { URL.revokeObjectURL(blobUrl); }
 
               const wasmUrl = URL.createObjectURL(new Blob([
                 `self.onmessage = async () => {
@@ -67,11 +70,9 @@ public sealed class SnapshotWorkerReplayTests
                   postMessage(instance.exports.answer());
                 };`
               ], { type: "text/javascript" }));
-              const wasmWorker = new Worker(wasmUrl);
-              URL.revokeObjectURL(wasmUrl);
-              wasmWorker.onmessage = event => result("wasm", event.data);
-              wasmWorker.onerror = () => result("wasm", "error");
-              wasmWorker.postMessage(null);
+              try { new Worker(wasmUrl); result("wasm", "escaped"); }
+              catch { result("wasm", "blocked"); }
+              finally { URL.revokeObjectURL(wasmUrl); }
 
               const classicWorker = new Worker("https://source.example/worker.js");
               classicWorker.onmessage = event => result("classic", event.data);
@@ -83,14 +84,12 @@ public sealed class SnapshotWorkerReplayTests
               moduleWorker.onerror = event => result("module", event.message || "error");
               moduleWorker.postMessage(null);
 
-              const externalUrl = {{sentinelUrl}};
               const externalBlobUrl = URL.createObjectURL(new Blob([
                 `fetch(${JSON.stringify(externalUrl)}).then(() => postMessage("escaped"), () => postMessage("blocked"));`
               ], { type: "text/javascript" }));
-              const externalWorker = new Worker(externalBlobUrl);
-              URL.revokeObjectURL(externalBlobUrl);
-              externalWorker.onmessage = event => result("external", event.data);
-              externalWorker.onerror = () => result("external", "error");
+              try { new Worker(externalBlobUrl); result("external", "escaped"); }
+              catch { result("external", "blocked"); }
+              finally { URL.revokeObjectURL(externalBlobUrl); }
 
               try { new Worker("https://live.example/worker.js"); result("uncaptured", "escaped"); }
               catch { result("uncaptured", "blocked"); }
@@ -100,6 +99,16 @@ public sealed class SnapshotWorkerReplayTests
               try { new SharedWorker(sharedUrl); result("shared", "escaped"); }
               catch { result("shared", "blocked"); }
               finally { URL.revokeObjectURL(sharedUrl); }
+
+              result("beacon", navigator.sendBeacon(externalUrl, "blocked") ? "escaped" : "blocked");
+              const form = document.createElement("form");
+              form.action = externalUrl;
+              try { form.submit(); result("form", "escaped"); }
+              catch { result("form", "blocked"); }
+              result("popup", window.open(externalUrl) === null ? "blocked" : "escaped");
+              const frame = document.createElement("iframe");
+              try { frame.src = externalUrl; result("frame", "escaped"); }
+              catch { result("frame", "blocked"); }
 
               Promise.resolve().then(async () => {
                 try {
@@ -136,7 +145,7 @@ public sealed class SnapshotWorkerReplayTests
         app.MapGet("/snapshot/index.html", async context =>
         {
             policy.Apply(context.Response, scope, SnapshotResourceRoles.RootDocument,
-                "text/html; charset=utf-8", interactive: true);
+                "text/html; charset=utf-8");
             context.Response.ContentType = "text/html; charset=utf-8";
             await context.Response.WriteAsync(snapshotHtml);
         });
@@ -206,7 +215,8 @@ public sealed class SnapshotWorkerReplayTests
             try
             {
                 await frame.WaitForFunctionAsync("""
-                    () => ["blob", "wasm", "classic", "module", "external", "uncaptured", "shared", "service"]
+                    () => ["blob", "wasm", "classic", "module", "external", "uncaptured", "shared", "service",
+                      "beacon", "form", "popup", "frame"]
                       .every(id => document.getElementById(id)?.textContent !== "pending")
                     """, null, new() { Timeout = 5_000 });
             }
@@ -217,14 +227,18 @@ public sealed class SnapshotWorkerReplayTests
 
             var expected = new Dictionary<string, string>
             {
-                ["blob"] = "42",
-                ["wasm"] = "42",
+                ["blob"] = "blocked",
+                ["wasm"] = "blocked",
                 ["classic"] = "42",
                 ["module"] = "42",
                 ["external"] = "blocked",
                 ["uncaptured"] = "blocked",
                 ["shared"] = "blocked",
-                ["service"] = "blocked"
+                ["service"] = "blocked",
+                ["beacon"] = "blocked",
+                ["form"] = "blocked",
+                ["popup"] = "blocked",
+                ["frame"] = "blocked"
             };
             var actual = new Dictionary<string, string?>();
             foreach (var id in expected.Keys)
@@ -245,7 +259,7 @@ public sealed class SnapshotWorkerReplayTests
     private static void ApplyAssetPolicy(HttpContext context, SnapshotContentPolicy policy,
         string scope, string contentType)
     {
-        policy.Apply(context.Response, scope, SnapshotResourceRoles.Asset, contentType, interactive: true);
+        policy.Apply(context.Response, scope, SnapshotResourceRoles.Asset, contentType);
         context.Response.ContentType = contentType;
     }
 

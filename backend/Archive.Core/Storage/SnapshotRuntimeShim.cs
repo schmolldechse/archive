@@ -15,6 +15,12 @@ public static class SnapshotRuntimeShim
               "use strict";
               const originalBase = {{serializedBase}} || "about:blank";
               const resources = Object.freeze({{serializedMap}});
+              const blockedMessage = "The archived snapshot blocked this capability.";
+              const blockedConstructor = class { constructor() { throw new TypeError(blockedMessage); } };
+              const lock = (target, name, value) => {
+                try { Object.defineProperty(target, name, { value, writable: false, configurable: false }); }
+                catch {}
+              };
               const nativeFetch = window.fetch.bind(window);
               const NativeWorker = window.Worker;
               const withoutHash = (value, base) => {
@@ -48,22 +54,30 @@ public static class SnapshotRuntimeShim
                 if (!local) throw new TypeError("The archived snapshot blocked an uncaptured resource.");
                 return local;
               };
+              const resolveCapturedFrame = (input) => {
+                const raw = input instanceof URL ? input.href : String(input);
+                const candidate = new URL(raw, document.baseURI);
+                if (candidate.protocol === "blob:" || candidate.protocol === "data:" || candidate.href === "about:blank")
+                  throw new TypeError("The archived snapshot blocked an uncaptured frame.");
+                return resolve(input);
+              };
 
-              window.fetch = (input, init = {}) => {
+              lock(window, "fetch", (input, init = {}) => {
                 const request = input instanceof Request ? input : null;
                 const method = String(init.method || request?.method || "GET").toUpperCase();
                 if (method !== "GET" && method !== "HEAD")
                   return Promise.reject(new TypeError("The archived snapshot permits only GET and HEAD."));
                 const url = resolve(request?.url || input);
                 return nativeFetch(url, { ...init, method, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
-              };
+              });
               const nativeOpen = XMLHttpRequest.prototype.open;
-              XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+              lock(XMLHttpRequest.prototype, "open", function(method, url, ...rest) {
                 const normalized = String(method).toUpperCase();
                 if (normalized !== "GET" && normalized !== "HEAD")
                   throw new TypeError("The archived snapshot permits only GET and HEAD.");
+                try { this.withCredentials = false; } catch {}
                 return nativeOpen.call(this, normalized, resolve(url), ...rest);
-              };
+              });
 
               // Legacy loaders inspect script.src to discover their original library root. Return the archived
               // source URL to page code while every assignment still resolves to a captured local object.
@@ -89,7 +103,9 @@ public static class SnapshotRuntimeShim
                     set(value) {
                       if (this instanceof HTMLImageElement || this instanceof HTMLMediaElement)
                         this.crossOrigin = "anonymous";
-                      descriptor.set.call(this, resolve(value));
+                      descriptor.set.call(this, constructor === window.HTMLIFrameElement
+                        ? resolveCapturedFrame(value)
+                        : resolve(value));
                     }
                   });
                 } catch {}
@@ -101,14 +117,17 @@ public static class SnapshotRuntimeShim
                 LINK: new Set(["href"]), INPUT: new Set(["src"])
               });
               const nativeSetAttribute = Element.prototype.setAttribute;
-              Element.prototype.setAttribute = function(name, value) {
+              lock(Element.prototype, "setAttribute", function(name, value) {
                 const normalized = String(name).toLowerCase();
                 const guarded = networkAttributes[this.tagName];
                 if (guarded?.has(normalized) && normalized === "src" &&
                     (this instanceof HTMLImageElement || this instanceof HTMLMediaElement))
                   this.crossOrigin = "anonymous";
-                return nativeSetAttribute.call(this, name, guarded?.has(normalized) ? resolve(value) : value);
-              };
+                const resolver = this instanceof HTMLIFrameElement && normalized === "src"
+                  ? resolveCapturedFrame
+                  : resolve;
+                return nativeSetAttribute.call(this, name, guarded?.has(normalized) ? resolver(value) : value);
+              });
 
               // Parser-era dependency loaders commonly use document.write. Rewrite complete URL attributes before
               // the browser can request them; partial or uncaptured markup remains subject to the snapshot CSP.
@@ -120,12 +139,12 @@ public static class SnapshotRuntimeShim
                 });
               const nativeWrite = Document.prototype.write;
               const nativeWriteln = Document.prototype.writeln;
-              Document.prototype.write = function(...parts) {
+              lock(Document.prototype, "write", function(...parts) {
                 return nativeWrite.call(this, ...parts.map(rewriteMarkup));
-              };
-              Document.prototype.writeln = function(...parts) {
+              });
+              lock(Document.prototype, "writeln", function(...parts) {
                 return nativeWriteln.call(this, ...parts.map(rewriteMarkup));
-              };
+              });
 
               const workerResources = Object.freeze(Object.fromEntries(Object.entries(resources)
                 .map(([source, local]) => [source, withoutHash(local, document.baseURI)])));
@@ -156,6 +175,12 @@ public static class SnapshotRuntimeShim
                   const originalBase = ${serializedSource};
                   const entryUrl = ${serializedTarget};
                   const resources = Object.freeze(${serializedResources});
+                  const blockedMessage = "The archived snapshot blocked this capability.";
+                  const blockedConstructor = class { constructor() { throw new TypeError(blockedMessage); } };
+                  const lock = (target, name, value) => {
+                    try { Object.defineProperty(target, name, { value, writable: false, configurable: false }); }
+                    catch {}
+                  };
                   const withoutHash = (value, base) => {
                     const url = new URL(String(value), base);
                     url.hash = "";
@@ -181,7 +206,7 @@ public static class SnapshotRuntimeShim
                     return local;
                   };
                   const nativeFetch = self.fetch.bind(self);
-                  self.fetch = (input, init = {}) => {
+                  lock(self, "fetch", (input, init = {}) => {
                     const request = input instanceof Request ? input : null;
                     const method = String(init.method || request?.method || "GET").toUpperCase();
                     if (method !== "GET" && method !== "HEAD")
@@ -189,19 +214,20 @@ public static class SnapshotRuntimeShim
                     return nativeFetch(resolve(request?.url || input), {
                       ...init, method, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer"
                     });
-                  };
+                  });
                   if (typeof XMLHttpRequest !== "undefined") {
                     const nativeOpen = XMLHttpRequest.prototype.open;
-                    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                    lock(XMLHttpRequest.prototype, "open", function(method, url, ...rest) {
                       const normalized = String(method).toUpperCase();
                       if (normalized !== "GET" && normalized !== "HEAD")
                         throw new TypeError("The archived snapshot permits only GET and HEAD.");
+                      try { this.withCredentials = false; } catch {}
                       return nativeOpen.call(this, normalized, resolve(url), ...rest);
-                    };
+                    });
                   }
                   const nativeImportScripts = self.importScripts?.bind(self);
                   if (nativeImportScripts)
-                    self.importScripts = (...urls) => nativeImportScripts(...urls.map(resolve));
+                    lock(self, "importScripts", (...urls) => nativeImportScripts(...urls.map(resolve)));
                   const NativeWorker = self.Worker;
                   if (NativeWorker) {
                     const workerResources = resources;
@@ -214,7 +240,7 @@ public static class SnapshotRuntimeShim
                           ? { ...args[1], credentials: "omit" }
                           : { credentials: "omit" };
                         if (candidate.protocol === "blob:")
-                          return new target(candidate.href, options);
+                          throw new TypeError("The archived snapshot blocked an arbitrary Blob worker.");
                         const local = tryResolve(args[0]);
                         const localUrl = local ? withoutHash(local, entryUrl) : null;
                         const nestedSource = localUrl ? sourceByLocal[localUrl] : null;
@@ -238,10 +264,10 @@ public static class SnapshotRuntimeShim
                         }
                       }
                     });
-                    try { Object.defineProperty(self, "Worker", { value: ArchivedWorker }); } catch {}
+                    lock(self, "Worker", ArchivedWorker);
                   }
                   for (const name of ["WebSocket", "EventSource", "WebTransport", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
-                    try { Object.defineProperty(self, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
+                    lock(self, name, blockedConstructor);
                   ${loadEntry}
                 })();`;
               };
@@ -254,7 +280,7 @@ public static class SnapshotRuntimeShim
                       ? { ...args[1], credentials: "omit" }
                       : { credentials: "omit" };
                     if (candidate.protocol === "blob:")
-                      return new target(candidate.href, options);
+                      throw new TypeError("The archived snapshot blocked an arbitrary Blob worker.");
                     const local = tryResolve(args[0]);
                     const localUrl = local ? withoutHash(local, document.baseURI) : null;
                     const source = localUrl ? sourceByLocal[localUrl] : null;
@@ -279,18 +305,23 @@ public static class SnapshotRuntimeShim
                     }
                   }
                 });
-                try { Object.defineProperty(window, "Worker", { value: ArchivedWorker }); } catch {}
+                lock(window, "Worker", ArchivedWorker);
               }
               try {
                 const serviceWorker = navigator.serviceWorker;
                 if (serviceWorker)
-                  Object.defineProperty(serviceWorker, "register", {
-                    value: () => Promise.reject(new TypeError("The archived snapshot blocked this capability."))
-                  });
+                  lock(serviceWorker, "register", () => Promise.reject(new TypeError(blockedMessage)));
               } catch {}
               for (const name of ["WebSocket", "EventSource", "WebTransport", "SharedWorker", "RTCPeerConnection", "webkitRTCPeerConnection"])
-                try { Object.defineProperty(window, name, { value: class { constructor() { throw new TypeError("The archived snapshot blocked this capability."); } } }); } catch {}
-              window.open = () => null;
+                lock(window, name, blockedConstructor);
+              if (typeof Navigator !== "undefined")
+                lock(Navigator.prototype, "sendBeacon", () => false);
+              lock(window, "open", () => null);
+              if (typeof HTMLFormElement !== "undefined") {
+                const blockFormSubmission = () => { throw new TypeError(blockedMessage); };
+                lock(HTMLFormElement.prototype, "submit", blockFormSubmission);
+                lock(HTMLFormElement.prototype, "requestSubmit", blockFormSubmission);
+              }
               addEventListener("submit", event => event.preventDefault(), true);
             })();
             """;

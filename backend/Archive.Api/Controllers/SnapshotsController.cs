@@ -24,7 +24,6 @@ public sealed partial class SnapshotsController(
     ArchiveApiOptions options,
     ArchiveAuthenticationOptions authenticationOptions,
     SnapshotContentOptions snapshotContent,
-    SnapshotInteractionCapabilityPolicy interactionClients,
     SnapshotContentPolicy contentPolicies,
     SnapshotContentAccessTokenService accessTokens,
     ISnapshotProcessingRepository processing) : ControllerBase
@@ -141,10 +140,9 @@ public sealed partial class SnapshotsController(
                     return NotFound();
                 }
 
-                var interactive = interactionClients.AllowsInteraction(Request.Headers["Sec-CH-UA"].ToString());
                 var scope = $"{snapshotContent.PublicOrigin}/api/snapshots/{snapshotId}/content/" +
                     (hasPrivateAccess ? $"~{accessToken}/" : string.Empty);
-                contentPolicies.Apply(Response, scope, stored.ResourceRole, stored.ContentType, interactive);
+                contentPolicies.Apply(Response, scope, stored.ResourceRole, stored.ContentType);
                 if (stored.IsOriginalSource)
                 {
                     Response.Headers.ContentDisposition = "attachment";
