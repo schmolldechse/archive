@@ -89,12 +89,14 @@ public sealed class SnapshotContentPolicyTests
         Assert.Contains("microphone=()", permissionsPolicy, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void VersionThreeNormalizerReplacesOlderShimBeforeArchivedScripts()
+    [Theory]
+    [InlineData("v1")]
+    [InlineData("v2")]
+    public void VersionThreeNormalizerReplacesLegacyShimBeforeArchivedScripts(string legacyVersion)
     {
         var normalized = SnapshotDocumentNormalizer.Normalize(
             "<!doctype html><html><head><link rel=PreConnect href=https://live.example>" +
-            "<script data-archive-snapshot=v2>window.legacyShim = true;</script>" +
+            $"<script data-archive-snapshot={legacyVersion}>window.legacyShim = true;</script>" +
             "<script>window.archived = true;</script></head><body></body></html>",
             "https://source.example/index.html", new Dictionary<string, string>(), "index.html");
 
@@ -110,6 +112,21 @@ public sealed class SnapshotContentPolicyTests
         Assert.True(normalized.Html.IndexOf("data-archive-snapshot", StringComparison.Ordinal) <
             normalized.Html.IndexOf("window.archived", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData("archive-snapshot-v1")]
+    [InlineData("archive-snapshot-v2")]
+    [InlineData("archive-snapshot-v3")]
+    public void KnownNormalizerVersionsAreSupported(string version) =>
+        Assert.True(SnapshotDocumentNormalizer.SupportsInputVersion(version));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("archive-snapshot-v4")]
+    [InlineData("unknown")]
+    public void UnknownNormalizerVersionsAreRejected(string? version) =>
+        Assert.False(SnapshotDocumentNormalizer.SupportsInputVersion(version));
 
     private static SnapshotContentPolicy CreatePolicy() => new(new ArchiveAuthenticationOptions
     {

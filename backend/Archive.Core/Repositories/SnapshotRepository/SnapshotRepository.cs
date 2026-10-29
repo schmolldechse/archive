@@ -140,9 +140,7 @@ internal sealed partial class SnapshotRepository(
         if (!requiresNormalization)
             return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
 
-        if (manifest.Interaction.Normalizer is not "archive-snapshot-v2" &&
-            !string.Equals(manifest.Interaction.Normalizer, SnapshotDocumentNormalizer.Version,
-                StringComparison.Ordinal))
+        if (!SnapshotDocumentNormalizer.SupportsInputVersion(manifest.Interaction.Normalizer))
         {
             await stored.Content.DisposeAsync();
             logger.LogWarning("Snapshot {SnapshotId} uses unsupported replay normalizer {Normalizer}",

@@ -12,6 +12,11 @@ public static class SnapshotDocumentNormalizer
     /// <summary>Identifier persisted when this canonical normalization contract is applied.</summary>
     public const string Version = "archive-snapshot-v3";
 
+    /// <summary>Returns whether a persisted normalizer version can be upgraded by this implementation.</summary>
+    public static bool SupportsInputVersion(string? version) =>
+        version is "archive-snapshot-v1" or "archive-snapshot-v2" ||
+        string.Equals(version, Version, StringComparison.Ordinal);
+
     private static readonly string[] UrlAttributes = ["src", "href", "poster", "action"];
 
     /// <summary>Normalizes an archived HTML document for isolated snapshot delivery.</summary>
