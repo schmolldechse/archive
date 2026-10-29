@@ -18,6 +18,7 @@
 	} from "$lib/components/ui/table";
 	import { captureLabel, captureVariant } from "$lib/submission-status";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
+	import SnapshotVisibilityStatus from "./SnapshotVisibilityStatus.svelte";
 
 	let { items }: { items: SnapshotSubmissionSummaryResponse[] } = $props();
 
@@ -81,9 +82,7 @@
 							>
 						{/if}
 						<p class="snapshot-origin">{item.sourceType}</p>
-						<Badge variant={item.isPrivate ? "warning" : "neutral"} size="compact">
-							{item.isPrivate ? "Private" : "Public"}
-						</Badge>
+						<SnapshotVisibilityStatus isPrivate={item.isPrivate} />
 					</TableCell>
 					<TableCell class="submitted-cell" data-label="Submitted">
 						<ArchiveAttribution creator={item.createdBy} layout="compact" label={null} />

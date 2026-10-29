@@ -261,7 +261,9 @@ Add visible `Private` or `Public` state alongside moderation/capture information
 - administrator detail;
 - snapshot metadata where an authorized private reader needs context.
 
-Use the existing `Badge` primitive with a lock icon/text combination or a small archive-specific status component. Privacy must remain distinguishable from moderation: **Private · Approved** is a valid state and should not be collapsed into a single ambiguous badge.
+Use a small archive-specific `SnapshotVisibilityStatus` component backed by the existing `Badge` primitive. It renders a lock icon with **Private** and a globe icon with **Public**, using the quiet neutral badge treatment rather than warning semantics. Privacy must remain distinguishable from moderation: **Private · Approved** is a valid state and should not be collapsed into a single ambiguous badge.
+
+On the capture-progress view, render moderation and visibility inside one wrapping status group. The group owns its spacing; neither status may use negative positioning or overlap the other at narrow widths. Visibility is shown for both public and private captures so the accepted publication state is explicit throughout processing.
 
 ### 7.5 No new route or mockup
 

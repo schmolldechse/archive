@@ -38,6 +38,7 @@
 	import { snapshotLimits } from "$lib/snapshot-validation";
 	import SnapshotModerationStatus from "$lib/components/submissions/SnapshotModerationStatus.svelte";
 	import SnapshotVisibilityField from "$lib/components/submissions/SnapshotVisibilityField.svelte";
+	import SnapshotVisibilityStatus from "$lib/components/submissions/SnapshotVisibilityStatus.svelte";
 	import { getAuthContext } from "$lib/auth/context";
 	const account = getAuthContext();
 
@@ -425,8 +426,12 @@
 						<span>{statusMessage}</span>
 					</div>
 					<p class="progress-description">{progressDescription}</p>
-					{#if archive.status === ProcessingStatus.COMPLETED}<SnapshotModerationStatus status={archive.moderationStatus} />{/if}
-					{#if archive.isPrivate}<p class="visibility-note">Private · visible only to you and authorized archive staff</p>{/if}
+					<div class="snapshot-states" role="group" aria-label="Snapshot status">
+						{#if archive.status === ProcessingStatus.COMPLETED}<SnapshotModerationStatus
+								status={archive.moderationStatus}
+							/>{/if}
+						<SnapshotVisibilityStatus isPrivate={archive.isPrivate} />
+					</div>
 					{#if monitorError}<p class="status-note" role="status">{monitorError}</p>{/if}
 					<dl class="progress-source">
 						{#if submittedTitle}<div>
@@ -840,14 +845,15 @@
 		color: var(--time-marker);
 	}
 	.progress-description {
-		margin: 0 0 2rem;
+		margin: 0 0 1rem;
 		color: var(--marginal-note);
 	}
-	.visibility-note {
-		margin: -1.25rem 0 2rem;
-		color: var(--reading-ink);
-		font-size: 0.875rem;
-		font-weight: 600;
+	.snapshot-states {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0 0 2rem;
 	}
 	.status-note {
 		margin: 0;

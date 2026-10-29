@@ -21,6 +21,7 @@
 	import SnapshotTagList from "$lib/components/archive/SnapshotTagList.svelte";
 	import { InputDescription, InputLabel, InputRoot, InputTextarea } from "$lib/components/ui/input";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
+	import SnapshotVisibilityStatus from "./SnapshotVisibilityStatus.svelte";
 	import SnapshotHistory from "./SnapshotHistory.svelte";
 	import PrivateSnapshotPreview from "./PrivateSnapshotPreview.svelte";
 	import SnapshotBreadcrumb from "./SnapshotBreadcrumb.svelte";
@@ -197,9 +198,7 @@
 			</div>
 			<div class="detail-status__item">
 				<span class="detail-status__label">Visibility</span>
-				<Badge variant={detail.snapshot.isPrivate ? "warning" : "neutral"} size="compact">
-					{detail.snapshot.isPrivate ? "Private" : "Public"}
-				</Badge>
+				<SnapshotVisibilityStatus isPrivate={detail.snapshot.isPrivate} />
 			</div>
 			{#if detail.processingStatus !== "COMPLETED" || detail.snapshot.quality === null}
 				<div class="detail-status__item">
