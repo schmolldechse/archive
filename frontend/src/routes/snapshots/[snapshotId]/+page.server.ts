@@ -1,10 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { backendOrigin } from "$lib/server/api";
-import type {
-	SnapshotHistoryResponse,
-	SnapshotResponse,
-	SnapshotSubmissionDetailResponse
-} from "$api";
+import type { SnapshotHistoryResponse, SnapshotResponse, SnapshotSubmissionDetailResponse } from "$api";
 import type { PageServerLoad } from "./$types";
 
 const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,6 +8,18 @@ const snapshotIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 interface ResolvedPrivateSnapshot {
 	snapshot: SnapshotResponse;
 	historyPath: string;
+}
+
+/** Restricts the replay frame to the credential-free origin authorized by the API response. */
+function frameOrigin(contentUrl: string | null): string {
+	if (!contentUrl) error(502, "The archived page is temporarily unavailable.");
+	try {
+		const parsed = new URL(contentUrl);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new TypeError("Unsupported replay URL");
+		return parsed.origin;
+	} catch {
+		error(502, "The archived page is temporarily unavailable.");
+	}
 }
 
 /** Reads private metadata only through existing owner or moderator authorization. */
@@ -103,6 +111,7 @@ export const load: PageServerLoad = async ({ params, url, fetch, request, setHea
 		if (!response.ok) error(502, "The archived page is temporarily unavailable.");
 		snapshot = (await response.json()) as SnapshotResponse;
 	}
+	setHeaders({ "content-security-policy": `frame-src ${frameOrigin(snapshot.contentUrl)}` });
 	// History is supplementary metadata: a transient failure must not hide an otherwise readable capture.
 	const loadedHistory = await readHistory(fetch, apiBaseUrl, historyPath, isPrivate ? cookie : "");
 	const history: SnapshotHistoryResponse = loadedHistory ?? { items: [], total: 0, page: 1, pageSize: 100 };

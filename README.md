@@ -14,6 +14,7 @@ Capture, moderation, and owner visibility are separate. A worker can finish stor
 - Review submissions and manage role-based access with per-user permission overrides.
 - Let fully registered owners create private snapshots or change their visibility later without exposing them through public search and resource routes.
 - Permanently delete owned snapshots or, with snapshot administration access, any snapshot in every lifecycle state.
+- Replay captured JavaScript consistently across Safari, Firefox, and Chromium inside an isolated, credential-free snapshot boundary.
 - Enforce public-network boundaries and capture limits.
 
 ## Architecture

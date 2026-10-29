@@ -2,19 +2,13 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Archive.Api.Options;
 
-/// <summary>Public snapshot origin and tested browser boundary for archived JavaScript.</summary>
+/// <summary>Configures the isolated public origin and private capability lifetime for archived content.</summary>
 public sealed class SnapshotContentOptions : IValidatableObject
 {
     public const string SectionName = "SnapshotContent";
 
     [Required]
     public string PublicOrigin { get; set; } = "http://127.0.0.1:5200";
-
-    [Range(1, int.MaxValue)]
-    public int MinimumChromiumMajorVersion { get; init; } = 152;
-
-    [MinLength(1)]
-    public string[] AllowedBrands { get; init; } = [];
 
     [Range(1, 1440)]
     public int PrivateAccessTokenLifetimeMinutes { get; init; } = 60;
@@ -28,12 +22,7 @@ public sealed class SnapshotContentOptions : IValidatableObject
                 [nameof(PublicOrigin)]);
             yield break;
         }
-
         PublicOrigin = origin!.GetLeftPart(UriPartial.Authority).TrimEnd('/');
-        if (AllowedBrands.Any(string.IsNullOrWhiteSpace) ||
-            AllowedBrands.Distinct(StringComparer.Ordinal).Count() != AllowedBrands.Length)
-            yield return new ValidationResult("SnapshotContent:AllowedBrands must contain unique non-empty brand names.",
-                [nameof(AllowedBrands)]);
     }
 
     internal static bool TryReadOrigin(string? value, out Uri? origin)

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Entities;
@@ -129,9 +130,51 @@ internal sealed partial class SnapshotRepository(
         if (stored is null)
             logger.LogWarning("Snapshot {SnapshotId} manifest resource {Path} is missing from object storage",
                 snapshotId, safePath);
-        return stored is null
-            ? new SnapshotContentResult.NotFound()
-            : new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
+        if (stored is null)
+            return new SnapshotContentResult.NotFound();
+
+        var isDocument = resource.Role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument;
+        var requiresNormalization = isDocument &&
+            (!string.Equals(manifest.Interaction.Normalizer, SnapshotDocumentNormalizer.Version,
+                StringComparison.Ordinal) || manifest.Interaction.Diagnostic is not null);
+        if (!requiresNormalization)
+            return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role));
+
+        if (!SnapshotDocumentNormalizer.SupportsInputVersion(manifest.Interaction.Normalizer))
+        {
+            await stored.Content.DisposeAsync();
+            logger.LogWarning("Snapshot {SnapshotId} uses unsupported replay normalizer {Normalizer}",
+                snapshotId, manifest.Interaction.Normalizer);
+            return new SnapshotContentResult.NotFound();
+        }
+
+        try
+        {
+            string html;
+            await using (stored.Content)
+            using (var reader = new StreamReader(stored.Content, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+                html = await reader.ReadToEndAsync(cancellationToken);
+
+            var replayMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var item in manifest.Resources)
+            {
+                if (!string.IsNullOrWhiteSpace(item.SourceUrl))
+                    replayMap.TryAdd(item.SourceUrl, item.Path);
+            }
+
+            var normalized = SnapshotDocumentNormalizer.Normalize(html,
+                resource.SourceUrl ?? manifest.Provenance.SourceUrl, replayMap, resource.Path);
+            var bytes = Encoding.UTF8.GetBytes(normalized.Html);
+            return new SnapshotContentResult.Found(new(new MemoryStream(bytes, writable: false),
+                resource.ContentType, false, resource.Role));
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception,
+                "Snapshot {SnapshotId} document {Path} could not be upgraded to replay normalizer {Normalizer}",
+                snapshotId, resource.Path, SnapshotDocumentNormalizer.Version);
+            return new SnapshotContentResult.NotFound();
+        }
     }
 
     /// <summary>Revalidates owner or moderation access whenever a private content capability is used.</summary>

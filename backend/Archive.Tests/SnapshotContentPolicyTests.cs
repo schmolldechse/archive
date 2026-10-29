@@ -8,36 +8,64 @@ namespace Archive.Tests;
 public sealed class SnapshotContentPolicyTests
 {
     [Fact]
-    public void InteractiveDocumentsPermitOnlyBlobWorkerEntry()
+    public void DocumentsPermitOnlyCapturedBlobWorkerBootstrap()
     {
         var response = new DefaultHttpContext().Response;
         var policy = CreatePolicy();
         const string scope = "http://127.0.0.1:5200/api/snapshots/example/content/";
 
         policy.Apply(response, scope, SnapshotResourceRoles.RootDocument,
-            "text/html; charset=utf-8", interactive: true);
+            "text/html; charset=utf-8");
 
         var contentSecurityPolicy = response.Headers.ContentSecurityPolicy.ToString();
         Assert.Contains("worker-src blob:", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.Contains("'wasm-unsafe-eval'", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain("'unsafe-eval'", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain($"worker-src {scope}", contentSecurityPolicy, StringComparison.Ordinal);
+        Assert.Contains($"frame-src {scope};", contentSecurityPolicy, StringComparison.Ordinal);
+        Assert.DoesNotContain($"frame-src {scope} data:", contentSecurityPolicy, StringComparison.Ordinal);
         Assert.Contains(scope, response.Headers["Connection-Allowlist"].ToString(), StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void StaticDocumentsKeepWorkersDisabled()
+    [Theory]
+    [InlineData("http://127.0.0.1:5200/api/snapshots/example/content/")]
+    [InlineData("http://127.0.0.1:5200/api/snapshots/example/content/~capability/")]
+    public void PublicAndCapabilityDocumentsUseTheSamePolicy(string scope)
     {
         var response = new DefaultHttpContext().Response;
 
-        CreatePolicy().Apply(response, "http://127.0.0.1:5200/content/",
-            SnapshotResourceRoles.RootDocument, "text/html", interactive: false);
+        CreatePolicy().Apply(response, scope, SnapshotResourceRoles.RootDocument, "text/html");
 
-        Assert.Contains("worker-src 'none'", response.Headers.ContentSecurityPolicy.ToString(),
+        Assert.Contains($"script-src {scope}", response.Headers.ContentSecurityPolicy.ToString(),
             StringComparison.Ordinal);
-        Assert.DoesNotContain("'wasm-unsafe-eval'", response.Headers.ContentSecurityPolicy.ToString(),
+        Assert.Equal($"(\"{scope}*\")", response.Headers["Connection-Allowlist"].ToString());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("\"Safari\";v=\"18\"")]
+    [InlineData("\"Firefox\";v=\"145\"")]
+    [InlineData("malformed")]
+    [InlineData("\"Chromium\";v=\"152\"")]
+    public void ClientHintsDoNotChangeDocumentPlayback(string? clientHint)
+    {
+        var context = new DefaultHttpContext();
+        if (clientHint is not null)
+            context.Request.Headers["Sec-CH-UA"] = clientHint;
+        const string scope = "http://127.0.0.1:5200/api/snapshots/example/content/";
+
+        CreatePolicy().Apply(context.Response, scope,
+            SnapshotResourceRoles.RootDocument, "text/html");
+
+        Assert.Contains($"script-src {scope}", context.Response.Headers.ContentSecurityPolicy.ToString(),
             StringComparison.Ordinal);
-        Assert.False(response.Headers.ContainsKey("Connection-Allowlist"));
+        Assert.Contains("sandbox allow-scripts", context.Response.Headers.ContentSecurityPolicy.ToString(),
+            StringComparison.Ordinal);
+        Assert.Contains(scope, context.Response.Headers["Connection-Allowlist"].ToString(),
+            StringComparison.Ordinal);
+        Assert.False(context.Response.Headers.ContainsKey("Vary"));
+        Assert.Equal("off", context.Response.Headers["X-DNS-Prefetch-Control"].ToString());
     }
 
     [Theory]
@@ -53,7 +81,7 @@ public sealed class SnapshotContentPolicyTests
         var response = new DefaultHttpContext().Response;
 
         CreatePolicy().Apply(response, "http://127.0.0.1:5200/content/",
-            SnapshotResourceRoles.RootDocument, "text/html", interactive: true);
+            SnapshotResourceRoles.RootDocument, "text/html");
 
         var permissionsPolicy = response.Headers["Permissions-Policy"].ToString();
         Assert.DoesNotContain("ambient-light-sensor", permissionsPolicy, StringComparison.Ordinal);
@@ -61,21 +89,44 @@ public sealed class SnapshotContentPolicyTests
         Assert.Contains("microphone=()", permissionsPolicy, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void VersionTwoNormalizerInstallsDedicatedWorkerAdapterBeforeArchivedScripts()
+    [Theory]
+    [InlineData("v1")]
+    [InlineData("v2")]
+    public void VersionThreeNormalizerReplacesLegacyShimBeforeArchivedScripts(string legacyVersion)
     {
         var normalized = SnapshotDocumentNormalizer.Normalize(
-            "<!doctype html><html><head><script>window.archived = true;</script></head><body></body></html>",
+            "<!doctype html><html><head><link rel=PreConnect href=https://live.example>" +
+            $"<script data-archive-snapshot={legacyVersion}>window.legacyShim = true;</script>" +
+            "<script>window.archived = true;</script></head><body></body></html>",
             "https://source.example/index.html", new Dictionary<string, string>(), "index.html");
 
-        Assert.Equal("archive-snapshot-v2", SnapshotDocumentNormalizer.Version);
-        Assert.Contains("data-archive-snapshot=\"v2\"", normalized.Html, StringComparison.Ordinal);
+        Assert.Equal("archive-snapshot-v3", SnapshotDocumentNormalizer.Version);
+        Assert.Contains("data-archive-snapshot=\"v3\"", normalized.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("legacyShim", normalized.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("preconnect", normalized.Html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("const ArchivedWorker = new Proxy", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("navigator.serviceWorker", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("sendBeacon", normalized.Html, StringComparison.Ordinal);
+        Assert.Contains("blocked an arbitrary Blob worker", normalized.Html, StringComparison.Ordinal);
         Assert.Contains("\"SharedWorker\"", normalized.Html, StringComparison.Ordinal);
         Assert.True(normalized.Html.IndexOf("data-archive-snapshot", StringComparison.Ordinal) <
             normalized.Html.IndexOf("window.archived", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData("archive-snapshot-v1")]
+    [InlineData("archive-snapshot-v2")]
+    [InlineData("archive-snapshot-v3")]
+    public void KnownNormalizerVersionsAreSupported(string version) =>
+        Assert.True(SnapshotDocumentNormalizer.SupportsInputVersion(version));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("archive-snapshot-v4")]
+    [InlineData("unknown")]
+    public void UnknownNormalizerVersionsAreRejected(string? version) =>
+        Assert.False(SnapshotDocumentNormalizer.SupportsInputVersion(version));
 
     private static SnapshotContentPolicy CreatePolicy() => new(new ArchiveAuthenticationOptions
     {

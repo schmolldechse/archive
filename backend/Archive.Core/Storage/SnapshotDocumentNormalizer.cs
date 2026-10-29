@@ -6,11 +6,16 @@ namespace Archive.Core.Storage;
 /// <summary>A normalized canonical document and its executable-content diagnostic.</summary>
 public sealed record SnapshotDocument(string Html, bool ContainsExecutableContent);
 
-/// <summary>Creates the single canonical HTML document consumed by static and interactive delivery.</summary>
+/// <summary>Creates the canonical HTML document used for browser-independent snapshot replay.</summary>
 public static class SnapshotDocumentNormalizer
 {
     /// <summary>Identifier persisted when this canonical normalization contract is applied.</summary>
-    public const string Version = "archive-snapshot-v2";
+    public const string Version = "archive-snapshot-v3";
+
+    /// <summary>Returns whether a persisted normalizer version can be upgraded by this implementation.</summary>
+    public static bool SupportsInputVersion(string? version) =>
+        version is "archive-snapshot-v1" or "archive-snapshot-v2" ||
+        string.Equals(version, Version, StringComparison.Ordinal);
 
     private static readonly string[] UrlAttributes = ["src", "href", "poster", "action"];
 
@@ -45,7 +50,10 @@ public static class SnapshotDocumentNormalizer
         foreach (var link in document.QuerySelectorAll("link[rel]"))
         {
             var rel = link.GetAttribute("rel")?.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
-            if (rel.Any(value => value is "preconnect" or "dns-prefetch" or "prefetch" or "prerender"))
+            if (rel.Any(value => value.Equals("preconnect", StringComparison.OrdinalIgnoreCase) ||
+                    value.Equals("dns-prefetch", StringComparison.OrdinalIgnoreCase) ||
+                    value.Equals("prefetch", StringComparison.OrdinalIgnoreCase) ||
+                    value.Equals("prerender", StringComparison.OrdinalIgnoreCase)))
                 link.Remove();
         }
 
@@ -92,7 +100,7 @@ public static class SnapshotDocumentNormalizer
         }
 
         var shim = document.CreateElement("script");
-        shim.SetAttribute("data-archive-snapshot", "v2");
+        shim.SetAttribute("data-archive-snapshot", "v3");
         shim.TextContent = SnapshotRuntimeShim.Build(baseUrl, documentMap);
         head.InsertBefore(shim, baseElement.NextSibling);
 

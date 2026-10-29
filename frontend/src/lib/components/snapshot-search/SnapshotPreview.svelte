@@ -55,7 +55,7 @@
 {/if}
 
 <style>
-	:global([data-dialog-content].snapshot-bottom-dialog) {
+	:global(dialog[data-dialog-content][data-modal="true"].snapshot-bottom-dialog) {
 		position: fixed;
 		inset: auto 0 0;
 		width: 100%;
@@ -66,15 +66,16 @@
 		border-radius: 10px 10px 0 0;
 		box-shadow: var(--overlay-shadow);
 		overflow-y: auto;
+		transform: translateY(0.5rem);
 	}
-	:global([data-dialog-content][data-size="viewport"].snapshot-desktop-dialog) {
-		position: fixed;
-		inset: 0;
+	:global(dialog[data-dialog-content][data-modal="true"].snapshot-bottom-dialog[open]) {
+		transform: translateY(0);
+	}
+	:global(dialog[data-dialog-content][data-size="viewport"].snapshot-desktop-dialog) {
 		width: min(90vw, 86rem);
 		height: min(88dvh, 56rem);
 		max-height: calc(100dvh - 2rem);
 		flex-direction: column;
-		margin: auto;
 		overflow: hidden;
 		padding: 0;
 	}
@@ -100,5 +101,10 @@
 	.dialog-heading :global(button) {
 		min-width: 44px;
 		padding-inline: 0.5rem;
+	}
+	@starting-style {
+		:global(dialog[data-dialog-content][data-modal="true"].snapshot-bottom-dialog[open]) {
+			transform: translateY(0.5rem);
+		}
 	}
 </style>
