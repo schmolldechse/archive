@@ -151,7 +151,7 @@ The document response supplies a restrictive policy whose sources are scoped to 
 
 Page-created `blob:` workers are rejected so archived code cannot create an uninstrumented execution realm. The replay policy permits WebAssembly compilation through the narrow `wasm-unsafe-eval` source expression without enabling JavaScript `eval`. A dedicated worker requested through an exact captured source URL is resolved to its snapshot asset and started through a short-lived, first-party `blob:` bootstrap. That bootstrap installs the captured-resource resolver before loading classic or module worker code. It limits Fetch and XHR to captured resources with `GET` or `HEAD`, omits credentials, rejects redirects, and blocks WebSocket, EventSource, WebTransport, Shared Worker, and WebRTC constructors as defense in depth. Shared Workers and Service Workers remain unavailable, and their request destinations are rejected by the content endpoint.
 
-New captures store the runtime shim with normalizer `archive-snapshot-v3`. Manifest-authorized reads upgrade existing v2 root and nested documents in memory before delivery; preserved objects and provenance hashes remain unchanged. Documents with an unknown normalizer or an unsafe normalization failure fail closed.
+New captures store the runtime shim with normalizer `archive-snapshot-v3`. Manifest-authorized reads upgrade existing v1 and v2 root and nested documents in memory before delivery; preserved objects and provenance hashes remain unchanged. Documents with an unknown normalizer or an unsafe normalization failure fail closed.
 
 Additional response controls include:
 
