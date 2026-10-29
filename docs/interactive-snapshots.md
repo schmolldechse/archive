@@ -37,11 +37,11 @@ For HTML, MHTML, and WebArchive uploads, the uploaded bytes remain immutable sou
 
 Normalization performs the following operations:
 
-1. Remove source-provided CSP, refresh, referrer, integrity, credentialed CORS, ping, preconnect, prefetch, and prerender controls that conflict with archive isolation.
+1. Remove source-provided CSP, refresh, referrer, integrity, credentialed CORS, ping, DNS-prefetch, preconnect, prefetch, and prerender controls that conflict with archive isolation.
 2. Rewrite captured document, stylesheet, image, font, media, frame, script, module, JSON, model, and binary references to safe relative snapshot paths.
 3. Rewrite bounded JavaScript literal forms, including static module imports, dynamic imports, `new URL(..., import.meta.url)`, `fetch`, and XHR reads, when their absolute target is an exact captured resource.
 4. Insert a deterministic `<base>` for the stored document location.
-5. Insert a fixed snapshot shim before archived scripts. The shim resolves exact captured runtime URLs, forces credential omission, restricts methods to `GET` and `HEAD`, and disables selected connection capabilities as defense in depth. It also preserves application-created `blob:` dedicated workers and loads exact captured worker scripts through an isolated `blob:` bootstrap with the same runtime guards.
+5. Insert a fixed snapshot shim before archived scripts. The shim resolves exact captured runtime URLs, forces credential omission, restricts methods to `GET` and `HEAD`, and disables selected connection capabilities as defense in depth. It rejects page-created `blob:` workers and loads exact captured worker scripts through an isolated, first-party `blob:` bootstrap with the same runtime guards.
 6. Assign every served object one browser role: `root-document`, `nested-document`, or `asset`.
 7. Hash the source, canonical document, and every manifest-authorized resource with SHA-256.
 8. Record missing resources and normalization diagnostics without discarding an otherwise readable snapshot.
@@ -67,7 +67,7 @@ The current snapshot manifest is version `4`. Its top-level structure is:
     "redirectChain": []
   },
   "interaction": {
-    "normalizer": "archive-snapshot-v2",
+    "normalizer": "archive-snapshot-v3",
     "containsExecutableContent": true,
     "diagnostic": null
   },
@@ -99,8 +99,6 @@ Configuration uses the `SnapshotContent` section:
 {
   "SnapshotContent": {
     "PublicOrigin": "https://snapshots.example.net",
-    "MinimumChromiumMajorVersion": 152,
-    "AllowedBrands": ["Chromium"],
     "PrivateAccessTokenLifetimeMinutes": 60
   }
 }
@@ -137,7 +135,7 @@ Stored, approved snapshots whose owner has not marked them private keep the ordi
 https://snapshots.example.net/api/snapshots/{id}/content/index.html
 ```
 
-Moderation and owner visibility determine public publication, not the replay policy. Once access has been established, every completed snapshot uses the same browser-gated content policy.
+Moderation and owner visibility determine public publication, not the replay policy. Once access has been established, every completed snapshot uses the same browser-independent content policy.
 
 ## Browser execution policy
 
@@ -149,11 +147,11 @@ The frontend embeds every snapshot with:
 
 `allow-same-origin` is intentionally absent. The document receives an opaque origin and cannot read application cookies or storage even if it is opened from an authorized private view.
 
-The document response supplies a restrictive policy whose sources are scoped to the exact public or capability-prefixed snapshot content path. It permits captured scripts, inline historical scripts, styles, images, fonts, media, frames, same-snapshot reads, and `blob:` entry URLs for dedicated workers while denying objects, forms, persistent workers, and connections outside that path.
+The document response supplies a restrictive policy whose sources are scoped to the exact public or capability-prefixed snapshot content path. It permits captured scripts, inline historical scripts, styles, images, fonts, media, frames, same-snapshot reads, and the first-party `blob:` bootstrap used for captured dedicated workers while denying objects, forms, persistent workers, and connections outside that path.
 
-Application-created `blob:` workers run their original captured bytes and inherit the document's CSP and `Connection-Allowlist`. The interactive policy permits WebAssembly compilation through the narrow `wasm-unsafe-eval` source expression without enabling JavaScript `eval`. A dedicated worker requested through an exact captured source URL is resolved to its snapshot asset and started through a short-lived `blob:` bootstrap. That bootstrap installs the captured-resource resolver before loading classic or module worker code. It limits Fetch and XHR to captured resources with `GET` or `HEAD`, omits credentials, rejects redirects, and blocks WebSocket, EventSource, WebTransport, Shared Worker, and WebRTC constructors as defense in depth. Shared Workers and Service Workers remain unavailable, and their request destinations are rejected by the content endpoint.
+Page-created `blob:` workers are rejected so archived code cannot create an uninstrumented execution realm. The replay policy permits WebAssembly compilation through the narrow `wasm-unsafe-eval` source expression without enabling JavaScript `eval`. A dedicated worker requested through an exact captured source URL is resolved to its snapshot asset and started through a short-lived, first-party `blob:` bootstrap. That bootstrap installs the captured-resource resolver before loading classic or module worker code. It limits Fetch and XHR to captured resources with `GET` or `HEAD`, omits credentials, rejects redirects, and blocks WebSocket, EventSource, WebTransport, Shared Worker, and WebRTC constructors as defense in depth. Shared Workers and Service Workers remain unavailable, and their request destinations are rejected by the content endpoint.
 
-Because the runtime shim is stored in the canonical document, this behavior applies to snapshots normalized with `archive-snapshot-v2`. Existing version 1 snapshots remain immutable and require a fresh capture to gain dedicated-worker replay.
+New captures store the runtime shim with normalizer `archive-snapshot-v3`. Manifest-authorized reads upgrade existing v2 root and nested documents in memory before delivery; preserved objects and provenance hashes remain unchanged. Documents with an unknown normalizer or an unsafe normalization failure fail closed.
 
 Additional response controls include:
 
@@ -162,15 +160,16 @@ Additional response controls include:
 - a restrictive `Permissions-Policy`;
 - credential-free CORS for opaque-origin module and resource reads;
 - `Cache-Control: no-store` for documents;
+- `X-DNS-Prefetch-Control: off` and removal of captured DNS, preconnect, prefetch, and prerender hints;
 - role-specific navigation checks for HTML, SVG, XML, and other active formats.
 
-## Browser capability requirement
+## Browser-independent containment
 
 Content Security Policy does not cover every connection channel available to untrusted JavaScript. In particular, navigation, redirects, DNS-related behavior, WebRTC, and newer connection APIs require a broader browser-enforced boundary.
 
-The API therefore sends `Connection-Allowlist` scoped to the current snapshot. Redirects and WebRTC remain blocked by default. JavaScript is enabled only when the structured `Sec-CH-UA` hint identifies a configured Chromium product at or above the tested minimum version. Missing, malformed, conflicting, unknown, or older hints receive the same snapshot with scripts disabled.
+The API sends `Connection-Allowlist` scoped to the current snapshot on every replay document. Browsers that implement it gain an additional restriction for redirects and WebRTC; browsers that do not implement it still run the same archived JavaScript behind the isolated origin, opaque iframe sandbox, snapshot-scoped CSP, captured-resource shim, destination checks, and parent-page `frame-src` boundary.
 
-This client gate protects readers from archived code; it is not a snapshot classification or moderation rule. Clients without the required enforceable network boundary receive a script-disabled response policy.
+No user-agent or client hint changes this policy, and replay responses do not vary on `Sec-CH-UA`. A snapshot containing executable content therefore behaves consistently in Safari, Firefox, and Chromium. A snapshot without executable content naturally executes none.
 
 ## Public API
 

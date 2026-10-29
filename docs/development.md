@@ -209,10 +209,10 @@ Use the relevant manual path when changing snapshot normalization, URL selection
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
 - confirm owner and administrator previews use short-lived capability URLs and execute captured scripts without exposing private snapshots anonymously;
-- confirm public and access-controlled snapshots execute captured scripts and dedicated `blob:` or exact captured workers for an admitted client while external requests, forms, Shared/Service Workers, storage, and navigation remain blocked;
+- confirm public and access-controlled snapshots execute captured scripts and exact captured dedicated workers in Safari, Firefox, and Chromium while external requests, forms, page-created `blob:` workers, Shared/Service Workers, storage, and navigation remain blocked;
 - submit a controlled site with recursively linked same-origin routes, follow the stored links in public and private playback, and confirm browser networking never returns to the live source;
 - verify fragments and query-bearing routes, a same-origin redirect, an external link, a missing route, and the configured linked-page limit produce the expected navigation and `COMPLETE`/`INCOMPLETE` quality;
-- repeat with a missing, malformed, and below-minimum `Sec-CH-UA` hint and confirm the same URL remains static.
+- repeat with missing, malformed, Safari-like, Firefox-like, and Chromium `Sec-CH-UA` values and confirm the same URL receives an identical script-capable policy without a `Vary` response.
 
 ## Common startup failures
 

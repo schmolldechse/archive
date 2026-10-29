@@ -205,22 +205,23 @@ Permanent deletion follows the same origin and `If-Match` boundary. The owner en
 
 Snapshot edits use the same conditional-write boundary. A full owner update includes the desired visibility state; the administrator contract intentionally does not. The edit, tag relationships, moderation transition, visibility value, and resulting history events commit in one database transaction and participate in the strong ETag.
 
-Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html` only for a stored, approved, non-private record; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state, including for an approved owner-private snapshot. The browser security gate determines whether JavaScript executes, independent of moderation or owner visibility.
+Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html` only for a stored, approved, non-private record; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state, including for an approved owner-private snapshot. Captured executable content receives the same replay policy in every browser, independent of moderation or owner visibility.
 
 ## Archived-content isolation
 
-Archived pages are untrusted input. Static and interactive delivery read the same canonical bytes but apply different trust boundaries:
+Archived pages are untrusted input. Canonical replay applies the same trust boundary to every browser:
 
 - approved versioned public captures load from a dedicated credential-free origin in an opaque iframe with `sandbox="allow-scripts"`;
 - archived scripts, modules, styles, images, fonts, media, frames, and captured reads are limited to the current snapshot path;
-- `Connection-Allowlist` (whose default policy blocks redirects and WebRTC), CSP, the iframe sandbox, method checks, and a snapshot shim independently prevent live network access, forms, persistent workers, pop-ups, storage privileges, and top navigation;
-- dedicated `blob:` workers inherit the document boundary, while exact captured worker scripts run through a local bootstrap that installs snapshot URL mapping and connection guards before classic or module code executes;
-- executable policy is sent only for structured `Sec-CH-UA` hints matching the configured tested Chromium version; all other clients receive a script-disabled policy at the same URL;
+- snapshot-scoped CSP, the iframe sandbox, method checks, and a snapshot shim prevent live network access, forms, persistent workers, pop-ups, storage privileges, and top navigation in every browser;
+- `Connection-Allowlist` is sent unconditionally as an additional restriction for browsers that implement it, without controlling whether JavaScript executes;
+- page-created `blob:` workers are rejected, while exact captured worker scripts run through a local bootstrap that installs snapshot URL mapping and connection guards before classic or module code executes;
 - the isolated snapshot origin strips credentials and exposes only the snapshot content route; metadata, authentication, administration, and mutation routes remain unavailable there;
-- public and access-controlled content use an opaque `sandbox="allow-scripts"` iframe; clients without the required connection boundary receive a script-disabled response policy;
+- public and access-controlled content use the same opaque `sandbox="allow-scripts"` iframe and response policy in Safari, Firefox, Chromium, and clients without a browser-identification hint;
+- the parent viewer limits its frame to the origin derived from the authorized `contentUrl`, and replay responses disable DNS prefetching;
 - original source objects are downloads and are never manifest-authorized browser resources.
 
-The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot, independent of whether script execution is enabled. It prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque.
+The snapshot manifest assigns each public object a `root-document`, `nested-document`, or `asset` role. The shared content endpoint enforces that allowlist for every snapshot and prevents active asset formats such as SVG or XML from being navigated as documents. Root documents alone permit the configured frontend in `frame-ancestors`; nested documents remain mutually opaque. New captures persist normalizer v3. Existing v2 root and nested documents are re-normalized in memory at the manifest-authorized read boundary so they receive the current shim without mutating preserved objects or provenance hashes; unknown normalizers fail closed.
 
 The worker separately restricts what it captures. URL normalization accepts HTTP and HTTPS, `PublicNetworkGuard` rejects non-public targets, and page, resource, byte, duration, and import-depth limits bound work. Every redirect hop is revalidated. The final seed response is retained as `source.html`; `index.html` and linked documents below `pages/` are derived through the versioned parser and keep scripts while rewriting captured literal dependencies. Only rendered HTTP(S) anchor and area links on the seed's effective origin enter the recursive queue; forms, downloads, external origins, subdomains, and undiscoverable routes do not. HTML, MHTML, and WebArchive imports use the same normalizer, with JavaScript disabled only during their screenshot pass. See [Configuration](configuration.md) for the controls.
 
