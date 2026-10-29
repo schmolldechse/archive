@@ -62,6 +62,9 @@ public sealed record SnapshotAdministrationUpdate(SnapshotUpdate Snapshot, strin
     }
 }
 
+/// <summary>Complete owner update including the owner's publication intent.</summary>
+public sealed record SnapshotOwnerUpdate(SnapshotUpdate Snapshot, bool IsPrivate);
+
 /// <summary>Result of a conditional owner or administrative snapshot update.</summary>
 public abstract record SnapshotUpdateResult
 {

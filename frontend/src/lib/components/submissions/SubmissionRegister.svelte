@@ -21,6 +21,7 @@
 	import { captureLabel, captureVariant } from "$lib/submission-status";
 	import SubmissionFilters from "./SubmissionFilters.svelte";
 	import SnapshotModerationStatus from "./SnapshotModerationStatus.svelte";
+	import SnapshotVisibilityStatus from "./SnapshotVisibilityStatus.svelte";
 
 	let {
 		submissions,
@@ -80,6 +81,7 @@
 									</a>
 								{/if}
 								<p class="source-type">{item.sourceType}</p>
+								<SnapshotVisibilityStatus isPrivate={item.isPrivate} />
 							</TableCell>
 							<TableCell class="date-cell" data-label="Date">
 								<ArchiveTimestamp value={item.createdAt} density="compact" />

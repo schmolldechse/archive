@@ -204,6 +204,8 @@ Use the relevant manual path when changing snapshot normalization, URL selection
 - open a pending or rejected snapshot through owner and authorized-reviewer routes;
 - exercise moderation or access writes with a fresh ETag;
 - edit owner metadata without changing approval, then change a source URL and confirm `RESUBMITTED`;
+- create a private snapshot as a fully registered owner, confirm anonymous status and public discovery return no record, then switch it public and private again with a fresh ETag;
+- confirm a user with effective `admin.access` and `admin.snapshots.access` can read and replay the private snapshot but cannot change its owner-controlled visibility;
 - edit the same snapshot as an administrator, including removing and changing attribution, without a moderation transition;
 - compare public, owner, and administrator history projections and confirm attribution events expose public profiles but no internal IDs;
 - confirm owner and administrator previews use short-lived capability URLs and execute captured scripts without exposing private snapshots anonymously;

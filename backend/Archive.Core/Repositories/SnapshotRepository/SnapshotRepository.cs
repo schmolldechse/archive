@@ -26,6 +26,7 @@ internal sealed partial class SnapshotRepository(
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
                 && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && !snapshot.IsPrivate
                 && snapshot.Quality != null)
             .ProjectToDetails()
             .SingleOrDefaultAsync(cancellationToken);
@@ -54,17 +55,18 @@ internal sealed partial class SnapshotRepository(
             {
                 snapshot.ContentPrefix,
                 snapshot.CreatedByUserId,
-                snapshot.ModerationStatus
+                snapshot.ModerationStatus,
+                snapshot.IsPrivate
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ContentPrefix is null || requireApproved &&
-            snapshot.ModerationStatus != SnapshotModerationStatus.Approved)
+            (snapshot.ModerationStatus != SnapshotModerationStatus.Approved || snapshot.IsPrivate))
         {
             logger.LogWarning("Snapshot {SnapshotId} is not public or has no active content generation", snapshotId);
             return new SnapshotContentResult.NotFound();
         }
 
-        if (!requireApproved && snapshot.ModerationStatus != SnapshotModerationStatus.Approved &&
+        if (!requireApproved &&
             (subjectUserId is null || !await HasPrivateContentAccessAsync(
                 snapshot.CreatedByUserId, subjectUserId.Value, cancellationToken)))
         {
@@ -154,10 +156,40 @@ internal sealed partial class SnapshotRepository(
             .AsNoTracking()
             .Where(snapshot => snapshot.Id == snapshotId
                 && snapshot.ModerationStatus == SnapshotModerationStatus.Approved
+                && !snapshot.IsPrivate
                 && snapshot.Quality != null)
             .Select(snapshot => snapshot.ContentPrefix)
             .SingleOrDefaultAsync(cancellationToken);
         return prefix is null ? null : await objectStore.GetAsync($"{prefix}/screenshot.png", cancellationToken);
+    }
+
+    public Task<bool> CanReadProcessingAsync(Guid snapshotId, Guid? subjectUserId,
+        CancellationToken cancellationToken = default) =>
+        CanAccessProcessingAsync(snapshotId, subjectUserId, allowPrivilegedReader: true, cancellationToken);
+
+    public Task<bool> CanCancelProcessingAsync(Guid snapshotId, Guid? subjectUserId,
+        CancellationToken cancellationToken = default) =>
+        CanAccessProcessingAsync(snapshotId, subjectUserId, allowPrivilegedReader: false, cancellationToken);
+
+    private async Task<bool> CanAccessProcessingAsync(Guid snapshotId, Guid? subjectUserId,
+        bool allowPrivilegedReader, CancellationToken cancellationToken)
+    {
+        var snapshot = await database.Snapshots.AsNoTracking()
+            .Where(item => item.Id == snapshotId)
+            .Select(item => new { item.IsPrivate, item.CreatedByUserId })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (snapshot is null) return false;
+        if (!snapshot.IsPrivate) return true;
+        if (subjectUserId is null) return false;
+
+        var subject = await database.Users.AsNoTracking()
+            .Include(user => user.PermissionOverrides)
+            .SingleOrDefaultAsync(user => user.Id == subjectUserId.Value, cancellationToken);
+        if (subject is not { IsRegistrationComplete: true } || !Enum.IsDefined(subject.Role)) return false;
+        if (snapshot.CreatedByUserId == subject.Id) return true;
+        return allowPrivilegedReader &&
+            PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminPortal) &&
+            PermissionEvaluator.IsAllowed(subject, ArchivePermissions.AccessAdminSnapshots);
     }
 
 }

@@ -7,6 +7,7 @@ export interface SnapshotEditDraft {
 	sourceUrl: string;
 	tags: string[];
 	createdByHandle: string;
+	isPrivate: boolean;
 }
 
 /** Creates a fresh edit draft from the latest server representation. */
@@ -16,6 +17,7 @@ export function createSnapshotEditDraft(detail: SnapshotSubmissionDetailResponse
 		description: detail.snapshot.description ?? "",
 		sourceUrl: detail.snapshot.sourceUrl ?? "",
 		tags: [...detail.snapshot.tags],
-		createdByHandle: detail.snapshot.createdBy?.handle ?? ""
+		createdByHandle: detail.snapshot.createdBy?.handle ?? "",
+		isPrivate: detail.snapshot.isPrivate
 	};
 }

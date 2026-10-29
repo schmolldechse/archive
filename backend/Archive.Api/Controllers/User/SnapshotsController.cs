@@ -30,7 +30,7 @@ public sealed class SnapshotsController(ISnapshotSubmissionRepository submission
 
     [HttpPut("{id:guid}"), Consumes("application/json"), EndpointName("UpdateOwnSnapshot"),
      EndpointSummary("Updates editable fields of an own snapshot.")]
-    [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET. A changed source URL moves a stored snapshot to RESUBMITTED; title, description and tag changes retain moderation status.")]
+    [EndpointDescription("Requires the owning account, the configured frontend Origin and exactly one strong If-Match from GET. The owner may change public visibility. A changed source URL moves a stored snapshot to RESUBMITTED; title, description, tag and visibility changes otherwise retain moderation status.")]
     [ProducesResponseType<SnapshotSubmissionDetailResponse>(200), ProducesResponseType<ValidationProblemDetails>(400)]
     [ProducesResponseType<ProblemDetails>(401), ProducesResponseType<ProblemDetails>(403),
      ProducesResponseType<ProblemDetails>(404), ProducesResponseType<ProblemDetails>(409),

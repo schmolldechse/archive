@@ -28,7 +28,8 @@ public sealed partial class SnapshotsController
         CancellationToken cancellationToken)
     {
         return CreationResponse(await snapshotRepository.CreateFromUrlAsync(
-            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId), cancellationToken));
+            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId,
+                request.IsPrivate), cancellationToken));
     }
 
     [HttpPost, Consumes("multipart/form-data")]
@@ -43,11 +44,13 @@ public sealed partial class SnapshotsController
         CancellationToken cancellationToken)
     {
         return CreationResponse(await snapshotRepository.CreateFromFileAsync(
-            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId),
+            new(request.SourceUrl, request.Title, request.Description, request.Tags, CurrentUserId,
+                request.IsPrivate),
             new(request.File.FileName, request.File.Length, request.File.OpenReadStream), cancellationToken));
     }
 
     [HttpGet("{snapshotId:guid}/status")]
+    [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("GetSnapshotStatus"), EndpointSummary("Gets processing status and queue position.")]
     [ProducesResponseType<SnapshotProcessingResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -55,11 +58,12 @@ public sealed partial class SnapshotsController
     public async Task<ActionResult<SnapshotProcessingResponse>> StatusAsync(Guid snapshotId, CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
-        var state = await processing.GetByIdAsync(snapshotId, cancellationToken);
+        var state = await ReadProcessingStateAsync(snapshotId, cancellationToken);
         return state is null ? NotFound() : Ok(mapper.ToResponse(state));
     }
 
     [HttpGet("{snapshotId:guid}/events")]
+    [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("StreamSnapshotEvents"), EndpointSummary("Streams transient processing state.")]
     [EndpointDescription("Unnamed SSE data events contain SnapshotProcessingResponse. Terminal events close the stream. Before opening, missing IDs return 404 and unavailable processing returns 503. After opening, named error events report these conditions and close the stream.")]
     [ProducesResponseType<string>(StatusCodes.Status200OK, "text/event-stream")]
@@ -67,7 +71,7 @@ public sealed partial class SnapshotsController
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<IActionResult> EventsAsync(Guid snapshotId, CancellationToken cancellationToken)
     {
-        var state = await processing.GetByIdAsync(snapshotId, cancellationToken);
+        var state = await ReadProcessingStateAsync(snapshotId, cancellationToken);
         if (state is null) return NotFound();
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-store";
@@ -91,7 +95,7 @@ public sealed partial class SnapshotsController
             await Task.Delay(500, cancellationToken);
             try
             {
-                state = await processing.GetByIdAsync(snapshotId, cancellationToken);
+                state = await ReadProcessingStateAsync(snapshotId, cancellationToken);
                 if (state is not null) continue;
                 await WriteStreamErrorAsync(404, "Snapshot processing state not found", cancellationToken);
             }
@@ -103,6 +107,7 @@ public sealed partial class SnapshotsController
     }
 
     [HttpPost("{snapshotId:guid}/cancel")]
+    [EnableCors(ArchiveAuthenticationExtension.CorsPolicy)]
     [EndpointName("CancelSnapshot"), EndpointSummary("Requests cancellation before capture storage completes.")]
     [ProducesResponseType<SnapshotProcessingResponse>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -110,6 +115,8 @@ public sealed partial class SnapshotsController
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
     public async Task<ActionResult<SnapshotProcessingResponse>> CancelAsync(Guid snapshotId, CancellationToken cancellationToken)
     {
+        if (!await snapshotRepository.CanCancelProcessingAsync(snapshotId, CurrentUserId, cancellationToken))
+            return NotFound();
         var result = await processing.CancelAsync(snapshotId, cancellationToken);
         return result.Outcome switch
         {
@@ -121,24 +128,54 @@ public sealed partial class SnapshotsController
 
     private Guid? CurrentUserId => User.Identity?.IsAuthenticated == true ? User.ReadUserId() : null;
 
+    /// <summary>
+    /// Revalidates private visibility after reading state and removes the cancellation affordance for
+    /// permission-based readers who are not the snapshot owner.
+    /// </summary>
+    private async Task<SnapshotProcessingState?> ReadProcessingStateAsync(Guid snapshotId,
+        CancellationToken cancellationToken)
+    {
+        if (!await snapshotRepository.CanReadProcessingAsync(snapshotId, CurrentUserId, cancellationToken))
+            return null;
+        var state = await processing.GetByIdAsync(snapshotId, cancellationToken);
+        if (state is not { IsPrivate: true }) return state;
+        if (!await snapshotRepository.CanReadProcessingAsync(snapshotId, CurrentUserId, cancellationToken))
+            return null;
+        if (state.CanCancel && !await snapshotRepository.CanCancelProcessingAsync(
+                snapshotId, CurrentUserId, cancellationToken))
+            state = state with { CanCancel = false };
+        return state;
+    }
+
     private ActionResult<SnapshotCreationResponse> CreationResponse(SnapshotCreationResult result)
     {
         switch (result)
         {
             case SnapshotCreationResult.Created created:
-                var snapshotUrl = $"/api/snapshots/{created.Id}";
-                var statusUrl = $"{snapshotUrl}/status";
+                var publicSnapshotUrl = $"/api/snapshots/{created.Id}";
+                var statusUrl = $"{publicSnapshotUrl}/status";
                 return Accepted(statusUrl, new SnapshotCreationResponse
                 {
                     Id = created.Id,
                     ModerationStatus = created.ModerationStatus,
+                    IsPrivate = created.IsPrivate,
                     StatusUrl = statusUrl,
-                    SnapshotUrl = snapshotUrl
+                    SnapshotUrl = created.IsPrivate
+                        ? $"/api/users/snapshots/{created.Id}"
+                        : publicSnapshotUrl
                 });
             case SnapshotCreationResult.UploadTooLarge:
                 return Problem(statusCode: 413, title: "File too large", detail: "The uploaded file exceeds the system limit.");
             case SnapshotCreationResult.AccountUnavailable:
                 return Unauthorized();
+            case SnapshotCreationResult.PrivateRequiresRegistration:
+                return Problem(statusCode: StatusCodes.Status403Forbidden,
+                    title: "Private snapshots require registration",
+                    detail: "Complete account registration before creating a private snapshot.",
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["code"] = "private_snapshot_requires_registration"
+                    });
             case SnapshotCreationResult.Invalid invalid:
                 ModelState.AddErrors(invalid.Errors);
                 return ValidationProblem(ModelState);

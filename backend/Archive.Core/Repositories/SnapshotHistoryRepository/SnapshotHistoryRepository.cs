@@ -65,7 +65,7 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
         var snapshots = database.Snapshots.AsNoTracking().Where(snapshot => snapshot.Id == snapshotId);
         if (publicOnly)
             snapshots = snapshots.Where(snapshot => snapshot.ModerationStatus == SnapshotModerationStatus.Approved &&
-                snapshot.Quality != null);
+                !snapshot.IsPrivate && snapshot.Quality != null);
         else if (ownerId is not null)
             snapshots = snapshots.Where(snapshot => snapshot.CreatedByUserId == ownerId);
         var snapshotState = await snapshots.Select(snapshot => new
@@ -91,6 +91,8 @@ internal sealed class SnapshotHistoryRepository(DataContext database) : ISnapsho
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.SourceUpdated &&
                     entry.Content.GetProperty("version").GetInt32() == 1 ||
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.AttributionUpdated &&
+                    entry.Content.GetProperty("version").GetInt32() == 1 ||
+                !publicOnly && entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.VisibilityUpdated &&
                     entry.Content.GetProperty("version").GetInt32() == 1 ||
                 entry.Content.GetProperty("type").GetString() == SnapshotHistoryTypes.ProcessingFinished &&
                     (entry.Content.GetProperty("version").GetInt32() == 1 ||

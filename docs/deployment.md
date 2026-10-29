@@ -108,9 +108,9 @@ Check the worker log for lease acquisition or processing errors:
 docker compose --project-name archive --env-file deploy/production/.env -f deploy/production/database.compose.yml -f deploy/production/minio.compose.yml -f deploy/production/api.compose.yml -f deploy/production/frontend.compose.yml logs --tail 100 worker
 ```
 
-Complete deployment verification with one capture. Confirm that it leaves the queue, stores a screenshot and content, appears to its owner, and becomes public only under the expected moderation rule.
+Complete deployment verification with one public-intent capture and one owner-private capture. Confirm that both leave the queue and appear to their owner, while publication requires stored content, approval, and public owner visibility. The private record must remain absent from public search, metadata, history, screenshots, content, and anonymous processing routes.
 
-For public and access-controlled snapshots, confirm that `contentUrl` uses the credential-free snapshot origin. Private URLs must contain a valid short-lived capability prefix and must return `404` after modification or expiration. Responses must vary on `Sec-CH-UA`; a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`, while a request without the required hint must receive the same stored bytes with `script-src 'none'`.
+For public and access-controlled snapshots, confirm that `contentUrl` uses the credential-free snapshot origin. Authorized URLs, including approved owner-private snapshots, must contain a valid short-lived capability prefix and must return `404` after modification, expiration, ownership change, or permission revocation. Users effectively allowed both `admin.access` and `admin.snapshots.access` may view these records, but only the snapshot owner may change visibility. Responses must vary on `Sec-CH-UA`; a supported Chromium must receive `Connection-Allowlist` plus `sandbox allow-scripts`, while a request without the required hint must receive the same stored bytes with `script-src 'none'`.
 
 ## Bootstrap the first administrator
 

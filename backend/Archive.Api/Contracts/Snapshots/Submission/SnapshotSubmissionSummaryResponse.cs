@@ -12,6 +12,10 @@ namespace Archive.Api.Contracts.Snapshots.Submission;
 [Description("Private summary of one snapshot submission and its current states.")]
 public sealed class SnapshotSubmissionSummaryResponse
 {
+    [JsonPropertyName("isPrivate")]
+    [Description("Whether this submission is excluded from public discovery and ordinary public resource routes.")]
+    public required bool IsPrivate { get; init; }
+
     [JsonPropertyName("id")]
     [Description("Snapshot identifier.")]
     public required Guid Id { get; init; }

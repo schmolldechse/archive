@@ -7,7 +7,8 @@ public sealed record SnapshotCreationRequest(
     [property: Required, StringLength(SnapshotValidation.MaxTitleLength)] string Title,
     [property: StringLength(SnapshotValidation.MaxDescriptionLength)] string? Description,
     [property: MaxLength(SnapshotValidation.MaxTags)] IReadOnlyList<string>? Tags,
-    Guid? CreatedByUserId = null) : IValidatableObject
+    Guid? CreatedByUserId = null,
+    bool IsPrivate = false) : IValidatableObject
 {
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -24,8 +25,10 @@ public sealed record SnapshotUpload(string FileName, long Length, Func<Stream> O
 public abstract record SnapshotCreationResult
 {
     private SnapshotCreationResult() { }
-    public sealed record Created(Guid Id, Entities.SnapshotModerationStatus ModerationStatus) : SnapshotCreationResult;
+    public sealed record Created(Guid Id, Entities.SnapshotModerationStatus ModerationStatus,
+        bool IsPrivate) : SnapshotCreationResult;
     public sealed record Invalid(IReadOnlyList<FieldValidationError> Errors) : SnapshotCreationResult;
     public sealed record UploadTooLarge : SnapshotCreationResult;
     public sealed record AccountUnavailable : SnapshotCreationResult;
+    public sealed record PrivateRequiresRegistration : SnapshotCreationResult;
 }

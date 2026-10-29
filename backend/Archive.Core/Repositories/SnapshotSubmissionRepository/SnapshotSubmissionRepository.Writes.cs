@@ -123,17 +123,20 @@ internal sealed partial class SnapshotSubmissionRepository
 
     /// <summary>Updates an owned snapshot and requests review only when its stored provenance URL changes.</summary>
     public Task<SnapshotUpdateResult> UpdateOwnAsync(Guid userId, Guid id, string expectedTag,
-        SnapshotUpdate update, CancellationToken token) =>
-        UpdateAsync(userId, id, expectedTag, update, administrator: false, createdByHandle: null, token);
+        SnapshotOwnerUpdate update, CancellationToken token) =>
+        UpdateAsync(userId, id, expectedTag, update.Snapshot, administrator: false,
+            createdByHandle: null, requestedPrivacy: update.IsPrivate, token);
 
     /// <summary>Updates any snapshot and its account attribution without changing its moderation status.</summary>
     public Task<SnapshotUpdateResult> UpdateForAdminAsync(Guid actorId, Guid id, string expectedTag,
         SnapshotAdministrationUpdate update, CancellationToken token) =>
-        UpdateAsync(actorId, id, expectedTag, update.Snapshot, administrator: true, update.CreatedByHandle, token);
+        UpdateAsync(actorId, id, expectedTag, update.Snapshot, administrator: true,
+            update.CreatedByHandle, requestedPrivacy: null, token);
 
     /// <summary>Serializes field changes, tag links, attribution and history under the snapshot row lock.</summary>
     private async Task<SnapshotUpdateResult> UpdateAsync(Guid actorId, Guid id, string expectedTag,
-        SnapshotUpdate update, bool administrator, string? createdByHandle, CancellationToken token)
+        SnapshotUpdate update, bool administrator, string? createdByHandle, bool? requestedPrivacy,
+        CancellationToken token)
     {
         var errors = ModelValidation.GetErrors(update);
         if (administrator)
@@ -144,7 +147,7 @@ internal sealed partial class SnapshotSubmissionRepository
 
         await using var transaction = await database.Database.BeginTransactionAsync(token);
         var actor = await LockActorAsync(actorId, token);
-        if (actor is null) return new SnapshotUpdateResult.Forbidden();
+        if (actor is not { IsRegistrationComplete: true }) return new SnapshotUpdateResult.Forbidden();
         if (administrator && (!PermissionEvaluator.IsAllowed(actor, ArchivePermissions.AccessAdminPortal) ||
             !PermissionEvaluator.IsAllowed(actor, ArchivePermissions.AccessAdminSnapshots)))
             return new SnapshotUpdateResult.Forbidden();
@@ -177,9 +180,11 @@ internal sealed partial class SnapshotSubmissionRepository
         var tagsChanged = !previousTags.SequenceEqual(tags, StringComparer.Ordinal);
         var sourceChanged = !string.Equals(snapshot.OriginUrl, sourceUrl, StringComparison.Ordinal);
         var ownerChanged = administrator && snapshot.CreatedByUserId != targetOwner?.Id;
+        var privacyChanged = !administrator && requestedPrivacy.HasValue &&
+            snapshot.IsPrivate != requestedPrivacy.Value;
 
         if (sourceChanged && snapshot.Quality is null) return new SnapshotUpdateResult.SourceNotEditable();
-        if (!titleChanged && !descriptionChanged && !tagsChanged && !sourceChanged && !ownerChanged)
+        if (!titleChanged && !descriptionChanged && !tagsChanged && !sourceChanged && !ownerChanged && !privacyChanged)
             return new SnapshotUpdateResult.Unchanged();
 
         var previousTitle = snapshot.Title;
@@ -187,10 +192,12 @@ internal sealed partial class SnapshotSubmissionRepository
         var previousSourceUrl = snapshot.OriginUrl;
         var previousStatus = snapshot.ModerationStatus;
         var previousUserId = snapshot.CreatedByUserId;
+        var previousIsPrivate = snapshot.IsPrivate;
         snapshot.Title = update.Title;
         snapshot.Description = update.Description;
         snapshot.OriginUrl = sourceUrl;
         if (ownerChanged) snapshot.CreatedByUserId = targetOwner?.Id;
+        if (privacyChanged) snapshot.IsPrivate = requestedPrivacy!.Value;
 
         if (tagsChanged)
         {
@@ -246,6 +253,13 @@ internal sealed partial class SnapshotSubmissionRepository
                 actorUserId: actorId, cancellationToken: token);
         }
 
+        if (privacyChanged)
+        {
+            await history.AppendAsync(snapshot,
+                new SnapshotVisibilityUpdatedData(previousIsPrivate, snapshot.IsPrivate),
+                actorUserId: actorId, cancellationToken: token);
+        }
+
         await database.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
         return new SnapshotUpdateResult.Updated();
@@ -273,6 +287,7 @@ internal sealed partial class SnapshotSubmissionRepository
             snapshot.Quality,
             snapshot.CaptureCompletedAt,
             snapshot.ContentPrefix,
+            snapshot.IsPrivate,
             Review = review
         }))) + "\"";
 }

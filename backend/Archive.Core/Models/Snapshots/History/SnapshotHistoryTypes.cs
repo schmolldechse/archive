@@ -11,4 +11,5 @@ public static class SnapshotHistoryTypes
     public const string DetailsUpdated = "snapshot.details_updated";
     public const string SourceUpdated = "snapshot.source_updated";
     public const string AttributionUpdated = "snapshot.attribution_updated";
+    public const string VisibilityUpdated = "snapshot.visibility_updated";
 }

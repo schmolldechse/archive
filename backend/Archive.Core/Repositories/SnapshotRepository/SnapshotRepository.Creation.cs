@@ -85,7 +85,10 @@ internal sealed partial class SnapshotRepository
             // Authentication alone does not establish snapshot ownership. Until registration is complete,
             // submissions use the same unattributed moderation path as anonymous submissions.
             var registeredCreator = creator is { IsRegistrationComplete: true } ? creator : null;
+            if (request.IsPrivate && registeredCreator is null)
+                throw new PrivateRegistrationRequiredException();
             snapshot.CreatedByUserId = registeredCreator?.Id;
+            snapshot.IsPrivate = request.IsPrivate;
             snapshot.ModerationStatus = PermissionEvaluator.IsAllowed(registeredCreator, ArchivePermissions.PublishSnapshotsWithoutApproval)
                 ? SnapshotModerationStatus.Approved
                 : SnapshotModerationStatus.Pending;
@@ -93,6 +96,9 @@ internal sealed partial class SnapshotRepository
             database.Snapshots.Add(snapshot);
             await history.AppendAsync(snapshot, new SnapshotSubmittedData(), actorUserId: registeredCreator?.Id,
                 cancellationToken: cancellationToken);
+            if (snapshot.IsPrivate)
+                await history.AppendAsync(snapshot, new SnapshotVisibilityUpdatedData(false, true),
+                    actorUserId: registeredCreator?.Id, cancellationToken: cancellationToken);
 
             foreach (var value in tags.Distinct(StringComparer.Ordinal))
             {
@@ -139,13 +145,16 @@ internal sealed partial class SnapshotRepository
                 catch { /* A later reconciliation can remove an orphan; never break a committed submission. */ }
             }
             if (exception is MissingCreatorException) return new SnapshotCreationResult.AccountUnavailable();
+            if (exception is PrivateRegistrationRequiredException)
+                return new SnapshotCreationResult.PrivateRequiresRegistration();
             throw;
         }
-        return new SnapshotCreationResult.Created(snapshot.Id, snapshot.ModerationStatus);
+        return new SnapshotCreationResult.Created(snapshot.Id, snapshot.ModerationStatus, snapshot.IsPrivate);
     }
 
     // Routes missing creators through transaction disposal and upload cleanup before returning AccountUnavailable.
     // Returning directly from the creation block would skip cleanup of an already uploaded source file.
     private sealed class MissingCreatorException : Exception;
+    private sealed class PrivateRegistrationRequiredException : Exception;
 }
 

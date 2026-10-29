@@ -9,6 +9,10 @@ namespace Archive.Api.Contracts.Snapshots.Processing;
 [Description("Processing status of a snapshot.")]
 public sealed class SnapshotProcessingResponse
 {
+    [JsonPropertyName("isPrivate")]
+    [Description("Whether the snapshot is excluded from public metadata and content routes.")]
+    public required bool IsPrivate { get; init; }
+
     [JsonPropertyName("moderationStatus")]
     [Description("Review state; capture completion does not imply approval.")]
     public required SnapshotModerationStatus ModerationStatus { get; init; }

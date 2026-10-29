@@ -75,10 +75,11 @@ The dependency direction is deliberate: API and worker depend on Core; Core does
 
 ## Snapshot lifecycle
 
-Processing status and moderation status answer different questions:
+Processing status, moderation status, and owner visibility answer different questions:
 
 - **Processing**: Were the source and resources captured and stored?
 - **Moderation**: May the stored snapshot appear in the public register?
+- **Owner visibility**: Has its fully registered owner chosen to keep the snapshot private?
 
 ```mermaid
 flowchart LR
@@ -87,8 +88,8 @@ flowchart LR
     Running --> Stored[COMPLETED and stored]
     Running --> Terminal[FAILED / DISCARDED / CANCELLED / ABORTED]
     Stored --> Review[PENDING or RESUBMITTED]
-    Review --> Public[APPROVED and public]
-    Review --> Rejected[REJECTED and private]
+    Review --> Public[APPROVED and eligible for publication]
+    Review --> Rejected[REJECTED and unpublished]
     Rejected --> Review
     Queued --> Deleted[Permanently deleted]
     Running --> Deleted
@@ -98,9 +99,9 @@ flowchart LR
     Rejected --> Deleted
 ```
 
-A submission records `CreatedByUserId` only for an authenticated account that has completed registration. Anonymous callers and authenticated callers with incomplete registration create unattributed snapshots and cannot use the owner routes for them. Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently of that decision; public queries still require both stored content and approval.
+A submission records `CreatedByUserId` only for an authenticated account that has completed registration. Anonymous callers and authenticated callers with incomplete registration create unattributed snapshots and cannot use the owner routes for them. Only a fully registered owner may request private visibility. Users with `snapshots.publish_without_approval` start in `APPROVED`. Other submissions start in `PENDING`. Processing can proceed independently; public queries require stored content, approval, and `IsPrivate == false`.
 
-Owners may edit title, description, and tags without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the same fields and change or remove account attribution without changing moderation.
+Owners may edit title, description, tags, and public visibility without changing moderation. Changing the source provenance URL moves an owned stored snapshot to `RESUBMITTED`, which removes it from public reads until another approval. Authorized administrators may edit the shared metadata and change or remove account attribution without changing moderation, but only the current owner can change `IsPrivate`.
 
 Fully registered owners may permanently delete their own snapshots in every processing or moderation state. Users with both `admin.access` and `admin.snapshots.access` may delete any snapshot, including unattributed submissions. Deletion uses the same strong conditional validator as editing and moderation, so an unseen concurrent capture completion, edit, attribution change, or review decision must be reloaded before it can be deleted.
 
@@ -110,7 +111,7 @@ For a running capture, the missing snapshot record causes subsequent continuatio
 
 ### Snapshot history
 
-Lifecycle and edit events are append-only, versioned JSON envelopes. The API exposes audience-specific projections: owners and administrators receive the events permitted by their private routes, while public history includes only events suitable for an approved record and omits rejected decisions, review notes, previous source URLs, complete before-and-after metadata values, and actor identities. Existing public tag-addition/removal deltas remain available for compatibility.
+Lifecycle and edit events are append-only, versioned JSON envelopes. Owner visibility changes use `snapshot.visibility_updated@1` and commit with the visibility value. The API exposes audience-specific projections: owners and administrators receive the events permitted by their private routes, while public history includes only events suitable for an approved public record and omits visibility changes, rejected decisions, review notes, previous source URLs, complete before-and-after metadata values, and actor identities. Existing public tag-addition/removal deltas remain available for compatibility.
 
 Attribution events persist nullable internal user IDs so a later handle change cannot break the reference. Reads resolve those IDs to the current public user contract; internal IDs are replaced before serialization and never leave the API. The frontend dispatches event types through an extensible component registry and renders unknown versions as a neutral record rather than raw JSON.
 
@@ -180,7 +181,7 @@ Roles provide defaults; individual `ALLOW` or `DENY` overrides take precedence. 
 | ------------------------------------ | --------------------------------------------------------- |
 | `admin.access`                       | Enter the administration portal.                          |
 | `admin.users.access`                 | Read users, roles, and overrides.                         |
-| `admin.snapshots.access`             | Read, edit, delete, reattribute, and moderate submissions. |
+| `admin.snapshots.access`             | Read, edit, delete, reattribute, and moderate submissions; owner visibility remains owner-controlled. |
 | `snapshots.publish_without_approval` | Publish the user's own completed captures without review. |
 | `users.assign_roles`                 | Change another user's role.                               |
 | `users.assign_permissions`           | Change another user's overrides.                          |
@@ -189,21 +190,22 @@ Administrative access changes cannot target the current actor and cannot leave t
 
 ### Snapshot visibility
 
-| Caller and state                                 | Metadata/content route      | Result                                                                    |
-| ------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------- |
-| Anonymous, stored and `APPROVED`                 | `/api/snapshots/{id}`       | Public metadata and resources.                                            |
-| Registered owner, any stored moderation state    | `/api/users/snapshots/{id}` | Private detail, history, screenshot, and content.                         |
-| Unattributed, not `APPROVED`                     | `/api/users/snapshots/{id}` | No owner access; only an authorized reviewer can open it.                 |
-| Authorized reviewer, any stored moderation state | `/api/admin/snapshots/{id}` | Private review detail, history, screenshot, and content.                  |
-| Any caller outside those rules                   | Any route                   | Not found, unauthenticated, or forbidden according to the route contract. |
+| Caller and state | Metadata/content route | Result |
+| --- | --- | --- |
+| Anonymous, stored, `APPROVED`, and public | `/api/snapshots/{id}` | Public metadata and resources. |
+| Anonymous, owner-private in any moderation state | Public metadata, history, screenshot, content, or processing route | `404`; the record is also absent from search, totals, year distributions, and recent captures. |
+| Registered owner, any stored moderation or visibility state | `/api/users/snapshots/{id}` | Authorized detail, history, screenshot, content, and owner visibility control. |
+| Unattributed and not public | `/api/users/snapshots/{id}` | No owner access; only an authorized reviewer can open it. |
+| User effectively allowed `admin.access` and `admin.snapshots.access` | `/api/admin/snapshots/{id}` | Authorized detail, history, screenshot, and content; no visibility mutation. |
+| Any caller outside those rules | Any route | Not found, unauthenticated, or forbidden according to the route contract. |
 
 Private responses use `private, no-store`. Mutations for moderation, resubmission, roles, and permission overrides require the configured frontend origin and one strong `If-Match` value obtained from the corresponding detail response.
 
 Permanent deletion follows the same origin and `If-Match` boundary. The owner endpoint returns `404` for a foreign or unattributed record; the administration endpoint re-evaluates current portal and snapshot permissions inside the deletion transaction. After commit, public, private, status, history, screenshot, and content routes all return the same missing result they use for an unknown snapshot.
 
-Snapshot edits use the same conditional-write boundary. A full update representation prevents ambiguous tag or attribution changes, and the edit, tag relationships, moderation transition, and resulting history events commit in one database transaction.
+Snapshot edits use the same conditional-write boundary. A full owner update includes the desired visibility state; the administrator contract intentionally does not. The edit, tag relationships, moderation transition, visibility value, and resulting history events commit in one database transaction and participate in the strong ETag.
 
-Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html`; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state. The browser security gate determines whether JavaScript executes, independent of moderation status.
+Every completed snapshot uses the dedicated credential-free origin as its `contentUrl`. Public metadata returns `/api/snapshots/{id}/content/index.html` only for a stored, approved, non-private record; authorized owner and administrator metadata returns the same path with a short-lived signed capability prefix. A private capability is bound to the caller, and every resource request revalidates current ownership, registration, role, and permission state, including for an approved owner-private snapshot. The browser security gate determines whether JavaScript executes, independent of moderation or owner visibility.
 
 ## Archived-content isolation
 
