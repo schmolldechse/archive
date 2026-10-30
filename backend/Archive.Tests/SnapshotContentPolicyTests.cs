@@ -1,6 +1,7 @@
 using Archive.Api.Authentication;
 using Archive.Api.SnapshotContent;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 using Microsoft.AspNetCore.Http;
 
 namespace Archive.Tests;

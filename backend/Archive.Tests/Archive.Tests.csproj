@@ -11,6 +11,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\Archive.Api\Archive.Api.csproj" />
     <ProjectReference Include="..\Archive.Core\Archive.Core.csproj" />
+    <ProjectReference Include="..\Archive.SnapshotMigrator\Archive.SnapshotMigrator.csproj" />
     <ProjectReference Include="..\Archive.Worker\Archive.Worker.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
@@ -19,5 +20,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Fixtures\SnapshotManifests\*.json" />
   </ItemGroup>
 </Project>

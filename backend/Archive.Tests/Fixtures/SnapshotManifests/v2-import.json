@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "resourceReferenceMode": "relative-v1",
+  "sourceType": "MhtmlFile",
+  "originalUrl": "https://example.test/imported.html",
+  "sourceSizeBytes": 2048,
+  "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "htmlObjectKey": "snapshots/11111111111111111111111111111111/index.html",
+  "screenshotObjectKey": "snapshots/11111111111111111111111111111111/screenshot.png",
+  "sourceObjectKey": "snapshots/11111111111111111111111111111111/source.mhtml",
+  "resources": [
+    {
+      "url": "https://example.test/image.png",
+      "contentType": "image/png",
+      "objectKey": "snapshots/11111111111111111111111111111111/assets/image"
+    }
+  ],
+  "missingUrls": [],
+  "missingUrlCount": 0,
+  "incomplete": false
+}

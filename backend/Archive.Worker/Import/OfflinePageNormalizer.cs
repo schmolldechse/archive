@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 
 namespace Archive.Worker.Import;
 

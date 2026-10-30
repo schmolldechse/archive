@@ -12,6 +12,8 @@ using Archive.Core.Repositories.SnapshotSubmissionRepository;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Repositories.SnapshotDeletionRepository;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Adapters;
 using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -89,6 +91,12 @@ public static class Injection
         services.AddSingleton<IUploadFormatProbe, MhtmlUploadFormatProbe>();
         services.AddSingleton<IUploadFormatProbe, WebArchiveUploadFormatProbe>();
         services.AddSingleton<UploadFormatSelector>();
+
+        services.AddSingleton<SnapshotManifestAdapter, SnapshotManifestV1Adapter>();
+        services.AddSingleton<SnapshotManifestAdapter, SnapshotManifestV2Adapter>();
+        services.AddSingleton<SnapshotManifestAdapter, SnapshotManifestV3Adapter>();
+        services.AddSingleton<SnapshotManifestAdapter, SnapshotManifestV4Adapter>();
+        services.AddSingleton<ISnapshotManifestReader, SnapshotManifestReader>();
 
         services.AddScoped<IAuthenticationRepository, AuthenticationRepository>()
             .AddScoped<IUserRepository, UserRepository>()

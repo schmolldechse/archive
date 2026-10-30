@@ -69,9 +69,18 @@ Imported documents are normalized to the same stored-content model as browser ca
 
 ### Core
 
-`backend/Archive.Core` is referenced by both executables. It contains the EF Core model and migrations, repository contracts and implementations, option validation, authorization definitions, processing lease, upload-format selection, and object-storage access.
+`backend/Archive.Core` is referenced by the API, worker, and one-shot snapshot migrator. It contains the EF Core model and migrations, repository contracts and implementations, option validation, authorization definitions, processing lease, upload-format selection, versioned manifest reading, and object-storage access.
 
-The dependency direction is deliberate: API and worker depend on Core; Core does not depend on either host.
+The dependency direction is deliberate: API, worker, and migrator depend on Core; Core does not depend on any host.
+
+Snapshot manifest delivery depends on `ISnapshotManifestReader`. Its implementation dispatches the declared contract
+version to one explicitly registered typed adapter per supported version, then applies shared content-boundary validation
+to the version-independent resolved model. Historical contracts therefore remain isolated from the current V4 writer
+contract and adding a future version does not require modifying an existing adapter.
+
+The implementation is contained in `Archive.Core/Storage/Manifests`: `Contracts` separates shared and version-specific
+persisted types, `Adapters` contains one strategy type per file, and `Models` contains the version-independent delivery
+model. General object-storage and document-normalization primitives remain outside this module.
 
 ## Snapshot lifecycle
 

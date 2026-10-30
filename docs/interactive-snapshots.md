@@ -54,7 +54,7 @@ When normalization is incomplete, the worker retains the safest rewritten docume
 
 ## Manifest contract
 
-The current snapshot manifest is version `4`. Its top-level structure is:
+New captures write snapshot manifest version `4`. Its top-level structure is:
 
 ```json
 {
@@ -82,9 +82,23 @@ The current snapshot manifest is version `4`. Its top-level structure is:
 }
 ```
 
+The read boundary supports every persisted contract from version 1 through version 4. Each version is parsed by an
+explicit adapter and validated before it becomes a browser allowlist:
+
+| Manifest | Read behavior |
+| --- | --- |
+| 1 | URL-capture resources receive safe relative paths and conservative roles; documents are normalized in memory before delivery. |
+| 2 | Imported resources use the same legacy adapter while retaining the recorded original URL when present. |
+| 3 | The historical `replay` metadata maps to current interaction metadata; stored hashes and roles remain authoritative. |
+| 4 | The current strict contract is used directly. |
+
+Unknown versions fail closed. Writers never emit an older contract, and a version change requires a dedicated adapter
+and regression fixture for every retained version. The optional one-time migrator can create an immutable, validated V4
+generation for every older snapshot; see [Snapshot manifest migration](snapshot-migration.md).
+
 The API serves a resource only when:
 
-- the active generation has a readable current manifest;
+- the active generation has a readable supported manifest;
 - the requested relative path is safe;
 - exactly one manifest entry matches the path;
 - the entry object key exactly equals the active content prefix plus that path;
@@ -170,6 +184,9 @@ Additional response controls include:
 - role-specific navigation checks for HTML, SVG, XML, and other active formats.
 
 Immutable assets are served with a strong manifest-hash ETag and support one closed, open-ended, or suffix byte range on both public and capability URLs. Satisfiable requests return `206` with an exact `Content-Range`; malformed, multiple, and unsatisfiable ranges return `416`. This gives native media elements and PDF viewers the seeking behavior they expect without treating a partial capture as a complete archived resource. Runtime-upgraded HTML documents do not advertise range support.
+
+V1 and V2 manifests do not contain persisted resource hashes. Their assets are therefore returned as complete
+representations without a strong ETag or byte-range advertisement until a V4 generation is activated.
 
 ## Browser-independent containment
 

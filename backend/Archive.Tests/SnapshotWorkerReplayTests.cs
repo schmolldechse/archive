@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using Archive.Api.Authentication;
 using Archive.Api.SnapshotContent;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

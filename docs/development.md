@@ -174,6 +174,7 @@ Run checks from the directories shown below.
 ```powershell
 dotnet build backend/Archive.slnx -m:1
 dotnet test backend/Archive.slnx -m:1
+dotnet run --project backend/Archive.SnapshotMigrator -- --help
 ```
 
 ### Frontend
