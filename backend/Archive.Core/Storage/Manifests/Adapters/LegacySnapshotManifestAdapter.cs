@@ -1,10 +1,16 @@
-namespace Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Contracts.Legacy;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
+using Archive.Core.Storage.Manifests.Models;
+
+namespace Archive.Core.Storage.Manifests.Adapters;
 
 /// <summary>Maps the shared V1/V2 object layout while preserving their distinct source-URL semantics.</summary>
-internal abstract class LegacySnapshotManifestAdapter(int version)
-    : SnapshotManifestAdapter<LegacySnapshotManifestContract>(version)
+internal abstract class LegacySnapshotManifestAdapter<TContract>(int version)
+    : TypedSnapshotManifestAdapter<TContract>(version)
+    where TContract : class, ILegacySnapshotManifestContract
 {
-    protected sealed override ResolvedSnapshotManifest Resolve(LegacySnapshotManifestContract contract,
+    protected sealed override ResolvedSnapshotManifest Resolve(TContract contract,
         SnapshotManifestReadContext context)
     {
         if (contract.Version != Version || string.IsNullOrWhiteSpace(contract.HtmlObjectKey) ||
@@ -38,6 +44,6 @@ internal abstract class LegacySnapshotManifestAdapter(int version)
             new(null, "Legacy manifest requires current normalization.", true, true), resources);
     }
 
-    protected abstract string? ResolveSourceUrl(LegacySnapshotManifestContract contract,
+    protected abstract string? ResolveSourceUrl(TContract contract,
         SnapshotManifestReadContext context);
 }

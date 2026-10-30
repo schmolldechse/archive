@@ -1,7 +1,11 @@
-namespace Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Contracts.V4;
+using Archive.Core.Storage.Manifests.Models;
+
+namespace Archive.Core.Storage.Manifests.Adapters;
 
 /// <summary>Adapts the current strict V4 writer contract to the content-delivery read model.</summary>
-internal sealed class SnapshotManifestV4Adapter : SnapshotManifestAdapter<SnapshotManifest>
+internal sealed class SnapshotManifestV4Adapter : TypedSnapshotManifestAdapter<SnapshotManifest>
 {
     public SnapshotManifestV4Adapter() : base(SnapshotManifest.CurrentVersion) { }
 

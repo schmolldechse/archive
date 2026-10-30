@@ -7,6 +7,8 @@ using Archive.Core.Entities;
 using Archive.Core.Options;
 using Archive.Core.Processing;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
+using Archive.Core.Storage.Manifests.Contracts.V4;
 using Archive.Worker.Capture.Browser;
 using Archive.Worker.Capture.Network;
 using Microsoft.AspNetCore.Builder;

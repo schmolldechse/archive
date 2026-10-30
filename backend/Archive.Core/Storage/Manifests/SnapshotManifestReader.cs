@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Archive.Core.Storage.Manifests.Adapters;
+using Archive.Core.Storage.Manifests.Models;
 
-namespace Archive.Core.Storage;
+namespace Archive.Core.Storage.Manifests;
 
 /// <summary>Dispatches persisted snapshot manifests to the adapter registered for their declared version.</summary>
 internal sealed class SnapshotManifestReader : ISnapshotManifestReader

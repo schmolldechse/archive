@@ -1,6 +1,10 @@
 using System.Text.Json;
+using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
+using Archive.Core.Storage.Manifests.Models;
 
-namespace Archive.Core.Storage;
+namespace Archive.Core.Storage.Manifests.Adapters;
 
 /// <summary>Maps exactly one persisted snapshot manifest contract into the version-independent read model.</summary>
 internal abstract class SnapshotManifestAdapter
@@ -32,20 +36,3 @@ internal abstract class SnapshotManifestAdapter
             resource.Path, resource.SourceUrl, resource.ContentType, resource.ObjectKey, resource.Sha256,
             resource.Role)).ToArray();
 }
-
-/// <summary>Provides type-safe deserialization before a version adapter applies contract-specific semantics.</summary>
-internal abstract class SnapshotManifestAdapter<TContract>(int version) : SnapshotManifestAdapter(version)
-    where TContract : class
-{
-    public sealed override ResolvedSnapshotManifest Resolve(JsonElement root, SnapshotManifestReadContext context)
-    {
-        var contract = root.Deserialize<TContract>() ??
-            throw new InvalidDataException($"Snapshot manifest version {Version} could not be deserialized.");
-        return Resolve(contract, context);
-    }
-
-    protected abstract ResolvedSnapshotManifest Resolve(TContract contract, SnapshotManifestReadContext context);
-}
-
-/// <summary>Immutable contextual data supplied to every manifest-version adapter.</summary>
-internal sealed record SnapshotManifestReadContext(string ContentPrefix, string? FallbackSourceUrl);

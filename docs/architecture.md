@@ -78,6 +78,10 @@ version to one explicitly registered typed adapter per supported version, then a
 to the version-independent resolved model. Historical contracts therefore remain isolated from the current V4 writer
 contract and adding a future version does not require modifying an existing adapter.
 
+The implementation is contained in `Archive.Core/Storage/Manifests`: `Contracts` separates shared and version-specific
+persisted types, `Adapters` contains one strategy type per file, and `Models` contains the version-independent delivery
+model. General object-storage and document-normalization primitives remain outside this module.
+
 ## Snapshot lifecycle
 
 Processing status, moderation status, and owner visibility answer different questions:

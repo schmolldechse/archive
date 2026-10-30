@@ -1,5 +1,6 @@
 using System.Text;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 
 namespace Archive.SnapshotMigrator;
 

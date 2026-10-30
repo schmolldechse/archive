@@ -1,5 +1,6 @@
 using System.Text;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 using Archive.SnapshotMigrator;
 
 namespace Archive.Tests;

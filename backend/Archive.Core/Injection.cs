@@ -12,6 +12,8 @@ using Archive.Core.Repositories.SnapshotSubmissionRepository;
 using Archive.Core.Repositories.SnapshotHistoryRepository;
 using Archive.Core.Repositories.SnapshotDeletionRepository;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Adapters;
 using Archive.Core.Uploads;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

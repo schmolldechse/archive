@@ -1,4 +1,8 @@
-namespace Archive.Core.Storage;
+using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
+using Archive.Core.Storage.Manifests.Models;
+
+namespace Archive.Core.Storage.Manifests;
 
 /// <summary>Applies version-independent security invariants at the snapshot content boundary.</summary>
 internal static class SnapshotManifestValidation

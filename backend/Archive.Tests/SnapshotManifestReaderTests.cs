@@ -1,5 +1,8 @@
 using System.Text;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Adapters;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 
 namespace Archive.Tests;
 

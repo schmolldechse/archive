@@ -1,6 +1,7 @@
 using Archive.Api.Options;
 using Archive.Api.Authentication;
 using Archive.Core.Storage;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 
 namespace Archive.Api.SnapshotContent;
 

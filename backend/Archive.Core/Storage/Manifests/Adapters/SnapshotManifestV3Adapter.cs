@@ -1,7 +1,11 @@
-namespace Archive.Core.Storage;
+using Archive.Core.Storage.Manifests;
+using Archive.Core.Storage.Manifests.Contracts.V3;
+using Archive.Core.Storage.Manifests.Models;
+
+namespace Archive.Core.Storage.Manifests.Adapters;
 
 /// <summary>Adapts the historical V3 replay metadata to the current interaction read model.</summary>
-internal sealed class SnapshotManifestV3Adapter : SnapshotManifestAdapter<SnapshotManifestV3Contract>
+internal sealed class SnapshotManifestV3Adapter : TypedSnapshotManifestAdapter<SnapshotManifestV3Contract>
 {
     public SnapshotManifestV3Adapter() : base(3) { }
 

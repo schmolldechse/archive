@@ -1,4 +1,5 @@
 using Archive.Core.Models.Snapshots;
+using Archive.Core.Storage.Manifests.Contracts.Shared;
 
 namespace Archive.Core.Storage;
 
