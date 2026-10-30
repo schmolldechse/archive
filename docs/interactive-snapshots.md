@@ -185,6 +185,9 @@ Additional response controls include:
 
 Immutable assets are served with a strong manifest-hash ETag and support one closed, open-ended, or suffix byte range on both public and capability URLs. Satisfiable requests return `206` with an exact `Content-Range`; malformed, multiple, and unsatisfiable ranges return `416`. This gives native media elements and PDF viewers the seeking behavior they expect without treating a partial capture as a complete archived resource. Runtime-upgraded HTML documents do not advertise range support.
 
+V1 and V2 manifests do not contain persisted resource hashes. Their assets are therefore returned as complete
+representations without a strong ETag or byte-range advertisement until a V4 generation is activated.
+
 ## Browser-independent containment
 
 Content Security Policy does not cover every connection channel available to untrusted JavaScript. In particular, navigation, redirects, DNS-related behavior, WebRTC, and newer connection APIs require a broader browser-enforced boundary.

@@ -126,9 +126,9 @@ internal sealed partial class SnapshotRepository(
         }
 
         request ??= SnapshotContentRequest.Full;
-        var entityTag = $"\"{resource.Sha256}\"";
+        var entityTag = resource.Sha256 is null ? null : $"\"{resource.Sha256}\"";
         var isDocument = resource.Role is SnapshotResourceRoles.RootDocument or SnapshotResourceRoles.NestedDocument;
-        if (!isDocument && !string.IsNullOrWhiteSpace(request.Range) &&
+        if (!isDocument && entityTag is not null && !string.IsNullOrWhiteSpace(request.Range) &&
             (string.IsNullOrWhiteSpace(request.IfRange) ||
                 string.Equals(request.IfRange.Trim(), entityTag, StringComparison.Ordinal)))
         {
@@ -155,7 +155,8 @@ internal sealed partial class SnapshotRepository(
         var requiresNormalization = isDocument && manifest.Interaction.RequiresNormalization;
         if (!requiresNormalization)
             return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role,
-                stored.Length, stored.Length, EntityTag: entityTag, SupportsRanges: !isDocument));
+                stored.Length, stored.Length, EntityTag: entityTag,
+                SupportsRanges: !isDocument && entityTag is not null));
 
         if (!manifest.Interaction.CanNormalize)
         {
