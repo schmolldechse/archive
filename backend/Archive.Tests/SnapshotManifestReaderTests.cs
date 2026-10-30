@@ -6,6 +6,12 @@ namespace Archive.Tests;
 public sealed class SnapshotManifestReaderTests
 {
     private const string Prefix = "snapshots/11111111111111111111111111111111";
+    private static readonly ISnapshotManifestReader Reader = new SnapshotManifestReader([
+        new SnapshotManifestV1Adapter(),
+        new SnapshotManifestV2Adapter(),
+        new SnapshotManifestV3Adapter(),
+        new SnapshotManifestV4Adapter()
+    ]);
 
     [Theory]
     [InlineData("v1-url.json", 1, 3)]
@@ -16,7 +22,7 @@ public sealed class SnapshotManifestReaderTests
     {
         await using var stream = OpenFixture(fixture);
 
-        var manifest = await SnapshotManifestReader.ReadAsync(stream, Prefix, "https://fallback.test/",
+        var manifest = await Reader.ReadAsync(stream, Prefix, "https://fallback.test/",
             CancellationToken.None);
 
         Assert.Equal(version, manifest.Version);
@@ -30,7 +36,7 @@ public sealed class SnapshotManifestReaderTests
     {
         await using var stream = OpenFixture("v1-url.json");
 
-        var manifest = await SnapshotManifestReader.ReadAsync(stream, Prefix, "https://fallback.test/",
+        var manifest = await Reader.ReadAsync(stream, Prefix, "https://fallback.test/",
             CancellationToken.None);
 
         Assert.True(manifest.Interaction.RequiresNormalization);
@@ -45,7 +51,7 @@ public sealed class SnapshotManifestReaderTests
     {
         await using var stream = OpenFixture("v3-replay.json");
 
-        var manifest = await SnapshotManifestReader.ReadAsync(stream, Prefix, null, CancellationToken.None);
+        var manifest = await Reader.ReadAsync(stream, Prefix, null, CancellationToken.None);
 
         Assert.Equal("archive-snapshot-v1", manifest.Interaction.Normalizer);
         Assert.True(manifest.Interaction.RequiresNormalization);
@@ -62,7 +68,7 @@ public sealed class SnapshotManifestReaderTests
     {
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => SnapshotManifestReader.ReadAsync(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => Reader.ReadAsync(
             stream, Prefix, null, CancellationToken.None));
 
         Assert.Contains(message, exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -84,7 +90,7 @@ public sealed class SnapshotManifestReaderTests
             """;
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => SnapshotManifestReader.ReadAsync(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => Reader.ReadAsync(
             stream, Prefix, null, CancellationToken.None));
 
         Assert.Contains("reserved object", exception.Message, StringComparison.Ordinal);
@@ -97,7 +103,7 @@ public sealed class SnapshotManifestReaderTests
         json = json.Replace("assets/app.js", "screenshot.png", StringComparison.Ordinal);
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => SnapshotManifestReader.ReadAsync(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => Reader.ReadAsync(
             stream, Prefix, null, CancellationToken.None));
 
         Assert.Contains("reserved object", exception.Message, StringComparison.Ordinal);
@@ -110,10 +116,21 @@ public sealed class SnapshotManifestReaderTests
         json = json.Replace($"{Prefix}/source.html", "snapshots/other/source.html", StringComparison.Ordinal);
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => SnapshotManifestReader.ReadAsync(
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => Reader.ReadAsync(
             stream, Prefix, null, CancellationToken.None));
 
         Assert.Contains("invalid provenance", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectsDuplicateAdapterRegistrations()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => new SnapshotManifestReader([
+            new SnapshotManifestV1Adapter(),
+            new SnapshotManifestV1Adapter()
+        ]));
+
+        Assert.Contains("version 1", exception.Message, StringComparison.Ordinal);
     }
 
     private static Stream OpenFixture(string name)

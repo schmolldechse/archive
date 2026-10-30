@@ -73,6 +73,11 @@ Imported documents are normalized to the same stored-content model as browser ca
 
 The dependency direction is deliberate: API, worker, and migrator depend on Core; Core does not depend on any host.
 
+Snapshot manifest delivery depends on `ISnapshotManifestReader`. Its implementation dispatches the declared contract
+version to one explicitly registered typed adapter per supported version, then applies shared content-boundary validation
+to the version-independent resolved model. Historical contracts therefore remain isolated from the current V4 writer
+contract and adding a future version does not require modifying an existing adapter.
+
 ## Snapshot lifecycle
 
 Processing status, moderation status, and owner visibility answer different questions:

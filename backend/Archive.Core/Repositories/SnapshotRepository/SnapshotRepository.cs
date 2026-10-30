@@ -18,6 +18,7 @@ internal sealed partial class SnapshotRepository(
     UploadFormatSelector uploadFormatSelector,
     ArchiveOptions options,
     ISnapshotHistoryRepository history,
+    ISnapshotManifestReader manifestReader,
     ILogger<SnapshotRepository> logger) : ISnapshotRepository
 {
     public async Task<SnapshotDetails?> GetByIdAsync(Guid snapshotId, CancellationToken cancellationToken = default)
@@ -95,7 +96,7 @@ internal sealed partial class SnapshotRepository(
         try
         {
             await using (storedManifest.Content)
-                manifest = await SnapshotManifestReader.ReadAsync(storedManifest.Content, snapshot.ContentPrefix,
+                manifest = await manifestReader.ReadAsync(storedManifest.Content, snapshot.ContentPrefix,
                     snapshot.OriginUrl, cancellationToken);
         }
         catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidDataException)

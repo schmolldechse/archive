@@ -91,6 +91,18 @@ manifest.json
     -> bestehende Ressourcenauflösung
 ```
 
+Die Reader-Implementierung folgt dabei einer expliziten internen Strategy-/Adapter-Struktur:
+
+- `ISnapshotManifestReader` bildet die einzige Abhängigkeit des Repository-Auslieferungspfads;
+- `SnapshotManifestReader` übernimmt ausschließlich Versionsdiskriminierung und Dispatch;
+- `SnapshotManifestAdapter<TContract>` kapselt die typisierte Deserialisierung und definiert den abstrakten
+  Abbildungspunkt für einen persistierten Vertrag;
+- je ein konkreter Adapter für V1, V2, V3 und V4 enthält ausschließlich versionsspezifische Semantik;
+- eine gemeinsame abstrakte Legacy-Basis bündelt die tatsächlich identische V1-/V2-Ressourcenabbildung;
+- historische DTOs und gemeinsame Sicherheitsvalidierung liegen in eigenständigen internen Komponenten;
+- die Adapter werden explizit über Dependency Injection registriert, sodass der unterstützte Versionssatz sichtbar,
+  testbar und ohne statischen globalen Zustand zusammengesetzt wird.
+
 Es gibt keinen optimistischen Fallback auf die neueste DTO-Klasse. Version `0`, negative Werte und Versionen größer als 4 werden mit einer versionsbezogenen Warnung abgelehnt. Das verhindert, dass ein zukünftiger Vertrag versehentlich teilweise als Version 4 interpretiert wird.
 
 ### 3. Versionsspezifische Abbildung
@@ -245,10 +257,17 @@ Voraussichtliche, aufgabenbezogene Änderungen:
 - `backend/Archive.Core/Storage/SnapshotManifest.cs`
   - aktueller V4-Schreibvertrag bleibt bestehen;
   - allenfalls gemeinsame Versionskonstanten, ohne Pflichtfelder zu lockern.
-- `backend/Archive.Core/Storage/SnapshotManifestReader.cs` (neu)
-  - Versionsdiskriminierung, DTOs/Adapter und gemeinsame Validierung.
-- `backend/Archive.Core/Storage/SnapshotContentManifest.cs` (neu oder eng beim Reader)
+- `backend/Archive.Core/Storage/ISnapshotManifestReader.cs` und `SnapshotManifestReader.cs` (neu)
+  - injizierbare Reader-Grenze sowie ausschließlich Versionsdiskriminierung und Adapter-Dispatch.
+- `backend/Archive.Core/Storage/SnapshotManifestAdapter.cs`, `LegacySnapshotManifestAdapter.cs` und
+  `SnapshotManifestV1Adapter.cs` bis `SnapshotManifestV4Adapter.cs` (neu)
+  - abstrakte typisierte Adapterbasis, gemeinsame Legacy-Abbildung und isolierte versionsspezifische Semantik.
+- `backend/Archive.Core/Storage/SnapshotManifestContracts.cs` und `SnapshotManifestValidation.cs` (neu)
+  - historische persistierte Verträge und gemeinsame Fail-Closed-Sicherheitsvalidierung.
+- `backend/Archive.Core/Storage/ResolvedSnapshotManifest.cs` (neu)
   - internes, versionsneutrales Laufzeitmodell.
+- `backend/Archive.Core/Injection.cs`
+  - explizite Registrierung aller unterstützten Adapter und der Reader-Schnittstelle.
 - `backend/Archive.Core/Repositories/SnapshotRepository/SnapshotRepository.cs`
   - direkte V4-Deserialisierung durch den Reader ersetzen;
   - bestehende Ressourcenauflösung auf das Laufzeitmodell umstellen.
