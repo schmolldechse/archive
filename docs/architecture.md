@@ -69,9 +69,9 @@ Imported documents are normalized to the same stored-content model as browser ca
 
 ### Core
 
-`backend/Archive.Core` is referenced by both executables. It contains the EF Core model and migrations, repository contracts and implementations, option validation, authorization definitions, processing lease, upload-format selection, and object-storage access.
+`backend/Archive.Core` is referenced by the API, worker, and one-shot snapshot migrator. It contains the EF Core model and migrations, repository contracts and implementations, option validation, authorization definitions, processing lease, upload-format selection, versioned manifest reading, and object-storage access.
 
-The dependency direction is deliberate: API and worker depend on Core; Core does not depend on either host.
+The dependency direction is deliberate: API, worker, and migrator depend on Core; Core does not depend on any host.
 
 ## Snapshot lifecycle
 

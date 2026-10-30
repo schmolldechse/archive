@@ -1,6 +1,7 @@
 # Deployment
 
-The production deployment is split into four Compose fragments under `deploy/production/`:
+The long-running production deployment is split into four Compose fragments under `deploy/production/`. A fifth,
+independent fragment contains the one-shot snapshot migrator:
 
 | File | Services |
 | --- | --- |
@@ -8,6 +9,7 @@ The production deployment is split into four Compose fragments under `deploy/pro
 | `minio.compose.yml` | MinIO server and one-shot bucket initialization |
 | `api.compose.yml` | API and capture worker |
 | `frontend.compose.yml` | SvelteKit frontend |
+| `snapshot-migrator.compose.yml` | One-shot manifest migration tool; never started with the application stack |
 
 Together they form one Compose project on an external Docker network named `archive`. The repository does not include a reverse proxy; the deployment environment supplies TLS and routes the public frontend and API origins to the internal services.
 
@@ -170,6 +172,17 @@ The MinIO image is built by `deploy/production/minio/Dockerfile`. It currently c
 ## Updates
 
 Before an update, review EF Core migrations and any change to stored snapshot format. Database migrations run automatically when the new API starts.
+
+When an update needs to convert older snapshot manifests, follow [Snapshot manifest migration](snapshot-migration.md).
+The migrator image must come from the same revision as the compatible API and worker. Run its dry-run before any write:
+
+```powershell
+docker compose --project-name archive --env-file deploy/production/.env -f deploy/production/snapshot-migrator.compose.yml run --rm snapshot-migrator --dry-run --all
+```
+
+The fragment joins the existing external `archive` network and assumes PostgreSQL and MinIO are already running. It
+does not start or replace long-running services. `--migrate`, `--restore`, and irreversible `--clean --confirm` usage is
+documented in the migration runbook.
 
 A normal image update uses the same command as initial startup:
 

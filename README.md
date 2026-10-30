@@ -52,6 +52,7 @@ Start with [Development](docs/development.md). It covers configuration, process 
 - [Development](docs/development.md)
 - [Configuration](docs/configuration.md)
 - [Deployment](docs/deployment.md)
+- [Snapshot manifest migration](docs/snapshot-migration.md)
 
 The API publishes its OpenAPI document at runtime in Development. The repository does not keep a generated API specification under version control.
 
