@@ -20,4 +20,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Fixtures\SnapshotManifests\*.json" />
+  </ItemGroup>
 </Project>

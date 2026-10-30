@@ -1,0 +1,41 @@
+{
+  "version": 4,
+  "provenance": {
+    "derivedDisplayDocument": true,
+    "sourceObjectKey": "snapshots/11111111111111111111111111111111/source.html",
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "indexSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "sourceUrl": "https://example.test/",
+    "sourceMimeType": "text/html; charset=utf-8",
+    "sourceStatusCode": 200,
+    "capturedAt": "2026-10-26T00:00:00Z",
+    "documentState": "original-response",
+    "redirectChain": []
+  },
+  "interaction": {
+    "normalizer": "archive-snapshot-v3",
+    "containsExecutableContent": true,
+    "diagnostic": null
+  },
+  "resources": [
+    {
+      "path": "index.html",
+      "sourceUrl": "https://example.test/",
+      "contentType": "text/html; charset=utf-8",
+      "objectKey": "snapshots/11111111111111111111111111111111/index.html",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "role": "root-document"
+    },
+    {
+      "path": "assets/app.js",
+      "sourceUrl": "https://example.test/app.js",
+      "contentType": "text/javascript; charset=utf-8",
+      "objectKey": "snapshots/11111111111111111111111111111111/assets/app.js",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "role": "asset"
+    }
+  ],
+  "missingUrls": [],
+  "missingUrlCount": 0,
+  "incomplete": false
+}

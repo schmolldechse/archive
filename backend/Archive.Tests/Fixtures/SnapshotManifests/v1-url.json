@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "resourceReferenceMode": "relative-v1",
+  "htmlObjectKey": "snapshots/11111111111111111111111111111111/index.html",
+  "screenshotObjectKey": "snapshots/11111111111111111111111111111111/screenshot.png",
+  "resources": [
+    {
+      "url": "https://example.test/styles.css",
+      "contentType": "text/css; charset=utf-8",
+      "objectKey": "snapshots/11111111111111111111111111111111/assets/styles"
+    },
+    {
+      "url": "https://example.test/frame.html",
+      "contentType": "text/html; charset=utf-8",
+      "objectKey": "snapshots/11111111111111111111111111111111/frames/child.html"
+    }
+  ],
+  "storageBytes": 1024,
+  "incomplete": false
+}

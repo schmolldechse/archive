@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using Archive.Core.Models.Snapshots;
 using Archive.Core.Entities;
 using Archive.Core.Mapping;
@@ -57,6 +56,7 @@ internal sealed partial class SnapshotRepository(
             .Select(snapshot => new
             {
                 snapshot.ContentPrefix,
+                snapshot.OriginUrl,
                 snapshot.CreatedByUserId,
                 snapshot.ModerationStatus,
                 snapshot.IsPrivate
@@ -91,24 +91,17 @@ internal sealed partial class SnapshotRepository(
             return new SnapshotContentResult.NotFound();
         }
 
-        SnapshotManifest? manifest;
+        ResolvedSnapshotManifest manifest;
         try
         {
             await using (storedManifest.Content)
-                manifest = await JsonSerializer.DeserializeAsync<SnapshotManifest>(storedManifest.Content,
-                    cancellationToken: cancellationToken);
+                manifest = await SnapshotManifestReader.ReadAsync(storedManifest.Content, snapshot.ContentPrefix,
+                    snapshot.OriginUrl, cancellationToken);
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidDataException)
         {
-            logger.LogWarning("Snapshot {SnapshotId} has an unreadable manifest in active generation {ContentPrefix}",
-                snapshotId, snapshot.ContentPrefix);
-            return new SnapshotContentResult.NotFound();
-        }
-
-        if (manifest is null || manifest.Version != SnapshotManifest.CurrentVersion)
-        {
-            logger.LogWarning("Snapshot {SnapshotId} manifest contract does not match its active database metadata",
-                snapshotId);
+            logger.LogWarning("Snapshot {SnapshotId} has an unsupported or invalid manifest in active generation " +
+                "{ContentPrefix}: {ManifestError}", snapshotId, snapshot.ContentPrefix, exception.Message);
             return new SnapshotContentResult.NotFound();
         }
 
@@ -155,18 +148,16 @@ internal sealed partial class SnapshotRepository(
         if (stored is null)
             return new SnapshotContentResult.NotFound();
 
-        var requiresNormalization = isDocument &&
-            (!string.Equals(manifest.Interaction.Normalizer, SnapshotDocumentNormalizer.Version,
-                StringComparison.Ordinal) || manifest.Interaction.Diagnostic is not null);
+        var requiresNormalization = isDocument && manifest.Interaction.RequiresNormalization;
         if (!requiresNormalization)
             return new SnapshotContentResult.Found(new(stored.Content, resource.ContentType, false, resource.Role,
                 stored.Length, stored.Length, EntityTag: entityTag, SupportsRanges: !isDocument));
 
-        if (!SnapshotDocumentNormalizer.SupportsInputVersion(manifest.Interaction.Normalizer))
+        if (!manifest.Interaction.CanNormalize)
         {
             await stored.Content.DisposeAsync();
             logger.LogWarning("Snapshot {SnapshotId} uses unsupported replay normalizer {Normalizer}",
-                snapshotId, manifest.Interaction.Normalizer);
+                snapshotId, manifest.Interaction.Normalizer ?? "legacy-unversioned");
             return new SnapshotContentResult.NotFound();
         }
 
